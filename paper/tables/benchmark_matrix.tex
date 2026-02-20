@@ -1,0 +1,23 @@
+\begin{table}[t]
+\centering
+\caption{Test accuracy across 8 representative datasets (default hyperparameters, 5-fold CV).}
+\label{tab:benchmark}
+\small
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{@{}lcccccccc@{}}
+\toprule
+\textbf{Dataset} & \textbf{LightGBM} & \textbf{CatBoost} & \textbf{XGBoost} & \textbf{EBM} & \textbf{FT-Trans.} & \textbf{RotForest} & \textbf{RF} & \textbf{LogReg} \\
+\midrule
+breast_cancer & 0.961 & 0.958 & 0.953 & \textbf{0.967} & 0.956 & 0.953 & 0.953 & 0.949 \\
+diabetes & 0.745 & 0.766 & 0.741 & 0.764 & 0.704 & 0.740 & 0.767 & \textbf{0.771} \\
+iris & 0.947 & 0.960 & 0.947 & 0.953 & 0.567 & 0.967 & 0.953 & \textbf{0.973} \\
+digits & 0.975 & 0.977 & 0.965 & 0.972 & 0.763 & 0.956 & \textbf{0.978} & 0.967 \\
+credit-g & \textbf{0.773} & 0.769 & 0.770 & 0.752 & 0.742 & 0.746 & 0.760 & 0.762 \\
+spambase & 0.954 & \textbf{0.955} & 0.954 & 0.950 & 0.940 & 0.943 & 0.942 & 0.925 \\
+letter & \textbf{0.914} & 0.885 & 0.899 & 0.846 & 0.642 & 0.844 & 0.830 & 0.769 \\
+pendigits & \textbf{0.987} & 0.984 & 0.983 & 0.977 & 0.965 & 0.983 & 0.984 & 0.941 \\
+\midrule
+\textit{Avg. Rank} & 2.7 & \textbf{2.5} & 4.6 & 4.2 & 7.2 & 5.4 & 4.2 & 5.2 \\
+\bottomrule
+\end{tabular}
+\end{table}

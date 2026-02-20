@@ -1,0 +1,71 @@
+name: Feature Request
+description: Suggest a new feature or improvement
+labels: [enhancement]
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for suggesting an improvement to Endgame. Please describe the feature and why it would be valuable.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear description of the feature you would like.
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: Why is this feature needed? What problem does it solve? Include links to papers or implementations if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-solution
+    attributes:
+      label: Proposed Solution
+      description: How do you think this should work? Include API sketches if you have them.
+      placeholder: |
+        ```python
+        from endgame.models import NewModel
+        model = NewModel(param=value)
+        model.fit(X, y)
+        ```
+
+  - type: dropdown
+    id: module
+    attributes:
+      label: Module
+      description: Which module does this relate to?
+      options:
+        - models
+        - ensemble
+        - calibration
+        - preprocessing
+        - validation
+        - visualization
+        - timeseries
+        - signal
+        - vision
+        - nlp
+        - audio
+        - anomaly
+        - tune
+        - benchmark
+        - quick
+        - automl
+        - mcp
+        - explain
+        - fairness
+        - other
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Willingness to Contribute
+      options:
+        - label: I would be willing to submit a PR for this feature

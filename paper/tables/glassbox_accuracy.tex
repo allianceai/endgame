@@ -1,0 +1,28 @@
+\begin{table}[!htb]
+\centering
+\caption{Glass-box vs.\ black-box accuracy across 29 benchmark datasets (mean $\pm$ std over per-dataset accuracy). All models use default hyperparameters. Friedman test across 12 models with $\geq$20 datasets on 22 shared datasets: $\chi^2 = 117.2$, $p < 0.001$.}
+\label{tab:glassbox}
+\small
+\begin{tabular}{@{}llccc@{}}
+\toprule
+\textbf{Model} & \textbf{Paradigm} & \textbf{Datasets} & \textbf{Mean Acc.} & \textbf{Unique} \\
+\midrule
+\multicolumn{5}{l}{\textit{Glass-box (interpretable)}} \\
+EBM & Additive (GAM) & 28 & $0.883 \pm 0.110$ & \checkmark \\
+MARS & Piecewise linear & 28 & $0.793 \pm 0.133$ & \checkmark \\
+RuleFit & Rule ensemble & 10 & $0.928 \pm 0.113$ & \checkmark \\
+C5.0 & Decision rules (Rust) & 28 & $0.824 \pm 0.115$ & \checkmark \\
+TAN & Bayesian network & 23 & $0.853 \pm 0.108$ & \checkmark \\
+ESKDB & Bayesian ensemble & 22 & $0.836 \pm 0.111$ & \checkmark \\
+NAM & Neural additive & 28 & $0.821 \pm 0.145$ & \checkmark \\
+NaiveBayes & Probabilistic & 28 & $0.758 \pm 0.157$ &  \\
+\midrule
+\multicolumn{5}{l}{\textit{Black-box (reference)}} \\
+LightGBM & GBDT & 28 & $0.883 \pm 0.118$ & \\
+CatBoost & GBDT & 28 & $0.886 \pm 0.112$ & \\
+XGBoost & GBDT & 28 & $0.877 \pm 0.117$ & \\
+RandomForest & Ensemble & 29 & $0.878 \pm 0.112$ & \\
+FT-Transformer & Deep tabular & 28 & $0.766 \pm 0.188$ & \\
+\bottomrule
+\end{tabular}
+\end{table}

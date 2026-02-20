@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "endgame": {
+      "command": "python",
+      "args": ["-m", "endgame.mcp"]
+    }
+  }
+}

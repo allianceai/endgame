@@ -1,0 +1,18 @@
+\begin{table}[t]
+\centering
+\caption{Adult Census Income results. Individual models evaluated via 5-fold CV; SuperLearner evaluated on the held-out test set. Wrapping the SuperLearner in a conformal classifier (\texttt{alpha=0.05}) yields 100.0\% empirical coverage.}
+\label{tab:adult}
+\small
+\begin{tabular}{@{}lccc@{}}
+\toprule
+\textbf{Model} & \textbf{ROC-AUC} & \textbf{Accuracy} & \textbf{Fit Time (s)} \\
+\midrule
+SuperLearner & 0.9307 & 0.8771 & 577.4 \\
+LightGBM & 0.9284 $\pm$ 0.0027 & 0.8733 $\pm$ 0.0043 & 21.4 \\
+EBM & 0.9281 $\pm$ 0.0028 & 0.8719 $\pm$ 0.0047 & 430.0 \\
+CatBoost & 0.9173 $\pm$ 0.0028 & 0.8610 $\pm$ 0.0034 & 28.5 \\
+RandomForest & 0.9071 $\pm$ 0.0039 & 0.8553 $\pm$ 0.0046 & 40.4 \\
+LogisticRegression & 0.8093 $\pm$ 0.0113 & 0.8035 $\pm$ 0.0068 & 34.8 \\
+\bottomrule
+\end{tabular}
+\end{table}
