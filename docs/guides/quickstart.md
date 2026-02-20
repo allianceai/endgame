@@ -84,7 +84,7 @@ cat.fit(X_train, y_train)
 
 Available presets: `"fast"`, `"endgame"` (competition defaults).
 
-See [models guide](../models.md) for the full list of supported parameters.
+See [models guide](models.md) for the full list of supported parameters.
 
 ### Deep Tabular Models
 
@@ -346,7 +346,7 @@ report = ClassificationReport(
 report.save("classification_report.html")
 ```
 
-See the [visualization guide](../visualization_guide.md) for the complete chart
+See the [visualization guide](visualization.md) for the complete chart
 catalogue (40+ chart types including PDP, waterfall / SHAP, parallel
 coordinates, and calibration plots).
 
@@ -356,13 +356,13 @@ coordinates, and calibration plots).
 
 | Topic | Guide |
 |---|---|
-| Preprocessing (encoding, feature engineering, balancing) | [preprocessing guide](../preprocessing.md) |
-| Full model catalogue (100+ estimators) | [models guide](../models.md) |
-| Hyperparameter tuning with Optuna | [tune API](../api/tune.rst) |
-| SHAP, LIME, counterfactuals | [explain API](../api/explain.rst) |
-| Fairness metrics and mitigation | [fairness API](../api/fairness.rst) |
-| Anomaly detection | [anomaly API](../api/anomaly.rst) |
-| Time series forecasting and classification | [timeseries API](../api/timeseries.rst) |
-| Signal processing | [signal API](../api/signal.rst) |
-| Visualization catalogue | [visualization guide](../visualization_guide.md) |
-| MCP server (AI assistant integration) | [MCP server guide](../mcp_server.md) |
+| Preprocessing (encoding, feature engineering, balancing) | [preprocessing guide](preprocessing.md) |
+| Full model catalogue (100+ estimators) | [models guide](models.md) |
+| Hyperparameter tuning with Optuna | [tune API](../api/tune) |
+| SHAP, LIME, counterfactuals | [explain API](../api/explain) |
+| Fairness metrics and mitigation | [fairness API](../api/fairness) |
+| Anomaly detection | [anomaly API](../api/anomaly) |
+| Time series forecasting and classification | [timeseries API](../api/timeseries) |
+| Signal processing | [signal API](../api/signal) |
+| Visualization catalogue | [visualization guide](visualization.md) |
+| MCP server (AI assistant integration) | [MCP server guide](mcp_server.md) |

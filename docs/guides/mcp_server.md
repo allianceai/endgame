@@ -284,7 +284,7 @@ Artifacts live in memory for the duration of the server process. Files (visualiz
 
 All tools return structured JSON with consistent format:
 
-```json
+```text
 // Success
 {"status": "ok", "dataset_id": "ds_a1b2c3d4", "shape": [1000, 15], ...}
 

@@ -49,6 +49,8 @@ Key Features
    guides/automl
    guides/explainability
    guides/visualization
+   guides/tracking
+   guides/mcp_server
 
 .. toctree::
    :maxdepth: 2

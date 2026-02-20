@@ -575,8 +575,8 @@ A practical workflow for competitions:
 
 ## See Also
 
-- [API Reference: models](../api/models.md) — complete parameter documentation
-- [Ensemble Guide](ensemble.md) — combining multiple models
+- [API Reference: models](../api/models) — complete parameter documentation
+- [Ensemble Guide](ensembles.md) — combining multiple models
 - [Calibration Guide](calibration.md) — probability calibration and conformal prediction
-- [Explainability Guide](explain.md) — SHAP, LIME, and partial dependence
-- [Tuning Guide](tuning.md) — Optuna integration with preset search spaces
+- [Explainability Guide](explainability.md) — SHAP, LIME, and partial dependence
+- [Tuning Guide](automl.md) — Optuna integration with preset search spaces
