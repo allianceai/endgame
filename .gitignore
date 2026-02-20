@@ -1,0 +1,77 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+._*
+
+# Claude Code
+.claude/
+
+# Build caches (e.g. compiled CORELS binary)
+.cache/
+
+# Rust build artifacts (C5.0, Cubist)
+**/target/
+
+# Git backup
+.git-backup/
+
+# Logs and artifacts
+*.log
+lightning_logs/
+catboost_info/
+
+# Data and results (large files)
+data/
+results/
+saved_models/
+submissions/
+*.parquet
+
+# Benchmark outputs
+benchmark_results_report.html
+*.csv
+
+# Sphinx build output
+docs/_build/
+
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
+# PyTorch temp
+.pt_tmp/
+
+# Paper (unpublished research — not public yet)
+paper/
+
+# AutoML output directories
+automl_best_quality_output/
+automl_interpretable_output/
+automl_evolutionary_output/
+
+# Requirements files (use pyproject.toml)
+requirements*.txt
+!docs/requirements.txt

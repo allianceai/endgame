@@ -1,0 +1,13 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "cubist"
+version = "0.1.0"
+description = "High-performance Cubist regression tree with Python bindings"
+requires-python = ">=3.10"
+
+[tool.maturin]
+features = ["pyo3/extension-module"]
+module-name = "endgame.models.trees.cubist_rust"

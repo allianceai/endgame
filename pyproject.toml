@@ -1,0 +1,223 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "endgame-ml"
+version = "1.0.0"
+description = "A living library of machine learning — classic to SOTA, under one roof"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "Cameron Hamilton" }
+]
+keywords = [
+    "machine-learning",
+    "deep-learning",
+    "tabular-data",
+    "automl",
+    "ensemble-methods",
+    "time-series",
+    "signal-processing",
+    "interpretability",
+    "calibration",
+    "scikit-learn",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = [
+    "numpy>=1.24",
+    "polars>=0.20",
+    "scikit-learn>=1.3",
+    "optuna>=3.4",
+    "scipy>=1.10",
+    "networkx>=3.0",
+]
+
+[project.optional-dependencies]
+tabular = [
+    "xgboost>=2.0",
+    "lightgbm>=4.0",
+    "catboost>=1.2",
+    "torch>=2.0",
+    "interpret>=0.5",
+    "tabpfn>=0.1.10",
+    "tabdpt>=1.0",
+    "ngboost>=0.5",
+    "imbalanced-learn>=0.12",
+    "mord>=0.7",
+    "sympy>=1.12",
+    "numba>=0.59",
+    "pytorch-tabnet>=4.0",
+    "pytorch-tabular>=1.1",
+    "pygam>=0.9",
+    "fasterrisk>=0.1",
+    "ctgan>=0.10",
+]
+trees = [
+    "joblib>=1.3",
+    "treeple>=0.10",
+]
+bayesian = [
+    "networkx>=3.0",
+    "pgmpy>=0.1.25",
+    "causal-learn>=0.1.4",
+]
+calibration = [
+    "scipy>=1.10",
+]
+vision = [
+    "torch>=2.0",
+    "torchvision>=0.16",
+    "timm>=0.9",
+    "albumentations>=1.3",
+    "segmentation-models-pytorch>=0.3",
+]
+nlp = [
+    "torch>=2.0",
+    "transformers>=4.35",
+    "tokenizers>=0.15",
+    "datasets>=2.14",
+    "bitsandbytes>=0.41",
+    "peft>=0.10",
+    "evaluate>=0.4",
+    "sacrebleu>=2.3",
+]
+audio = [
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "librosa>=0.10",
+]
+timeseries = [
+    "statsforecast>=2.0",
+    "darts>=0.28",
+    "tsfresh>=0.20",
+    "sktime>=0.30",
+]
+signal = [
+    "PyWavelets>=1.5",
+]
+neuroevolution = [
+    "neat-python>=0.92",
+    "tensorneat>=0.3",
+]
+benchmark = [
+    "openml>=0.14",
+    "pymfe>=0.4",
+    "scipy>=1.10",
+    "plotly>=5.18",
+    "matplotlib>=3.7",
+    "seaborn>=0.12",
+]
+explain = [
+    "shap>=0.43",
+    "lime>=0.2",
+    "dice-ml>=0.10",
+]
+fairness = [
+    "fairlearn>=0.9",
+]
+anomaly = [
+    "pyod>=2.0",
+]
+deployment = [
+    "onnx>=1.14",
+    "onnxruntime>=1.16",
+    "skl2onnx>=1.16",
+    "hummingbird-ml>=0.4",
+]
+tracking = [
+    "mlflow>=2.10",
+]
+mcp = [
+    "mcp>=1.2.0",
+]
+all = [
+    "endgame-ml[tabular,trees,bayesian,vision,nlp,audio,timeseries,signal,benchmark,calibration,explain,fairness,anomaly,deployment,tracking,mcp,neuroevolution]",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+    "mypy>=1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/allianceai/endgame"
+Documentation = "https://github.com/allianceai/endgame#readme"
+Repository = "https://github.com/allianceai/endgame"
+"Bug Tracker" = "https://github.com/allianceai/endgame/issues"
+
+[tool.hatch.build.targets.sdist]
+exclude = [
+    "paper/",
+    "scripts/",
+    "results/",
+    "data/",
+    "saved_models/",
+    "submissions/",
+    "CLAUDE.md",
+    "ROADMAP.md",
+    ".claude/",
+    ".coverage",
+    ".pt_tmp/",
+    "*.csv",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["endgame"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+ignore = [
+    "E501",   # line too long (handled by formatter)
+    "F401",   # unused imports (many are intentional re-exports in __init__.py)
+    "F841",   # unused variable (intentional unpacking patterns)
+    "E402",   # module import not at top (conditional imports)
+    "B904",   # raise without from
+    "B905",   # zip without strict
+    "B007",   # unused loop variable
+    "B006",   # mutable argument default
+    "B028",   # no explicit stacklevel
+    "B017",   # assert raises
+    "B023",   # function uses loop variable
+    "SIM102", # collapsible if
+    "SIM103", # needless bool
+    "SIM105", # suppressible exception
+    "SIM108", # ternary suggestion
+    "SIM101", # duplicate isinstance
+    "SIM113", # enumerate for loop
+    "SIM114", # combine if branches
+    "SIM118", # in dict keys
+    "E741",   # ambiguous variable name (l, O, I)
+    "UP007",  # non-pep604 union (X | Y) — breaks runtime type aliases
+    "UP035",  # deprecated import
+    "UP045",  # non-pep604 optional (X | None)
+]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_ignores = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --tb=short"
