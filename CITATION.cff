@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+title: "Endgame: A Living Library of Machine Learning"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - given-names: Cameron Hamilton
+    family-names: Hamilton
+    affiliation: Alliance AI
+repository-code: "https://github.com/allianceai/endgame"
+url: "https://github.com/allianceai/endgame"
+license: Apache-2.0
+version: 1.0.0
+date-released: "2026-02-22"
+keywords:
+  - machine-learning
+  - deep-learning
+  - tabular-data
+  - ensemble-methods
+  - automl
+  - time-series
+  - signal-processing
+  - interpretability
+  - calibration
+  - scikit-learn
+abstract: >-
+  Endgame brings together classic and state-of-the-art machine learning
+  methods from every domain under a single scikit-learn-compatible API.
+  It provides 300+ estimators, transformers, and visualizers across
+  tabular, time series, signal processing, vision, NLP, and audio —
+  including deep tabular models (FT-Transformer, SAINT, TabPFN),
+  time series classification (ROCKET, HYDRA), conformal prediction
+  with coverage guarantees, 22 ensemble strategies, and 42 self-contained
+  interactive HTML visualizations. Designed for research, production,
+  and competition.

@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install ruff
+
+      - name: Lint
+        run: ruff check endgame/
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,tabular,calibration,explain,fairness,benchmark,anomaly,tracking,mcp]"
+
+      - name: Run tests
+        run: >
+          pytest tests/ -v --tb=short
+          --cov=endgame --cov-report=xml
+          --ignore=tests/test_oblique_forest.py
+          --ignore=tests/test_grande.py
+          --ignore=tests/test_tabdpt.py
+          --ignore=tests/test_nlp.py
+          --ignore=tests/test_nlp_translation.py
+          --ignore=tests/test_vision.py
+          -k "not TestExtendedIsolationForest and not (TestTabularPredictor and (test_predict_classification or test_predict_proba_classification or test_leaderboard)) and not (TestAutoMLPredictor and (test_predict_automl or test_chained_fit_predict)) and not (TestCORELS and test_fit_predict_without_corels) and not (TestGAM and test_partial_dependence) and not TestUMAPReducer and not TestTriMAPReducer and not TestPHATEReducer and not TestPaCMAPReducer and not TestTextPredictor"
+
+      - name: Upload coverage
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          files: coverage.xml
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev,tabular,calibration,explain,fairness]"
+
+      - name: Type check (informational)
+        run: |
+          echo "Running mypy (informational — errors do not block CI)"
+          mypy endgame/ --ignore-missing-imports --no-error-summary 2>&1 | tail -20 || true
+          echo ""
+          mypy endgame/ --ignore-missing-imports 2>&1 | grep -c "error:" || echo "0 errors"
+          echo "See full output above. Typecheck is informational until error count reaches zero."

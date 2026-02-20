@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classification Report</title>
+<style>
+
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #1a1b26;
+  --bg-card: #1e1f2e;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0b0;
+  --text-muted: #606070;
+  --border: #2a2b3d;
+  --accent: #4e79a7;
+  --grid-line: rgba(255,255,255,0.08);
+  --tooltip-bg: rgba(15,17,23,0.95);
+  --tooltip-border: rgba(78,121,167,0.3);
+}
+
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-card: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #555570;
+  --text-muted: #999;
+  --border: #e0e0e0;
+  --accent: #4e79a7;
+  --grid-line: rgba(0,0,0,0.08);
+  --tooltip-bg: rgba(255,255,255,0.97);
+  --tooltip-border: rgba(78,121,167,0.3);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+  overflow: auto;
+}
+
+#chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+#chart-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+#chart-container {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#chart-container svg {
+  display: block;
+}
+
+.tooltip {
+  position: fixed;
+  padding: 8px 12px;
+  background: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 1000;
+  max-width: 300px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  line-height: 1.5;
+}
+
+.tooltip.visible {
+  opacity: 1;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+
+body {
+  display: block;
+  padding: 0;
+  align-items: initial;
+  justify-content: initial;
+}
+
+.report-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 32px 24px;
+}
+
+.report-header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.report-header h1 {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.report-header .subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.metrics-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 32px;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
+}
+
+.metric-card .metric-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+}
+
+.metric-card .metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+  gap: 24px;
+}
+
+.report-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  overflow: hidden;
+}
+
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.chart-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.chart-panel svg {
+  display: block;
+}
+
+.chart-panel .legend {
+  margin-top: 8px;
+}
+
+.report-footer {
+  margin-top: 28px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.report-footer h3 {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.report-footer pre {
+  background: var(--bg-secondary);
+  padding: 10px;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.interp-section {
+  margin-top: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.interp-section h2 {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+}
+
+.rules-list {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  padding-left: 16px;
+}
+
+.rules-list li {
+  margin-bottom: 4px;
+}
+
+</style>
+</head>
+<body>
+<div class="report-container">
+  <header class="report-header">
+    <h1>Classification Report</h1>
+    <p class="subtitle">LightGBM (endgame preset) — German Credit — 300 samples · 2 classes</p>
+  </header>
+
+  <div class="metrics-panel">
+    <div class="metric-card"><div class="metric-value">75.67%</div><div class="metric-label">Accuracy</div></div>
+<div class="metric-card"><div class="metric-value">65.16%</div><div class="metric-label">Balanced Acc</div></div>
+<div class="metric-card"><div class="metric-value">0.7773</div><div class="metric-label">Precision</div></div>
+<div class="metric-card"><div class="metric-value">0.9143</div><div class="metric-label">Recall</div></div>
+<div class="metric-card"><div class="metric-value">0.8403</div><div class="metric-label">F1 Score</div></div>
+<div class="metric-card"><div class="metric-value">0.3643</div><div class="metric-label">MCC</div></div>
+<div class="metric-card"><div class="metric-value">0.3435</div><div class="metric-label">Cohen κ</div></div>
+<div class="metric-card"><div class="metric-value">0.7835</div><div class="metric-label">AUC</div></div>
+<div class="metric-card"><div class="metric-value">0.5002</div><div class="metric-label">Log Loss</div></div>
+<div class="metric-card"><div class="metric-value">0.1664</div><div class="metric-label">Brier Score</div></div>
+  </div>
+
+  <div class="charts-grid">
+    
+<div class="report-section">
+  <h2 class="section-title">Confusion Matrix</h2>
+  <div id="cm" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">ROC Curve</h2>
+  <div id="roc" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Precision-Recall Curve</h2>
+  <div id="pr" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Calibration Plot</h2>
+  <div id="cal" class="chart-panel" style="width:600px; height:500px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Feature Importances (Top 20)</h2>
+  <div id="imp" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Class Distribution (Test Set)</h2>
+  <div id="classdist" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Prediction Score Distribution</h2>
+  <div id="predhist" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+  </div>
+
+  <div class="report-footer">
+<h3>Per-Class Metrics</h3>
+<pre>
+Class                 Precision     Recall         F1    Support
+----------------------------------------------------------------
+bad                      0.6604     0.3889     0.4895         90
+good                     0.7773     0.9143     0.8403        210
+</pre></div>
+</div>
+<div id="tooltip" class="tooltip"></div>
+<script>
+
+const EG = {};
+
+// ---- SVG namespace ----
+EG.SVG_NS = 'http://www.w3.org/2000/svg';
+
+// ---- Create SVG element ----
+EG.svg = function(tag, attrs) {
+  const el = document.createElementNS(EG.SVG_NS, tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      el.setAttribute(k, v);
+    }
+  }
+  return el;
+};
+
+// ---- Create root SVG ----
+EG.createSVG = function(container, w, h, margin) {
+  margin = margin || {top: 40, right: 30, bottom: 50, left: 60};
+  const svg = EG.svg('svg', {width: w, height: h});
+  container.appendChild(svg);
+  const plotArea = EG.svg('g', {transform: `translate(${margin.left},${margin.top})`});
+  svg.appendChild(plotArea);
+  const iw = w - margin.left - margin.right;
+  const ih = h - margin.top - margin.bottom;
+  return {svg, g: plotArea, width: iw, height: ih, margin};
+};
+
+// ---- Number formatting ----
+EG.fmt = function(v, decimals) {
+  if (v === null || v === undefined) return '';
+  decimals = decimals !== undefined ? decimals : 2;
+  if (Math.abs(v) >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return (v/1e3).toFixed(1) + 'K';
+  return Number(v).toFixed(decimals);
+};
+
+EG.pct = function(v) { return (v * 100).toFixed(1) + '%'; };
+
+// ---- HTML escaping ----
+EG.esc = function(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+};
+
+// ---- Tooltip ----
+EG.tooltip = (function() {
+  let el = null;
+  return {
+    show: function(evt, html) {
+      if (!el) el = document.getElementById('tooltip');
+      el.innerHTML = html;
+      el.classList.add('visible');
+      const x = evt.clientX + 12;
+      const y = evt.clientY - 10;
+      el.style.left = Math.min(x, window.innerWidth - 280) + 'px';
+      el.style.top = Math.min(y, window.innerHeight - 100) + 'px';
+    },
+    hide: function() {
+      if (!el) el = document.getElementById('tooltip');
+      el.classList.remove('visible');
+    }
+  };
+})();
+
+// ---- Linear scale ----
+EG.scaleLinear = function(domain, range) {
+  const d0 = domain[0], d1 = domain[1];
+  const r0 = range[0], r1 = range[1];
+  const span = d1 - d0 || 1;
+  function scale(v) { return r0 + (v - d0) / span * (r1 - r0); }
+  scale.invert = function(v) { return d0 + (v - r0) / (r1 - r0) * span; };
+  scale.domain = domain;
+  scale.range = range;
+  return scale;
+};
+
+// ---- Band scale (for categories) ----
+EG.scaleBand = function(labels, range, padding) {
+  padding = padding || 0.1;
+  const r0 = range[0], r1 = range[1];
+  const n = labels.length;
+  const totalPadding = padding * (n + 1);
+  const bandWidth = (r1 - r0 - totalPadding * (r1 - r0) / (n + n * padding)) / n;
+  const step = bandWidth + padding * bandWidth;
+  const offset = (r1 - r0 - n * step + padding * bandWidth) / 2;
+  function scale(label) {
+    const i = labels.indexOf(label);
+    return r0 + offset + i * step;
+  }
+  scale.bandwidth = function() { return bandWidth; };
+  scale.labels = labels;
+  return scale;
+};
+
+// ---- Nice axis ticks ----
+EG.niceTicks = function(min, max, count) {
+  count = count || 6;
+  if (min === max) { return [min]; }
+  const range = max - min;
+  const rough = range / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const residual = rough / mag;
+  let nice;
+  if (residual <= 1.5) nice = 1 * mag;
+  else if (residual <= 3) nice = 2 * mag;
+  else if (residual <= 7) nice = 5 * mag;
+  else nice = 10 * mag;
+  const lo = Math.floor(min / nice) * nice;
+  const hi = Math.ceil(max / nice) * nice;
+  const ticks = [];
+  for (let v = lo; v <= hi + nice * 0.5; v += nice) {
+    ticks.push(Math.round(v * 1e10) / 1e10);
+  }
+  return ticks;
+};
+
+// ---- Draw X axis ----
+EG.drawXAxis = function(g, scale, height, label, isBand) {
+  const axisG = EG.svg('g', {transform: `translate(0,${height})`});
+  g.appendChild(axisG);
+
+  // Baseline
+  axisG.appendChild(EG.svg('line', {x1: 0, y1: 0, x2: scale.range ? scale.range[1] : 0, y2: 0,
+    stroke: 'var(--border)', 'stroke-width': 1}));
+
+  if (isBand) {
+    const labels = scale.labels || [];
+    const bw = scale.bandwidth();
+    labels.forEach(function(lbl) {
+      const x = scale(lbl) + bw / 2;
+      const tick = EG.svg('text', {x: x, y: 22, 'text-anchor': 'middle',
+        fill: 'var(--text-secondary)', 'font-size': '11px'});
+      tick.textContent = lbl.length > 12 ? lbl.slice(0,10) + '…' : lbl;
+      axisG.appendChild(tick);
+    });
+  } else {
+    const ticks = EG.niceTicks(scale.domain[0], scale.domain[1]);
+    ticks.forEach(function(v) {
+      const x = scale(v);
+      axisG.appendChild(EG.svg('line', {x1: x, y1: 0, x2: x, y2: 5,
+        stroke: 'var(--text-muted)', 'stroke-width': 1}));
+      const tick = EG.svg('text', {x: x, y: 20, 'text-anchor': 'middle',
+        fill: 'var(--text-secondary)', 'font-size': '11px'});
+      tick.textContent = EG.fmt(v, v % 1 === 0 ? 0 : 2);
+      axisG.appendChild(tick);
+    });
+  }
+
+  if (label) {
+    const w = scale.range ? (scale.range[1] - scale.range[0]) : 0;
+    const lbl = EG.svg('text', {x: w / 2, y: 40, 'text-anchor': 'middle',
+      fill: 'var(--text-secondary)', 'font-size': '12px', 'font-weight': '500'});
+    lbl.textContent = label;
+    axisG.appendChild(lbl);
+  }
+
+  return axisG;
+};
+
+// ---- Draw Y axis ----
+EG.drawYAxis = function(g, scale, width, label, isBand) {
+  const axisG = EG.svg('g');
+  g.appendChild(axisG);
+
+  axisG.appendChild(EG.svg('line', {x1: 0, y1: 0, x2: 0,
+    y2: scale.range ? scale.range[0] : 0,
+    stroke: 'var(--border)', 'stroke-width': 1}));
+
+  if (isBand) {
+    const labels = scale.labels || [];
+    const bw = scale.bandwidth();
+    labels.forEach(function(lbl) {
+      const y = scale(lbl) + bw / 2;
+      const tick = EG.svg('text', {x: -8, y: y + 4, 'text-anchor': 'end',
+        fill: 'var(--text-secondary)', 'font-size': '11px'});
+      tick.textContent = lbl.length > 15 ? lbl.slice(0,13) + '…' : lbl;
+      axisG.appendChild(tick);
+    });
+  } else {
+    const ticks = EG.niceTicks(scale.domain[0], scale.domain[1]);
+    ticks.forEach(function(v) {
+      const y = scale(v);
+      // Grid line
+      axisG.appendChild(EG.svg('line', {x1: 0, y1: y, x2: width, y2: y,
+        stroke: 'var(--grid-line)', 'stroke-width': 1}));
+      axisG.appendChild(EG.svg('line', {x1: -5, y1: y, x2: 0, y2: y,
+        stroke: 'var(--text-muted)', 'stroke-width': 1}));
+      const tick = EG.svg('text', {x: -8, y: y + 4, 'text-anchor': 'end',
+        fill: 'var(--text-secondary)', 'font-size': '11px'});
+      tick.textContent = EG.fmt(v, v % 1 === 0 ? 0 : 2);
+      axisG.appendChild(tick);
+    });
+  }
+
+  if (label) {
+    const h = scale.range ? Math.abs(scale.range[0] - scale.range[1]) : 0;
+    const lbl = EG.svg('text', {'text-anchor': 'middle',
+      fill: 'var(--text-secondary)', 'font-size': '12px', 'font-weight': '500',
+      transform: `translate(-45,${h/2}) rotate(-90)`});
+    lbl.textContent = label;
+    axisG.appendChild(lbl);
+  }
+
+  return axisG;
+};
+
+// ---- Draw legend ----
+EG.drawLegend = function(container, items) {
+  // items: [{label, color}]
+  const div = document.createElement('div');
+  div.className = 'legend';
+  items.forEach(function(item) {
+    const el = document.createElement('div');
+    el.className = 'legend-item';
+    const swatch = document.createElement('div');
+    swatch.className = 'legend-swatch';
+    swatch.style.background = item.color;
+    el.appendChild(swatch);
+    const text = document.createElement('span');
+    text.textContent = item.label;
+    el.appendChild(text);
+    div.appendChild(el);
+  });
+  container.parentElement.appendChild(div);
+};
+
+// ---- Color interpolation ----
+EG.lerpColor = function(c1, c2, t) {
+  const r1 = parseInt(c1.slice(1,3), 16), g1 = parseInt(c1.slice(3,5), 16), b1 = parseInt(c1.slice(5,7), 16);
+  const r2 = parseInt(c2.slice(1,3), 16), g2 = parseInt(c2.slice(3,5), 16), b2 = parseInt(c2.slice(5,7), 16);
+  const r = Math.round(r1 + (r2-r1)*t), g = Math.round(g1 + (g2-g1)*t), b = Math.round(b1 + (b2-b1)*t);
+  return '#' + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+};
+
+// ---- Map value to color from palette ----
+EG.colorScale = function(palette, min, max) {
+  return function(v) {
+    if (palette.length === 1) return palette[0];
+    const t = Math.max(0, Math.min(1, (v - min) / (max - min || 1)));
+    const idx = t * (palette.length - 1);
+    const lo = Math.floor(idx), hi = Math.min(lo + 1, palette.length - 1);
+    return EG.lerpColor(palette[lo], palette[hi], idx - lo);
+  };
+};
+
+
+(function() {
+  const data = {"matrix": [[35, 55], [18, 192]], "classNames": ["bad", "good"], "total": 300};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('cm');
+  
+function renderChart_cm(data, config, container) {
+  const n = data.classNames.length;
+  const W = config.width, H = config.height;
+  const margin = {top: 30, right: 20, bottom: 60, left: 80};
+  const svg = EG.svg('svg', {width: W, height: H});
+  container.appendChild(svg);
+  const g = EG.svg('g', {transform: `translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW = W - margin.left - margin.right;
+  const iH = H - margin.top - margin.bottom;
+  const cellW = iW / n, cellH = iH / n;
+  let maxVal = 0;
+  data.matrix.forEach(r => r.forEach(v => { if(v > maxVal) maxVal = v; }));
+  if(maxVal===0) maxVal=1;
+
+  function heatColor(v) {
+    const t = v / maxVal;
+    const r = Math.round(30 + 200*t), gg = Math.round(60 + 80*(1-t)), b = Math.round(180 - 80*t);
+    return `rgb(${r},${gg},${b})`;
+  }
+
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      const v = data.matrix[i][j];
+      const rect = EG.svg('rect', {x:j*cellW, y:i*cellH, width:cellW-2, height:cellH-2, fill:heatColor(v), rx:4});
+      rect.addEventListener('mouseenter', e => {
+        EG.tooltip.show(e, `<b>True:</b> ${data.classNames[i]}<br><b>Pred:</b> ${data.classNames[j]}<br><b>Count:</b> ${v}`);
+      });
+      rect.addEventListener('mouseleave', () => EG.tooltip.hide());
+      g.appendChild(rect);
+      const txt = EG.svg('text', {x:j*cellW+cellW/2-1, y:i*cellH+cellH/2+5, 'text-anchor':'middle', fill:v/maxVal>0.5?'#fff':'var(--text-primary)', 'font-size':'14px', 'font-weight':'600'});
+      txt.textContent = v;
+      g.appendChild(txt);
+    }
+  }
+  // Labels
+  for(let i=0;i<n;i++){
+    g.appendChild(EG.svg('text', {x:-8, y:i*cellH+cellH/2+4, 'text-anchor':'end', fill:'var(--text-secondary)', 'font-size':'11px'})).textContent = data.classNames[i];
+    g.appendChild(EG.svg('text', {x:i*cellW+cellW/2, y:iH+18, 'text-anchor':'middle', fill:'var(--text-secondary)', 'font-size':'11px'})).textContent = data.classNames[i];
+  }
+  g.appendChild(EG.svg('text', {x:iW/2, y:iH+42, 'text-anchor':'middle', fill:'var(--text-muted)', 'font-size':'12px'})).textContent = 'Predicted';
+  g.appendChild(EG.svg('text', {'text-anchor':'middle', fill:'var(--text-muted)', 'font-size':'12px', transform:`translate(-55,${iH/2}) rotate(-90)`})).textContent = 'Actual';
+}
+
+  renderChart_cm(data, config, container);
+})();
+
+(function() {
+  const data = {"curves": [{"fpr": [0.0, 0.0, 0.0, 0.011111, 0.011111, 0.022222, 0.022222, 0.044444, 0.044444, 0.055556, 0.055556, 0.066667, 0.066667, 0.077778, 0.077778, 0.088889, 0.088889, 0.1, 0.1, 0.111111, 0.111111, 0.133333, 0.133333, 0.144444, 0.144444, 0.166667, 0.166667, 0.177778, 0.177778, 0.188889, 0.188889, 0.2, 0.2, 0.255556, 0.255556, 0.277778, 0.277778, 0.288889, 0.288889, 0.311111, 0.311111, 0.322222, 0.322222, 0.333333, 0.333333, 0.344444, 0.344444, 0.388889, 0.388889, 0.4, 0.4, 0.422222, 0.422222, 0.433333, 0.433333, 0.444444, 0.444444, 0.488889, 0.488889, 0.5, 0.5, 0.511111, 0.511111, 0.533333, 0.533333, 0.555556, 0.555556, 0.577778, 0.577778, 0.588889, 0.588889, 0.655556, 0.655556, 0.666667, 0.666667, 0.688889, 0.688889, 0.744444, 0.744444, 0.755556, 0.755556, 0.766667, 0.766667, 0.811111, 0.811111, 0.844444, 0.844444, 0.855556, 0.855556, 0.888889, 0.888889, 0.9, 0.9, 0.911111, 0.911111, 1.0], "tpr": [0.0, 0.004762, 0.047619, 0.047619, 0.147619, 0.147619, 0.228571, 0.228571, 0.319048, 0.319048, 0.380952, 0.380952, 0.428571, 0.428571, 0.438095, 0.438095, 0.457143, 0.457143, 0.519048, 0.519048, 0.538095, 0.538095, 0.542857, 0.542857, 0.561905, 0.561905, 0.595238, 0.595238, 0.6, 0.6, 0.642857, 0.642857, 0.657143, 0.657143, 0.67619, 0.67619, 0.680952, 0.680952, 0.704762, 0.704762, 0.728571, 0.728571, 0.747619, 0.747619, 0.771429, 0.771429, 0.780952, 0.780952, 0.790476, 0.790476, 0.804762, 0.804762, 0.809524, 0.809524, 0.82381, 0.82381, 0.833333, 0.833333, 0.838095, 0.838095, 0.852381, 0.852381, 0.866667, 0.866667, 0.87619, 0.87619, 0.880952, 0.880952, 0.9, 0.9, 0.914286, 0.914286, 0.919048, 0.919048, 0.928571, 0.928571, 0.938095, 0.938095, 0.942857, 0.942857, 0.947619, 0.947619, 0.952381, 0.952381, 0.961905, 0.961905, 0.97619, 0.97619, 0.980952, 0.980952, 0.985714, 0.985714, 0.995238, 0.995238, 1.0, 1.0], "auc": 0.7835, "label": "ROC (AUC = 0.784)"}]};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('roc');
+  
+function renderChart_roc(data, config, container) {
+  const margin = {top:10, right:15, bottom:50, left:50};
+  const W = config.width, H = config.height;
+  const svg = EG.svg('svg', {width:W, height:H});
+  container.appendChild(svg);
+  const g = EG.svg('g', {transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
+  const xS=EG.scaleLinear([0,1],[0,iW]), yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'False Positive Rate');
+  EG.drawYAxis(g,yS,iW,'True Positive Rate');
+  g.appendChild(EG.svg('line',{x1:xS(0),y1:yS(0),x2:xS(1),y2:yS(1),stroke:'var(--text-muted)','stroke-width':1.5,'stroke-dasharray':'6,4',opacity:0.5}));
+  data.curves.forEach((c,ci)=>{
+    const color=config.palette[ci%config.palette.length];
+    let d='';
+    const n=Math.min(c.fpr.length,c.tpr.length);
+    for(let i=0;i<n;i++) d+=(i===0?'M':' L')+xS(c.fpr[i])+' '+yS(c.tpr[i]);
+    let fillD=d+' L'+xS(c.fpr[n-1])+' '+iH+' L'+xS(c.fpr[0])+' '+iH+' Z';
+    g.appendChild(EG.svg('path',{d:fillD,fill:color,opacity:0.06}));
+    const path=EG.svg('path',{d:d,fill:'none',stroke:color,'stroke-width':2.5});
+    path.addEventListener('mouseenter',e=>{path.setAttribute('stroke-width','4');EG.tooltip.show(e,'<b>'+EG.esc(c.label)+'</b>');});
+    path.addEventListener('mouseleave',()=>{path.setAttribute('stroke-width','2.5');EG.tooltip.hide();});
+    g.appendChild(path);
+  });
+  const items=data.curves.map((c,i)=>({label:c.label,color:config.palette[i%config.palette.length]}));
+  EG.drawLegend(container,items);
+}
+
+  renderChart_roc(data, config, container);
+})();
+
+(function() {
+  const data = {"curves": [{"precision": [0.7, 0.702341, 0.704698, 0.707071, 0.709459, 0.711864, 0.714286, 0.716724, 0.719178, 0.718213, 0.72069, 0.719723, 0.71875, 0.721254, 0.72028, 0.722807, 0.725352, 0.727915, 0.72695, 0.729537, 0.728571, 0.727599, 0.726619, 0.729242, 0.731884, 0.734545, 0.733577, 0.732601, 0.735294, 0.738007, 0.740741, 0.743494, 0.742537, 0.745318, 0.744361, 0.74717, 0.746212, 0.749049, 0.751908, 0.754789, 0.757692, 0.760618, 0.75969, 0.758755, 0.761719, 0.764706, 0.76378, 0.762846, 0.765873, 0.76494, 0.768, 0.771084, 0.774194, 0.777328, 0.780488, 0.783673, 0.782787, 0.781893, 0.780992, 0.784232, 0.783333, 0.782427, 0.781513, 0.780591, 0.783898, 0.787234, 0.786325, 0.7897, 0.793103, 0.792208, 0.791304, 0.79476, 0.798246, 0.797357, 0.79646, 0.795556, 0.799107, 0.798206, 0.797297, 0.79638, 0.8, 0.799087, 0.802752, 0.806452, 0.810185, 0.813953, 0.813084, 0.812207, 0.816038, 0.815166, 0.814286, 0.813397, 0.817308, 0.816425, 0.820388, 0.82439, 0.823529, 0.82266, 0.821782, 0.825871, 0.825, 0.824121, 0.828283, 0.832487, 0.836735, 0.841026, 0.840206, 0.839378, 0.84375, 0.842932, 0.842105, 0.84127, 0.840426, 0.839572, 0.844086, 0.843243, 0.842391, 0.84153, 0.840659, 0.845304, 0.844444, 0.843575, 0.842697, 0.841808, 0.840909, 0.845714, 0.850575, 0.849711, 0.848837, 0.847953, 0.847059, 0.846154, 0.85119, 0.850299, 0.855422, 0.860606, 0.859756, 0.858896, 0.858025, 0.857143, 0.8625, 0.867925, 0.873418, 0.878981, 0.884615, 0.883871, 0.883117, 0.882353, 0.888158, 0.887417, 0.886667, 0.885906, 0.885135, 0.884354, 0.883562, 0.882759, 0.881944, 0.881119, 0.887324, 0.886525, 0.892857, 0.892086, 0.891304, 0.890511, 0.889706, 0.888889, 0.88806, 0.887218, 0.893939, 0.900763, 0.9, 0.899225, 0.898438, 0.897638, 0.904762, 0.904, 0.91129, 0.918699, 0.918033, 0.917355, 0.916667, 0.915966, 0.923729, 0.923077, 0.922414, 0.921739, 0.921053, 0.920354, 0.919643, 0.918919, 0.918182, 0.917431, 0.916667, 0.915888, 0.915094, 0.914286, 0.923077, 0.92233, 0.921569, 0.920792, 0.92, 0.929293, 0.928571, 0.927835, 0.9375, 0.936842, 0.93617, 0.935484, 0.934783, 0.934066, 0.933333, 0.932584, 0.931818, 0.931034, 0.930233, 0.941176, 0.940476, 0.939759, 0.939024, 0.938272, 0.9375, 0.936709, 0.935897, 0.935065, 0.934211, 0.933333, 0.932432, 0.931507, 0.930556, 0.943662, 0.942857, 0.942029, 0.941176, 0.940299, 0.939394, 0.938462, 0.9375, 0.936508, 0.935484, 0.934426, 0.933333, 0.932203, 0.931034, 0.929825, 0.928571, 0.927273, 0.925926, 0.924528, 0.923077, 0.941176, 0.96, 0.959184, 0.958333, 0.957447, 0.956522, 0.955556, 0.954545, 0.953488, 0.952381, 0.95122, 0.95, 0.948718, 0.947368, 0.945946, 0.944444, 0.942857, 0.941176, 0.939394, 0.96875, 0.967742, 0.966667, 0.965517, 0.964286, 0.962963, 0.961538, 0.96, 0.958333, 0.956522, 0.954545, 0.952381, 0.95, 0.947368, 0.944444, 0.941176, 0.9375, 0.933333, 0.928571, 0.923077, 0.916667, 0.909091, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "recall": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.995238, 0.995238, 0.990476, 0.985714, 0.985714, 0.980952, 0.980952, 0.980952, 0.980952, 0.97619, 0.97619, 0.971429, 0.966667, 0.961905, 0.961905, 0.961905, 0.961905, 0.957143, 0.952381, 0.952381, 0.952381, 0.952381, 0.952381, 0.947619, 0.947619, 0.942857, 0.942857, 0.938095, 0.938095, 0.938095, 0.938095, 0.938095, 0.938095, 0.933333, 0.928571, 0.928571, 0.928571, 0.92381, 0.919048, 0.919048, 0.914286, 0.914286, 0.914286, 0.914286, 0.914286, 0.914286, 0.914286, 0.909524, 0.904762, 0.9, 0.9, 0.895238, 0.890476, 0.885714, 0.880952, 0.880952, 0.880952, 0.87619, 0.87619, 0.87619, 0.871429, 0.866667, 0.866667, 0.866667, 0.861905, 0.857143, 0.852381, 0.852381, 0.847619, 0.842857, 0.838095, 0.838095, 0.833333, 0.833333, 0.833333, 0.833333, 0.833333, 0.828571, 0.82381, 0.82381, 0.819048, 0.814286, 0.809524, 0.809524, 0.804762, 0.804762, 0.804762, 0.8, 0.795238, 0.790476, 0.790476, 0.785714, 0.780952, 0.780952, 0.780952, 0.780952, 0.780952, 0.77619, 0.771429, 0.771429, 0.766667, 0.761905, 0.757143, 0.752381, 0.747619, 0.747619, 0.742857, 0.738095, 0.733333, 0.728571, 0.728571, 0.72381, 0.719048, 0.714286, 0.709524, 0.704762, 0.704762, 0.704762, 0.7, 0.695238, 0.690476, 0.685714, 0.680952, 0.680952, 0.67619, 0.67619, 0.67619, 0.671429, 0.666667, 0.661905, 0.657143, 0.657143, 0.657143, 0.657143, 0.657143, 0.657143, 0.652381, 0.647619, 0.642857, 0.642857, 0.638095, 0.633333, 0.628571, 0.62381, 0.619048, 0.614286, 0.609524, 0.604762, 0.6, 0.6, 0.595238, 0.595238, 0.590476, 0.585714, 0.580952, 0.57619, 0.571429, 0.566667, 0.561905, 0.561905, 0.561905, 0.557143, 0.552381, 0.547619, 0.542857, 0.542857, 0.538095, 0.538095, 0.538095, 0.533333, 0.528571, 0.52381, 0.519048, 0.519048, 0.514286, 0.509524, 0.504762, 0.5, 0.495238, 0.490476, 0.485714, 0.480952, 0.47619, 0.471429, 0.466667, 0.461905, 0.457143, 0.457143, 0.452381, 0.447619, 0.442857, 0.438095, 0.438095, 0.433333, 0.428571, 0.428571, 0.42381, 0.419048, 0.414286, 0.409524, 0.404762, 0.4, 0.395238, 0.390476, 0.385714, 0.380952, 0.380952, 0.37619, 0.371429, 0.366667, 0.361905, 0.357143, 0.352381, 0.347619, 0.342857, 0.338095, 0.333333, 0.328571, 0.32381, 0.319048, 0.319048, 0.314286, 0.309524, 0.304762, 0.3, 0.295238, 0.290476, 0.285714, 0.280952, 0.27619, 0.271429, 0.266667, 0.261905, 0.257143, 0.252381, 0.247619, 0.242857, 0.238095, 0.233333, 0.228571, 0.228571, 0.228571, 0.22381, 0.219048, 0.214286, 0.209524, 0.204762, 0.2, 0.195238, 0.190476, 0.185714, 0.180952, 0.17619, 0.171429, 0.166667, 0.161905, 0.157143, 0.152381, 0.147619, 0.147619, 0.142857, 0.138095, 0.133333, 0.128571, 0.12381, 0.119048, 0.114286, 0.109524, 0.104762, 0.1, 0.095238, 0.090476, 0.085714, 0.080952, 0.07619, 0.071429, 0.066667, 0.061905, 0.057143, 0.052381, 0.047619, 0.047619, 0.042857, 0.038095, 0.033333, 0.028571, 0.02381, 0.019048, 0.014286, 0.009524, 0.004762, 0.0], "ap": 0.8886, "label": "PR (AP = 0.889)"}], "prevalence": 0.7};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('pr');
+  
+function renderChart_pr(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'Recall');
+  EG.drawYAxis(g,yS,iW,'Precision');
+  if(data.prevalence!=null){
+    const py=yS(data.prevalence);
+    g.appendChild(EG.svg('line',{x1:0,y1:py,x2:iW,y2:py,stroke:'var(--text-muted)','stroke-width':1.5,'stroke-dasharray':'6,4',opacity:0.5}));
+  }
+  data.curves.forEach((c,ci)=>{
+    const color=config.palette[ci%config.palette.length];
+    const n=Math.min(c.precision.length,c.recall.length);
+    let d='';
+    for(let i=0;i<n;i++) d+=(i===0?'M':' L')+xS(c.recall[i])+' '+yS(c.precision[i]);
+    g.appendChild(EG.svg('path',{d:d+' L'+xS(c.recall[n-1])+' '+iH+' L'+xS(c.recall[0])+' '+iH+' Z',fill:color,opacity:0.06}));
+    const path=EG.svg('path',{d:d,fill:'none',stroke:color,'stroke-width':2.5});
+    path.addEventListener('mouseenter',e=>{path.setAttribute('stroke-width','4');EG.tooltip.show(e,'<b>'+EG.esc(c.label)+'</b>');});
+    path.addEventListener('mouseleave',()=>{path.setAttribute('stroke-width','2.5');EG.tooltip.hide();});
+    g.appendChild(path);
+  });
+  EG.drawLegend(container,data.curves.map((c,i)=>({label:c.label,color:config.palette[i%config.palette.length]})));
+}
+
+  renderChart_pr(data, config, container);
+})();
+
+(function() {
+  const data = {"curves": [{"probTrue": [null, 0.0, 0.384615, 0.4, 0.35, 0.548387, 0.638889, 0.697674, 0.84058, 0.941176], "probPred": [null, 0.157674, 0.243935, 0.357784, 0.449578, 0.556731, 0.642498, 0.752463, 0.854825, 0.934018], "counts": [0, 5, 13, 15, 20, 31, 36, 43, 69, 68], "histBins": [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95], "ece": 0.0315, "mce": 0, "label": "LightGBM (endgame preset)"}], "nBins": 10};
+  const config = {"width": 600, "height": 500, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('cal');
+  
+function renderChart_cal(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height*0.65;
+  const svg=EG.svg('svg',{width:config.width,height:config.height});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-10;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,1],[iH,0]);
+  const ticks=[0,0.2,0.4,0.6,0.8,1.0];
+  ticks.forEach(v=>{
+    g.appendChild(EG.svg('line',{x1:0,y1:yS(v),x2:iW,y2:yS(v),stroke:'var(--grid-line)'}));
+    g.appendChild(EG.svg('text',{x:-8,y:yS(v)+4,'text-anchor':'end',fill:'var(--text-secondary)','font-size':'10px'})).textContent=v.toFixed(1);
+    g.appendChild(EG.svg('text',{x:xS(v),y:iH+15,'text-anchor':'middle',fill:'var(--text-secondary)','font-size':'10px'})).textContent=v.toFixed(1);
+  });
+  g.appendChild(EG.svg('line',{x1:xS(0),y1:yS(0),x2:xS(1),y2:yS(1),stroke:'var(--text-muted)','stroke-width':1.5,'stroke-dasharray':'6,4',opacity:0.6}));
+  g.appendChild(EG.svg('text',{x:iW/2,y:iH+35,'text-anchor':'middle',fill:'var(--text-secondary)','font-size':'11px'})).textContent='Mean Predicted Probability';
+
+  data.curves.forEach((c,ci)=>{
+    const color=config.palette[ci%config.palette.length];
+    let d='';const pts=[];
+    for(let i=0;i<c.probTrue.length;i++){
+      if(c.probTrue[i]===null||c.probPred[i]===null)continue;
+      pts.push({x:xS(c.probPred[i]),y:yS(c.probTrue[i]),pred:c.probPred[i],t:c.probTrue[i],cnt:c.counts[i]});
+    }
+    pts.forEach((p,i)=>{d+=(i===0?'M':' L')+p.x+' '+p.y;});
+    if(d)g.appendChild(EG.svg('path',{d:d,fill:'none',stroke:color,'stroke-width':2.5}));
+    pts.forEach(p=>{
+      const dot=EG.svg('circle',{cx:p.x,cy:p.y,r:5,fill:color,stroke:'var(--bg-card)','stroke-width':2});
+      dot.addEventListener('mouseenter',e=>{dot.setAttribute('r','7');EG.tooltip.show(e,'Pred: '+EG.fmt(p.pred,3)+'<br>Actual: '+EG.fmt(p.t,3)+'<br>n='+p.cnt);});
+      dot.addEventListener('mouseleave',()=>{dot.setAttribute('r','5');EG.tooltip.hide();});
+      g.appendChild(dot);
+    });
+    g.appendChild(EG.svg('text',{x:10,y:16,fill:color,'font-size':'11px','font-weight':'600'})).textContent='ECE='+c.ece.toFixed(3);
+  });
+
+  // Histogram
+  const gH=EG.svg('g',{transform:`translate(${margin.left},${H+15})`});
+  svg.appendChild(gH);
+  const hH=config.height-H-40;
+  let maxC=0;data.curves.forEach(c=>c.counts.forEach(v=>{if(v>maxC)maxC=v;}));if(!maxC)maxC=1;
+  const hY=EG.scaleLinear([0,maxC],[hH,0]);
+  gH.appendChild(EG.svg('line',{x1:0,y1:hH,x2:iW,y2:hH,stroke:'var(--border)'}));
+  data.curves.forEach((c,ci)=>{
+    const color=config.palette[ci%config.palette.length];
+    const barW=iW/c.histBins.length*0.7;
+    c.counts.forEach((cnt,i)=>{
+      const x=xS(c.histBins[i])-barW/2;
+      const bH=hH-hY(cnt);
+      gH.appendChild(EG.svg('rect',{x:x,y:hH-bH,width:barW,height:Math.max(bH,0),fill:color,opacity:0.5,rx:2}));
+    });
+  });
+}
+
+  renderChart_cal(data, config, container);
+})();
+
+(function() {
+  const data = {"labels": ["credit_amount", "age", "duration", "purpose", "checking_status", "property_magnitude", "residence_since", "credit_history", "employment", "installment_commitment", "personal_status", "savings_status", "housing", "other_payment_plans", "own_telephone", "job", "existing_credits", "other_parties", "num_dependents", "foreign_worker"], "values": [1533.0, 873.0, 817.0, 628.0, 421.0, 377.0, 348.0, 347.0, 327.0, 258.0, 234.0, 227.0, 157.0, 144.0, 118.0, 92.0, 80.0, 74.0, 23.0, 1.0]};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('imp');
+  
+function renderChart_imp(data, config, container) {
+  const margin={top:10,right:30,bottom:30,left:140};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const n=data.labels.length;
+  const rowH=iH/n;
+  const maxV=Math.max.apply(null,data.values)||1;
+  const xS=EG.scaleLinear([0,maxV],[0,iW]);
+
+  for(let i=0;i<n;i++){
+    const y=i*rowH,v=data.values[i];
+    const color=config.palette[i%config.palette.length];
+    const bW=xS(v);
+    const rect=EG.svg('rect',{x:0,y:y+2,width:Math.max(bW,2),height:rowH-4,fill:color,rx:3,opacity:0.8});
+    rect.addEventListener('mouseenter',e=>{rect.setAttribute('opacity','1');EG.tooltip.show(e,'<b>'+EG.esc(data.labels[i])+'</b><br>'+EG.fmt(v,4));});
+    rect.addEventListener('mouseleave',()=>{rect.setAttribute('opacity','0.8');EG.tooltip.hide();});
+    g.appendChild(rect);
+    g.appendChild(EG.svg('text',{x:bW+5,y:y+rowH/2+4,fill:'var(--text-secondary)','font-size':'10px'})).textContent=EG.fmt(v,4);
+    g.appendChild(EG.svg('text',{x:-6,y:y+rowH/2+4,'text-anchor':'end',fill:'var(--text-primary)','font-size':'11px'})).textContent=data.labels[i].length>20?data.labels[i].slice(0,18)+'…':data.labels[i];
+  }
+}
+
+  renderChart_imp(data, config, container);
+})();
+
+(function() {
+  const data = {"labels": ["bad", "good"], "values": [90, 210]};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('classdist');
+  
+function renderChart_classdist(data, config, container) {
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const cx=W/2,cy=H/2-10,R=Math.min(W,H)*0.35;
+  const total=data.values.reduce((a,b)=>a+b,0)||1;
+  let angle=-Math.PI/2;
+  data.values.forEach((v,i)=>{
+    const sweep=v/total*Math.PI*2;
+    const x1=cx+R*Math.cos(angle),y1=cy+R*Math.sin(angle);
+    const x2=cx+R*Math.cos(angle+sweep),y2=cy+R*Math.sin(angle+sweep);
+    const large=sweep>Math.PI?1:0;
+    const d=`M${cx} ${cy} L${x1} ${y1} A${R} ${R} 0 ${large} 1 ${x2} ${y2} Z`;
+    const color=config.palette[i%config.palette.length];
+    const path=EG.svg('path',{d:d,fill:color,stroke:'var(--bg-card)','stroke-width':2,opacity:0.85});
+    const midA=angle+sweep/2;
+    path.addEventListener('mouseenter',e=>{path.setAttribute('opacity','1');EG.tooltip.show(e,'<b>'+EG.esc(data.labels[i])+'</b><br>'+v+' ('+(v/total*100).toFixed(1)+'%)');});
+    path.addEventListener('mouseleave',()=>{path.setAttribute('opacity','0.85');EG.tooltip.hide();});
+    svg.appendChild(path);
+    // Label
+    const lR=R*0.65;
+    const lx=cx+lR*Math.cos(midA),ly=cy+lR*Math.sin(midA);
+    if(sweep>0.2) svg.appendChild(EG.svg('text',{x:lx,y:ly+4,'text-anchor':'middle',fill:'#fff','font-size':'12px','font-weight':'600'})).textContent=(v/total*100).toFixed(0)+'%';
+    angle+=sweep;
+  });
+  EG.drawLegend(container,data.labels.map((l,i)=>({label:l+' ('+data.values[i]+')',color:config.palette[i%config.palette.length]})));
+}
+
+  renderChart_classdist(data, config, container);
+})();
+
+(function() {
+  const data = {"bins": [0.0167, 0.05, 0.0833, 0.1167, 0.15, 0.1833, 0.2167, 0.25, 0.2833, 0.3167, 0.35, 0.3833, 0.4167, 0.45, 0.4833, 0.5167, 0.55, 0.5833, 0.6167, 0.65, 0.6833, 0.7167, 0.75, 0.7833, 0.8167, 0.85, 0.8833, 0.9167, 0.95, 0.9833], "countsPos": [0, 0, 0, 0, 0, 0, 1, 3, 1, 2, 3, 1, 2, 5, 0, 3, 7, 7, 11, 6, 6, 11, 6, 13, 15, 18, 25, 32, 27, 5], "countsNeg": [0, 0, 0, 1, 2, 2, 4, 2, 2, 1, 3, 5, 2, 7, 4, 2, 6, 6, 6, 5, 2, 5, 6, 2, 6, 3, 2, 2, 2, 0], "posLabel": "good", "negLabel": "bad"};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('predhist');
+  
+function renderChart_predhist(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const bins=data.bins,cp=data.countsPos,cn=data.countsNeg;
+  const maxC=Math.max(Math.max.apply(null,cp),Math.max.apply(null,cn))||1;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,maxC*1.1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'Predicted Probability');
+  EG.drawYAxis(g,yS,iW,'Count');
+  const barW=iW/bins.length*0.4;
+  const posColor=config.palette[0],negColor=config.palette[1%config.palette.length];
+  bins.forEach((b,i)=>{
+    const x=xS(b);
+    const hN=iH-yS(cn[i]),hP=iH-yS(cp[i]);
+    g.appendChild(EG.svg('rect',{x:x-barW-1,y:iH-hN,width:barW,height:Math.max(hN,0),fill:negColor,opacity:0.6,rx:2}));
+    g.appendChild(EG.svg('rect',{x:x+1,y:iH-hP,width:barW,height:Math.max(hP,0),fill:posColor,opacity:0.6,rx:2}));
+  });
+  EG.drawLegend(container,[{label:data.negLabel,color:negColor},{label:data.posLabel,color:posColor}]);
+}
+
+  renderChart_predhist(data, config, container);
+})();
+</script>
+</body>
+</html>
