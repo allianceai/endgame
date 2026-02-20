@@ -60,10 +60,13 @@ class Box:
         mask : ndarray of shape (n_samples,)
             Boolean mask, True if point is inside box.
         """
-        mask = np.ones(len(X), dtype=bool)
-        for feat_idx, (lower, upper) in self.limits.items():
-            mask &= (X[:, feat_idx] >= lower) & (X[:, feat_idx] <= upper)
-        return mask
+        if not self.limits:
+            return np.ones(len(X), dtype=bool)
+
+        feat_indices = np.fromiter(self.limits.keys(), dtype=np.intp)
+        bounds = np.array([self.limits[i] for i in feat_indices])
+        X_sub = X[:, feat_indices]
+        return np.all((X_sub >= bounds[:, 0]) & (X_sub <= bounds[:, 1]), axis=1)
 
     def to_rules(self, feature_names: list[str] | None = None) -> list[str]:
         """Convert box to human-readable rules.
@@ -226,8 +229,8 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
         -------
         self
         """
-        X = np.asarray(X, dtype=np.float64)
-        y = np.asarray(y, dtype=np.float64)
+        X = np.asarray(X, dtype=np.float64) if not isinstance(X, np.ndarray) else X.astype(np.float64, copy=False)
+        y = np.asarray(y, dtype=np.float64) if not isinstance(y, np.ndarray) else y.astype(np.float64, copy=False)
 
         n_samples, n_features = X.shape
         self.n_features_in_ = n_features
@@ -277,7 +280,6 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
         """Find one box using PRIM algorithm."""
         n_samples, n_features = X.shape
 
-        # Initialize box with all data
         current_limits = {
             i: (X[:, i].min(), X[:, i].max()) for i in range(n_features)
         }
@@ -286,10 +288,10 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
         boxes = []
         trajectory = []
 
-        # Initial statistics
-        support = current_mask.sum()
-        density = y[current_mask].mean() if support > 0 else 0
-        coverage = support / n_samples
+        support = n_samples
+        y_sum = y.sum()
+        density = y_sum / support if support > 0 else 0.0
+        coverage = 1.0
 
         boxes.append(
             Box(
@@ -301,49 +303,72 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
         )
         trajectory.append({"coverage": coverage, "density": density, "support": support})
 
+        X_cols = [X[:, i] for i in range(n_features)]
+        buf = np.empty(n_samples, dtype=bool)
+
         # Peeling phase
         while support > min_support:
-            best_peel = None
+            best_feat = -1
+            best_side = ""
+            best_threshold = 0.0
             best_density = density
 
-            # Try peeling each feature from each side
             for feat_idx in range(n_features):
-                x_col = X[current_mask, feat_idx]
+                col = X_cols[feat_idx]
+                x_active = col[current_mask]
+                n_active = len(x_active)
+                if n_active <= min_support:
+                    continue
 
-                # Peel from bottom
-                peel_threshold = np.quantile(x_col, self.alpha)
-                new_mask = current_mask & (X[:, feat_idx] > peel_threshold)
+                k_lo = max(1, int(self.alpha * n_active))
+                k_hi = min(n_active - 1, int((1 - self.alpha) * n_active))
 
-                if new_mask.sum() >= min_support:
-                    new_density = y[new_mask].mean()
-                    if new_density > best_density:
-                        best_density = new_density
-                        best_peel = (feat_idx, "lower", peel_threshold, new_mask.copy())
+                partitioned = np.partition(x_active, (k_lo, k_hi))
+                thresh_lo = partitioned[k_lo]
+                thresh_hi = partitioned[k_hi]
 
-                # Peel from top
-                peel_threshold = np.quantile(x_col, 1 - self.alpha)
-                new_mask = current_mask & (X[:, feat_idx] < peel_threshold)
+                # Peel from bottom (in-place mask to avoid temporaries)
+                np.greater(col, thresh_lo, out=buf)
+                np.logical_and(current_mask, buf, out=buf)
+                n_lo = buf.sum()
+                if n_lo >= min_support:
+                    d_lo = np.dot(y, buf) / n_lo
+                    if d_lo > best_density:
+                        best_density = d_lo
+                        best_feat = feat_idx
+                        best_side = "lower"
+                        best_threshold = thresh_lo
 
-                if new_mask.sum() >= min_support:
-                    new_density = y[new_mask].mean()
-                    if new_density > best_density:
-                        best_density = new_density
-                        best_peel = (feat_idx, "upper", peel_threshold, new_mask.copy())
+                # Peel from top (reuse buf)
+                np.less(col, thresh_hi, out=buf)
+                np.logical_and(current_mask, buf, out=buf)
+                n_hi = buf.sum()
+                if n_hi >= min_support:
+                    d_hi = np.dot(y, buf) / n_hi
+                    if d_hi > best_density:
+                        best_density = d_hi
+                        best_feat = feat_idx
+                        best_side = "upper"
+                        best_threshold = thresh_hi
 
-            if best_peel is None:
+            if best_feat < 0:
                 break
 
-            feat_idx, side, threshold, new_mask = best_peel
-            current_mask = new_mask
-
-            # Update limits
-            if side == "lower":
-                current_limits[feat_idx] = (threshold, current_limits[feat_idx][1])
+            col = X_cols[best_feat]
+            if best_side == "lower":
+                np.greater(col, best_threshold, out=buf)
+                current_limits[best_feat] = (
+                    best_threshold, current_limits[best_feat][1],
+                )
             else:
-                current_limits[feat_idx] = (current_limits[feat_idx][0], threshold)
+                np.less(col, best_threshold, out=buf)
+                current_limits[best_feat] = (
+                    current_limits[best_feat][0], best_threshold,
+                )
+            np.logical_and(current_mask, buf, out=current_mask)
 
             support = current_mask.sum()
-            density = y[current_mask].mean()
+            density = np.dot(y, current_mask) / support
             coverage = support / n_samples
 
             boxes.append(
@@ -385,64 +410,76 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
             return boxes, trajectory
 
         n_samples, n_features = X.shape
+        X_cols = [X[:, i] for i in range(n_features)]
 
-        # Start from a middle box (not too small, not too large)
         best_idx = self._select_box(trajectory)
         current_box = boxes[best_idx]
         current_limits = current_box.limits.copy()
         current_mask = current_box.contains(X)
+        current_n = current_mask.sum()
+        current_ysum = np.dot(y, current_mask)
 
         improved = True
         while improved:
             improved = False
-            current_density = y[current_mask].mean()
+            current_density = current_ysum / current_n if current_n > 0 else 0.0
 
             for feat_idx in range(n_features):
                 if feat_idx not in current_limits:
                     continue
 
+                col = X_cols[feat_idx]
                 lower, upper = current_limits[feat_idx]
 
                 # Try expanding lower bound
-                outside_lower = X[:, feat_idx] < lower
-                if outside_lower.any():
-                    expand_threshold = np.quantile(
-                        X[outside_lower, feat_idx], 1 - self.paste_alpha
-                    )
-                    new_mask = current_mask | (
-                        (X[:, feat_idx] >= expand_threshold) & (X[:, feat_idx] < lower)
-                    )
-                    if new_mask.sum() <= len(X):
-                        new_density = y[new_mask].mean()
+                outside_lower = col < lower
+                n_outside = outside_lower.sum()
+                if n_outside > 0:
+                    x_outside = col[outside_lower]
+                    k = min(n_outside - 1, int((1 - self.paste_alpha) * n_outside))
+                    expand_threshold = np.partition(x_outside, k)[k]
+                    added = (col >= expand_threshold) & (col < lower) & ~current_mask
+                    n_added = added.sum()
+                    if n_added > 0:
+                        new_n = current_n + n_added
+                        new_ysum = current_ysum + np.dot(y, added)
+                        new_density = new_ysum / new_n
                         if new_density > current_density:
                             current_limits[feat_idx] = (expand_threshold, upper)
-                            current_mask = new_mask
+                            current_mask = current_mask | added
+                            current_n = new_n
+                            current_ysum = new_ysum
                             improved = True
+
+                lower, upper = current_limits[feat_idx]
 
                 # Try expanding upper bound
-                outside_upper = X[:, feat_idx] > upper
-                if outside_upper.any():
-                    expand_threshold = np.quantile(
-                        X[outside_upper, feat_idx], self.paste_alpha
-                    )
-                    new_mask = current_mask | (
-                        (X[:, feat_idx] <= expand_threshold) & (X[:, feat_idx] > upper)
-                    )
-                    if new_mask.sum() <= len(X):
-                        new_density = y[new_mask].mean()
+                outside_upper = col > upper
+                n_outside = outside_upper.sum()
+                if n_outside > 0:
+                    x_outside = col[outside_upper]
+                    k = max(0, int(self.paste_alpha * n_outside))
+                    expand_threshold = np.partition(x_outside, k)[k]
+                    added = (col <= expand_threshold) & (col > upper) & ~current_mask
+                    n_added = added.sum()
+                    if n_added > 0:
+                        new_n = current_n + n_added
+                        new_ysum = current_ysum + np.dot(y, added)
+                        new_density = new_ysum / new_n
                         if new_density > current_density:
                             current_limits[feat_idx] = (lower, expand_threshold)
-                            current_mask = new_mask
+                            current_mask = current_mask | added
+                            current_n = new_n
+                            current_ysum = new_ysum
                             improved = True
 
-        # Add pasted box if different from original
-        final_support = current_mask.sum()
-        if final_support != current_box.support:
+        if current_n != current_box.support:
+            final_density = current_ysum / current_n if current_n > 0 else 0.0
             pasted_box = Box(
                 limits=current_limits.copy(),
-                coverage=final_support / n_samples,
-                density=y[current_mask].mean(),
-                support=final_support,
+                coverage=current_n / n_samples,
+                density=final_density,
+                support=current_n,
             )
             boxes.append(pasted_box)
             trajectory.append(
@@ -458,27 +495,24 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
     def _select_box(self, trajectory: list[dict]) -> int:
         """Select the best box from the peeling trajectory.
 
-        Uses a simple heuristic: find the "elbow" where density gain
-        diminishes relative to coverage loss.
+        Maximizes density subject to minimum coverage (0.01).
         """
         if not trajectory:
             return 0
 
-        # Find box with best density that has reasonable coverage
-        densities = np.array([t["density"] for t in trajectory])
-        coverages = np.array([t["coverage"] for t in trajectory])
-
-        # Simple approach: maximize density subject to minimum coverage
+        best_idx = 0
+        best_density = -np.inf
         min_coverage = 0.01
-        valid_mask = coverages >= min_coverage
 
-        if not valid_mask.any():
+        for i, t in enumerate(trajectory):
+            if t["coverage"] >= min_coverage and t["density"] > best_density:
+                best_density = t["density"]
+                best_idx = i
+
+        if best_density == -np.inf:
             return len(trajectory) - 1
 
-        valid_indices = np.where(valid_mask)[0]
-        best_local = valid_indices[np.argmax(densities[valid_mask])]
-
-        return best_local
+        return best_idx
 
     def predict(self, X) -> np.ndarray:
         """Predict whether points fall in the found box(es).
@@ -496,7 +530,7 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
         if not self._is_fitted:
             raise RuntimeError("PRIMRegressor has not been fitted.")
 
-        X = np.asarray(X, dtype=np.float64)
+        X = np.asarray(X)
         mask = np.zeros(len(X), dtype=bool)
 
         for box in self.boxes_:
@@ -637,7 +671,8 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
             )[0][0]
 
         # Create binary target (1 if target class, 0 otherwise)
-        y_binary = (y_encoded == self._target_class_idx).astype(float)
+        y_binary = (y_encoded == self._target_class_idx).astype(np.float64)
+        self._base_rate = y_binary.mean()
 
         # Fit PRIM regressor on binary target
         self._prim_regressor = PRIMRegressor(
@@ -719,22 +754,17 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
         X = np.asarray(X)
         n_samples = len(X)
         n_classes = len(self.classes_)
+        tc = self._target_class_idx
+        oc = 1 - tc
 
-        proba = np.zeros((n_samples, n_classes))
-
-        # Default probability (outside boxes)
-        # Use a small default or overall prevalence
-        default_prob = 0.5  # Could be improved with stored prevalence
+        proba = np.empty((n_samples, n_classes))
+        proba[:, tc] = self._base_rate
+        proba[:, oc] = 1.0 - self._base_rate
 
         for box in self.boxes_:
             mask = box.contains(X)
-            proba[mask, self._target_class_idx] = box.density
-            proba[mask, 1 - self._target_class_idx] = 1 - box.density
-
-        # Fill in points not in any box
-        in_any_box = self.predict(X)
-        proba[~in_any_box, self._target_class_idx] = default_prob
-        proba[~in_any_box, 1 - self._target_class_idx] = 1 - default_prob
+            proba[mask, tc] = box.density
+            proba[mask, oc] = 1.0 - box.density
 
         return proba
 

@@ -65,14 +65,14 @@ def _train_worker(func, args, kwargs, result_queue):
     signal.signal(signal.SIGTERM, lambda *_: os._exit(1))
     try:
         result = func(*args, **kwargs)
+        # result is (oof_pred, score) — pure numpy/float, always picklable.
+        # The model is never sent through the queue; the parent refits
+        # in-process to avoid pickle/segfault issues with PyTorch etc.
         result_queue.put(("ok", result))
     except BaseException as e:
-        # Catch everything (including SystemExit, KeyboardInterrupt)
-        # so we always report back to the parent.
         try:
             result_queue.put(("error", e))
         except Exception:
-            # Exception may not be picklable — send a RuntimeError instead
             result_queue.put((
                 "error",
                 RuntimeError(
@@ -149,11 +149,9 @@ def _train_with_timeout(func, *args, sample_weights=None, **kwargs):
     p.start()
     _active_children.append(weakref.ref(p))
 
-    # IMPORTANT: drain the queue BEFORE joining.  multiprocessing.Queue
-    # uses an OS pipe internally; if the pickled result is large the
-    # child's put() blocks until the parent reads.  Calling p.join()
-    # first would deadlock because the child can't exit until the pipe
-    # is drained.
+    # Drain the queue BEFORE joining.  The child sends a single message:
+    #   ("ok", (oof_pred, score))  or  ("error", exception)
+    # No fitted model is sent — the parent refits in-process.
     result = None
     try:
         result = q.get(timeout=deadline)
@@ -165,11 +163,9 @@ def _train_with_timeout(func, *args, sample_weights=None, **kwargs):
             p.join(timeout=2)
         raise
     except Exception:
-        pass  # timeout or empty — handled below
+        pass
 
-    # Now safe to join (queue is drained or child is stuck)
     p.join(timeout=30)
-
     if p.is_alive():
         p.terminate()
         p.join(timeout=5)
@@ -1465,14 +1461,33 @@ class ModelTrainingExecutor(BaseStageExecutor):
                     )
 
                 try:
-                    model, oof_pred, score = _train_with_timeout(
-                        self._train_model,
+                    oof_pred, score = _train_with_timeout(
+                        self._cv_score_model,
                         config, X, y, task_type, model_budget,
                         sample_weights=sample_weights,
                     )
 
-                    trained_models[config.model_name] = model
                     oof_predictions[config.model_name] = oof_pred
+
+                    # Refit on all data in the parent process — no
+                    # pickle boundary, so PyTorch/C-extension models
+                    # that segfault during serialization work fine.
+                    refit_start = time.time()
+                    try:
+                        model = self._refit_model(
+                            config, X, y, task_type,
+                            sample_weights=sample_weights,
+                        )
+                        trained_models[config.model_name] = model
+                        refit_time = time.time() - refit_start
+                        print(
+                            f" refit {refit_time:.0f}s",
+                            end="", flush=True,
+                        )
+                    except Exception as refit_err:
+                        logger.warning(
+                            f"Refit failed for {config.model_name}: {refit_err}"
+                        )
 
                     result = SearchResult(
                         config=config,
@@ -1538,7 +1553,7 @@ class ModelTrainingExecutor(BaseStageExecutor):
             },
         )
 
-    def _train_model(
+    def _cv_score_model(
         self,
         config: PipelineConfig,
         X: np.ndarray,
@@ -1546,16 +1561,16 @@ class ModelTrainingExecutor(BaseStageExecutor):
         task_type: str,
         time_budget: float,
         sample_weights: np.ndarray | None = None,
-    ) -> tuple[Any, np.ndarray, float]:
-        """Train a single model with cross-validation.
+    ) -> tuple[np.ndarray, float]:
+        """Score a model via cross-validation (no final fit).
 
-        If the config specifies per-model preprocessing steps, those are
-        applied inside an ``sklearn.pipeline.Pipeline`` so that each CV
-        fold sees correctly transformed data and the final model carries
-        its own preprocessing.
+        Runs in a forked child process.  Returns only numpy/float data
+        so there are never pickling issues.  The parent calls
+        ``_refit_model`` afterwards in-process.
         """
         import inspect
 
+        from sklearn.base import clone
         from sklearn.model_selection import KFold, StratifiedKFold
 
         model = self._instantiate_model(config, task_type)
@@ -1567,14 +1582,9 @@ class ModelTrainingExecutor(BaseStageExecutor):
                 if abs(target_skewness) > 1.0:
                     from endgame.preprocessing.target_transform import TargetTransformer
                     model = TargetTransformer(regressor=model, method="auto")
-                    logger.info(
-                        f"Wrapping {config.model_name} with TargetTransformer "
-                        f"(skewness={target_skewness:.2f})"
-                    )
             except ImportError:
                 pass
 
-        # Wrap model with per-config preprocessing if specified
         model = self._wrap_with_preprocessing(model, config)
 
         supports_sw = False
@@ -1591,9 +1601,6 @@ class ModelTrainingExecutor(BaseStageExecutor):
             cv = KFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
 
         use_proba = task_type == "classification" and hasattr(model, "predict_proba")
-
-        # Manual CV loop with per-fold progress reporting
-        from sklearn.base import clone
 
         oof_pred = None
         cv_start = time.time()
@@ -1623,24 +1630,53 @@ class ModelTrainingExecutor(BaseStageExecutor):
             oof_pred[val_idx] = preds
 
             fold_time = time.time() - fold_start
-            elapsed = time.time() - cv_start
             print(
                 f" fold {fold_idx + 1}/{self.cv_folds} {fold_time:.0f}s",
                 end="", flush=True,
             )
 
         score = self._score_oof(oof_pred, y, task_type)
+        return oof_pred, score
 
-        # Final fit on all data
-        final_start = time.time()
+    def _refit_model(
+        self,
+        config: PipelineConfig,
+        X: np.ndarray,
+        y: np.ndarray,
+        task_type: str,
+        sample_weights: np.ndarray | None = None,
+    ) -> Any:
+        """Refit a model on all data in the parent process (no pickle)."""
+        import inspect
+
+        model = self._instantiate_model(config, task_type)
+
+        if task_type == "regression" and self.feature_engineering in ("moderate", "aggressive"):
+            try:
+                from scipy.stats import skew
+                target_skewness = skew(y)
+                if abs(target_skewness) > 1.0:
+                    from endgame.preprocessing.target_transform import TargetTransformer
+                    model = TargetTransformer(regressor=model, method="auto")
+            except ImportError:
+                pass
+
+        model = self._wrap_with_preprocessing(model, config)
+
+        supports_sw = False
+        if sample_weights is not None:
+            try:
+                fit_sig = inspect.signature(model.fit)
+                supports_sw = "sample_weight" in fit_sig.parameters
+            except (ValueError, TypeError):
+                pass
+
         if supports_sw and sample_weights is not None:
             model.fit(X, y, sample_weight=sample_weights)
         else:
             model.fit(X, y)
-        final_time = time.time() - final_start
-        print(f" final-fit {final_time:.0f}s", end="", flush=True)
 
-        return model, oof_pred, score
+        return model
 
     def _score_oof(
         self, oof_pred: np.ndarray, y: np.ndarray, task_type: str,
