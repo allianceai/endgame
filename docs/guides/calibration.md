@@ -25,13 +25,13 @@ base.fit(X_train, y_train)
 cc = ConformalClassifier(
     estimator=base,
     alpha=0.1,          # target miscoverage rate; 90% coverage guaranteed
-    score='lac',        # 'lac' (softmax-based) or 'aps' (adaptive prediction sets)
+    method='lac',       # 'lac' (softmax-based) or 'aps' (adaptive prediction sets)
 )
 
 cc.fit(X_cal, y_cal)   # calibrate on hold-out set
 
 # Returns a list of sets, one per test point
-prediction_sets = cc.predict_set(X_test)
+prediction_sets = cc.predict(X_test)
 for i, pset in enumerate(prediction_sets[:5]):
     print(f"Sample {i}: possible classes = {pset}")
 
@@ -39,7 +39,7 @@ for i, pset in enumerate(prediction_sets[:5]):
 preds = cc.predict(X_test)
 
 # Empirical coverage on a labelled evaluation set
-cov = cc.coverage(X_eval, y_eval)
+cov = cc.coverage_score(X_eval, y_eval)
 print(f"Empirical coverage: {cov:.3f}")  # should be >= 0.90
 ```
 
@@ -68,14 +68,13 @@ cr = ConformalRegressor(
 
 cr.fit(X_cal, y_cal)
 
-# Returns array of shape (n_samples, 2): [lower, upper]
-intervals = cr.predict_interval(X_test)
-lower, upper = intervals[:, 0], intervals[:, 1]
+# Returns a tuple of (lower, upper) arrays
+lower, upper = cr.predict_interval(X_test)
 
 widths = upper - lower
-print(f"Median interval width: {widths.median():.4f}")
+print(f"Median interval width: {np.median(widths):.4f}")
 
-cov = cr.coverage(X_eval, y_eval)
+cov = cr.coverage_score(X_eval, y_eval)
 print(f"Empirical coverage: {cov:.3f}")
 ```
 
@@ -101,8 +100,7 @@ cqr = ConformizedQuantileRegressor(
 
 cqr.fit(X_train, y_train, X_cal=X_cal, y_cal=y_cal)
 
-intervals = cqr.predict_interval(X_test)
-lower, upper = intervals[:, 0], intervals[:, 1]
+lower, upper = cqr.predict_interval(X_test)
 ```
 
 CQR is the recommended method when prediction intervals of varying width are

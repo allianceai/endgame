@@ -69,7 +69,7 @@ score, training time) are logged automatically.
 The `classify()`, `regress()`, and `compare()` functions also accept a logger:
 
 ```python
-from endgame.quick.api import classify
+from endgame.quick import classify
 from endgame.tracking import ConsoleLogger
 
 with ConsoleLogger() as logger:

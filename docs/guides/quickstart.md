@@ -97,8 +97,8 @@ from endgame.models.tabular import FTTransformerClassifier
 ft = FTTransformerClassifier(
     n_blocks=3,
     d_token=192,
-    attention_n_heads=8,
-    max_epochs=100,
+    n_heads=8,
+    n_epochs=100,
 )
 ft.fit(X_train, y_train)
 proba_ft = ft.predict_proba(X_test)
@@ -222,7 +222,7 @@ from endgame.ensemble import HillClimbingEnsemble
 
 hc = HillClimbingEnsemble(metric="roc_auc", n_iterations=20)
 hc.fit(oof_preds_list, y_train)   # list of OOF prediction arrays
-final_proba = hc.blend(test_preds_list)
+final_proba = hc.predict(test_preds_list)
 ```
 
 See [ensemble guide](../api/ensemble.rst) for `StackingEnsemble`,
@@ -285,9 +285,9 @@ print(f"Severity:  {result.drift_severity}")   # 'none', 'mild', or 'severe'
 print(f"Top drifting features: {result.drifted_features[:5]}")
 
 if result.drift_severity == "severe":
-    # Drop or de-weight the most drifting features
-    X_train_clean = X_train[:, ~result.drifted_feature_mask]
-    X_test_clean  = X_test[:, ~result.drifted_feature_mask]
+    # Drop the most drifting features
+    drop_cols = result.drifted_features[:5]
+    print(f"Consider dropping: {drop_cols}")
 ```
 
 The default classifier is LightGBM when available, RandomForest otherwise.
@@ -347,7 +347,7 @@ report.save("classification_report.html")
 ```
 
 See the [visualization guide](visualization.md) for the complete chart
-catalogue (40+ chart types including PDP, waterfall / SHAP, parallel
+catalogue (42 chart types including PDP, waterfall / SHAP, parallel
 coordinates, and calibration plots).
 
 ---

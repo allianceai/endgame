@@ -1,6 +1,6 @@
 # Signal Processing Guide
 
-Endgame provides 25+ signal processing transforms covering filtering, spectral
+Endgame provides 45 signal processing transforms covering filtering, spectral
 analysis, wavelet decomposition, entropy/complexity measures, and spatial
 filtering for EEG and BCI applications. Every transform follows the sklearn
 interface (`fit`, `transform`) and composes naturally into `Pipeline` objects.

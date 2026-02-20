@@ -262,7 +262,7 @@ Endgame is organized into 26 modules following the ML workflow:
 | Module | Description | Key Classes |
 |---|---|---|
 | `eg.timeseries` | 31 classes: statistical + neural forecasting, ROCKET/HYDRA classification | `AutoARIMAForecaster`, `NBEATSForecaster`, `MiniRocketClassifier` |
-| `eg.signal` | 41 transforms: filtering, spectral analysis, wavelets, entropy, complexity, spatial | `ButterworthFilter`, `WelchPSD`, `CSP`, `PermutationEntropy` |
+| `eg.signal` | 45 transforms: filtering, spectral analysis, wavelets, entropy, complexity, spatial | `ButterworthFilter`, `WelchPSD`, `CSP`, `PermutationEntropy` |
 | `eg.vision` | timm backbones, TTA, WBF, segmentation, augmentation pipelines | `VisionBackbone`, `WeightedBoxesFusion` |
 | `eg.nlp` | Transformers, DAPT, pseudo-labeling, back-translation, LLM utilities | `TransformerClassifier`, `DomainAdaptivePretrainer` |
 | `eg.audio` | Spectrograms, PCEN, sound event detection, audio augmentation | `SEDModel`, `SpectrogramTransformer` |
@@ -305,7 +305,7 @@ Endgame is fully scikit-learn compatible --- it adds to your toolkit rather than
 | Sklearn-compatible API | Yes | Yes | Partial | Partial |
 | Deep tabular models | 15+ (FT-Transformer, SAINT, TabPFN, ...) | --- | 5+ | --- |
 | Conformal prediction | Classification + regression | --- | --- | --- |
-| Signal processing | 41 transforms | --- | --- | --- |
+| Signal processing | 45 transforms | --- | --- | --- |
 | Time series classification (ROCKET) | Yes | --- | --- | --- |
 | Interactive visualizations | 42 self-contained HTML types | --- | Moderate | Limited |
 | Ensemble optimization (Super Learner, BMA) | Yes | Basic | Yes | Basic |

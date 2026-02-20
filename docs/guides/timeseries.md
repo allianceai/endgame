@@ -300,5 +300,5 @@ scores = cross_val_score(
 ## See Also
 
 - [API Reference: timeseries](../api/timeseries)
-- [Signal Processing Guide](../api/signal) for pre-processing raw sensor data
+- [Signal Processing Guide](signal.md) for pre-processing raw sensor data
 - [Validation Guide](../api/validation) for cross-validation strategies

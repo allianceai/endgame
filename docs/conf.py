@@ -20,6 +20,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "myst_parser",
     "sphinx_copybutton",
+    "sphinx_autodoc_typehints",
 ]
 
 templates_path = ["_templates"]

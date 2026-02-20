@@ -25,7 +25,7 @@ Key Features
 - **Polars-powered** preprocessing for speed
 - **Competition-winning defaults** via preset system
 - **Conformal prediction** and probability calibration
-- **Comprehensive signal processing** (25+ transforms)
+- **Comprehensive signal processing** (45 transforms)
 - **AutoML framework** matching AutoGluon's simplicity
 - **42 interactive visualizations** for model interpretation
 
@@ -76,6 +76,8 @@ Key Features
    api/timeseries
    api/benchmark
    api/automl
+   api/tracking
+   api/mcp
    api/utils
 
 Indices and tables

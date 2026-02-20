@@ -31,6 +31,7 @@ pip install endgame-ml[benchmark]    # OpenML suite loading, meta-learning, synt
 pip install endgame-ml[explain]      # SHAP, LIME, DiCE counterfactuals (shap, lime, dice-ml)
 pip install endgame-ml[fairness]     # Fairness metrics and bias mitigation (fairlearn)
 pip install endgame-ml[deployment]   # ONNX export, model serving (onnx, onnxruntime, skl2onnx, hummingbird-ml)
+pip install endgame-ml[tracking]     # Experiment tracking (mlflow)
 pip install endgame-ml[mcp]          # MCP server for tool-use integrations (mcp >= 1.2.0)
 pip install endgame-ml[all]          # All of the above
 ```

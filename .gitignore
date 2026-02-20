@@ -53,6 +53,9 @@ submissions/
 benchmark_results_report.html
 *.csv
 
+# Sphinx build output
+docs/_build/
+
 # Coverage
 .coverage
 .coverage.*

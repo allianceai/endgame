@@ -1,6 +1,6 @@
 # Endgame Visualization Guide
 
-A complete reference for the 40 interactive chart types in `endgame.visualization`. Every chart renders as a **self-contained HTML file** with no CDN dependencies — works offline, in Jupyter, or embedded in reports.
+A complete reference for the 42 interactive chart types in `endgame.visualization`. Every chart renders as a **self-contained HTML file** with no CDN dependencies — works offline, in Jupyter, or embedded in reports.
 
 ```python
 import endgame as eg

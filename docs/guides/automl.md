@@ -75,7 +75,7 @@ row per trained model:
 
 ## Preset System
 
-The `preset` argument controls the quality / speed trade-off. Six built-in
+The `preset` argument controls the quality / speed trade-off. Seven built-in
 presets are available:
 
 | Preset | Description | Default time | CV folds | Ensemble | HPO |
@@ -86,6 +86,7 @@ presets are available:
 | `'medium_quality'` | Fast with reasonable quality (default) | 15 min | 5 | Hill climbing | 10 trials |
 | `'fast'` | GBDTs only, no HPO or ensembling | 5 min | 3 | None | None |
 | `'interpretable'` | Glass-box models only (EBM, GAM, rules, trees) | 15 min | 5 | None | 25 trials |
+| `'exhaustive'` | Evolutionary search over all models + preprocessing + ensembles | No limit | 8 | Stacking | Genetic |
 
 ```python
 # Fast experiment — good for initial data exploration

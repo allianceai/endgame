@@ -22,9 +22,13 @@ base_learners = [
 ]
 
 sl = SuperLearner(
-    estimators=base_learners,
-    cv=5,           # inner cross-validation folds for meta-features
-    metric='auc',   # used to report fold-level performance
+    base_estimators=[
+        ("lgbm", LGBMWrapper(preset='endgame')),
+        ("xgb", XGBWrapper(preset='endgame')),
+        ("cb", CatBoostWrapper(preset='endgame')),
+    ],
+    meta_learner="nnls",  # non-negative least squares
+    cv=5,                 # inner cross-validation folds for meta-features
 )
 
 sl.fit(X_train, y_train)
@@ -32,7 +36,7 @@ proba = sl.predict_proba(X_test)
 preds = sl.predict(X_test)
 
 # Inspect learned weights
-print(sl.weights_)   # non-negative, sum to 1
+print(sl.coef_)   # non-negative, sum to 1
 ```
 
 The meta-features are out-of-fold predictions from each base learner. The NNLS
@@ -54,26 +58,15 @@ hc = HillClimbingEnsemble(
     metric=roc_auc_score,
     maximize=True,
     n_iterations=100,     # maximum greedy steps
-    init_size=10,         # random restarts before greedy
     random_state=42,
 )
 
-# Pass a dict of name -> prediction arrays (out-of-fold probabilities)
-oof_preds = {
-    'lgbm':    lgbm_oof,
-    'xgb':     xgb_oof,
-    'catboost': cb_oof,
-    'ft':       ft_oof,
-}
+# Pass a list of OOF prediction arrays
+oof_preds = [lgbm_oof, xgb_oof, cb_oof, ft_oof]
 hc.fit(oof_preds, y_train)
 
 # Apply the discovered weights to test predictions
-test_preds = {
-    'lgbm':    lgbm_test,
-    'xgb':     xgb_test,
-    'catboost': cb_test,
-    'ft':       ft_test,
-}
+test_preds = [lgbm_test, xgb_test, cb_test, ft_test]
 final = hc.predict(test_preds)
 
 print(hc.weights_)    # float weights, sums to 1
@@ -194,7 +187,7 @@ model. This is useful when you need a fast inference model that approximates an
 expensive ensemble.
 
 ```python
-from endgame.ensemble import KnowledgeDistillation
+from endgame.ensemble import KnowledgeDistiller
 from endgame.models import LGBMWrapper
 from endgame.models.baselines import LinearClassifier
 
@@ -203,7 +196,7 @@ teacher.fit(X_train, y_train)
 
 student = LinearClassifier()
 
-kd = KnowledgeDistillation(
+kd = KnowledgeDistiller(
     teacher=teacher,
     student=student,
     temperature=3.0,       # softens teacher's probability distribution
