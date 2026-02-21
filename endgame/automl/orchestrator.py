@@ -1963,7 +1963,7 @@ class EnsemblingExecutor(BaseStageExecutor):
         try:
             trained_models = context["trained_models"]
             oof_predictions = context["oof_predictions"]
-            y = context["y"]
+            y = context.get("y_augmented", context.get("y_cleaned", context["y"]))
             task_type = context.get("task_type", "classification")
 
             if not trained_models:
@@ -2059,70 +2059,77 @@ class EnsemblingExecutor(BaseStageExecutor):
 
         candidates: list[tuple[Any, dict[str, float], str, float]] = []
 
+        # Collect valid OOF predictions (must match y length)
+        valid_oof = {
+            k: v for k, v in oof_predictions.items()
+            if isinstance(v, np.ndarray) and len(v) == len(y)
+        }
+
         # Hill climbing
         try:
             ens, wts = self._hill_climbing_ensemble(
-                trained_models, oof_predictions, y, task_type,
+                trained_models, valid_oof, y, task_type,
             )
-            oof_pred = ens.predict(
-                np.column_stack(list(oof_predictions.values()))
-                if hasattr(ens, "_meta_features") else
-                next(iter(oof_predictions.values()))  # dummy
-            )
-            # Use hill climbing OOF score directly if available
             candidates.append((ens, wts, "hill_climbing", 0.0))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Hill climbing ensemble failed: {e}")
 
         # Stacking
         try:
             ens, wts = self._stacking_ensemble(
-                trained_models, oof_predictions, y, task_type,
+                trained_models, valid_oof, y, task_type,
             )
             candidates.append((ens, wts, "stacking", 0.0))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Stacking ensemble failed: {e}")
 
         # Averaging
         try:
             ens, wts = self._average_ensemble(trained_models)
             candidates.append((ens, wts, "averaging", 0.0))
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Averaging ensemble failed: {e}")
 
         # Score each candidate on OOF predictions
         for i, (ens, wts, method, _) in enumerate(candidates):
             try:
-                model_names = list(oof_predictions.keys())
-                if hasattr(ens, "_meta_features"):
-                    # Stacking: use meta-features
-                    meta_X = np.column_stack([oof_predictions[n] for n in ens.model_order])
+                model_names = list(valid_oof.keys())
+                if callable(getattr(ens, "_meta_features", None)):
+                    meta_X = np.column_stack(
+                        [valid_oof[n] for n in ens.model_order if n in valid_oof]
+                    )
                     oof_pred = ens.meta_estimator.predict(meta_X)
                 elif hasattr(ens, "weights"):
-                    # Weighted: compute weighted average
-                    total_w = sum(wts.values())
+                    total_w = sum(wts.get(n, 0) for n in model_names)
                     if total_w > 0 and is_clf:
                         proba = None
                         for name in model_names:
                             w = wts.get(name, 0) / total_w
-                            if w > 0 and name in oof_predictions:
-                                p = oof_predictions[name]
+                            if w > 0 and name in valid_oof:
+                                p = valid_oof[name]
                                 if p.ndim == 1:
                                     p = np.column_stack([1 - p, p])
                                 proba = p * w if proba is None else proba + p * w
-                        oof_pred = np.argmax(proba, axis=1) if proba is not None else np.zeros(len(y))
-                    else:
-                        oof_pred = sum(
-                            wts.get(n, 0) / total_w * oof_predictions[n]
-                            for n in model_names if n in oof_predictions and wts.get(n, 0) > 0
+                        oof_pred = (
+                            np.argmax(proba, axis=1)
+                            if proba is not None
+                            else np.zeros(len(y))
                         )
+                    elif total_w > 0:
+                        oof_pred = sum(
+                            wts.get(n, 0) / total_w * valid_oof[n]
+                            for n in model_names
+                            if n in valid_oof and wts.get(n, 0) > 0
+                        )
+                    else:
+                        continue
                 else:
                     continue
 
                 score = score_fn(y, oof_pred)
                 candidates[i] = (ens, wts, method, score)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Ensemble scoring failed for {method}: {e}")
 
         if not candidates:
             return self._average_ensemble(trained_models) + ("averaging",)
@@ -3070,28 +3077,54 @@ class PipelineOrchestrator:
         if self.keep_training and not fail_fast:
             self._run_continuous_loop(context)
 
+        # Store context so the result builder can access continuous-loop
+        # models/results that were not in the initial training stage.
+        self._final_context = context
+
         # Build final result
         total_time = time.time() - start_time
 
         # Get best score
         training_result = self.stage_results_.get("model_training")
+        # Collect ALL results including from the continuous loop
+        all_results: list = []
         if training_result and training_result.output:
-            results = training_result.output.get("results", [])
-            successful_results = [r for r in results if r.success]
-            best_score = max((r.score for r in successful_results), default=0.0)
-        else:
-            best_score = 0.0
+            all_results = training_result.output.get("results", [])
+
+        # Also include results stored in context by the continuous loop
+        ctx = getattr(self, "_final_context", {})
+        ctx_results = ctx.get("results", [])
+        seen_ids = {id(r) for r in all_results}
+        for r in ctx_results:
+            if id(r) not in seen_ids:
+                all_results.append(r)
+
+        successful_results = [r for r in all_results if r.success]
+        best_score = max((r.score for r in successful_results), default=0.0)
 
         # Get ensemble
         ensemble_result = self.stage_results_.get("ensembling")
         ensemble = ensemble_result.output.get("ensemble") if ensemble_result and ensemble_result.output else None
 
-        # Get best model
+        # Get best model from ALL trained models (initial + continuous)
+        trained_models: dict = {}
         if training_result and training_result.output:
-            trained_models = training_result.output.get("trained_models", {})
-            best_model = list(trained_models.values())[0] if trained_models else None
-        else:
-            best_model = None
+            trained_models.update(training_result.output.get("trained_models", {}))
+        ctx_models = ctx.get("trained_models", {})
+        trained_models.update(ctx_models)
+
+        best_model = None
+        if trained_models and successful_results:
+            score_map: dict[str, float] = {}
+            for r in successful_results:
+                name = r.config.model_name
+                if name in trained_models:
+                    score_map[name] = max(score_map.get(name, -float("inf")), r.score)
+            if score_map:
+                best_name = max(score_map, key=score_map.get)
+                best_model = trained_models[best_name]
+        elif trained_models:
+            best_model = next(iter(trained_models.values()))
 
         return PipelineResult(
             best_model=best_model,
@@ -3305,11 +3338,25 @@ class PipelineOrchestrator:
 
                 # ── Step 1: Get new configs from strategy ────────────
                 n_suggest = 5 if is_genetic else 3
-                try:
-                    new_configs = strategy.suggest(meta_features, n_suggestions=n_suggest)
-                except Exception as e:
-                    logger.debug(f"Strategy suggest failed: {e}")
-                    break
+                new_configs = None
+                for _suggest_attempt in range(3):
+                    try:
+                        new_configs = strategy.suggest(
+                            meta_features, n_suggestions=n_suggest,
+                        )
+                        break
+                    except Exception as e:
+                        logger.warning(
+                            f"Strategy suggest failed (attempt "
+                            f"{_suggest_attempt + 1}/3): {e}"
+                        )
+                        if self.verbose > 0:
+                            print(
+                                f"  [AutoML] ⚠ suggest() error: {e} "
+                                f"(retry {_suggest_attempt + 1}/3)"
+                            )
+                        import traceback
+                        traceback.print_exc()
 
                 if not new_configs:
                     # Genetic search returns empty when should_stop is True

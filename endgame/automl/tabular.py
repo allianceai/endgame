@@ -1152,11 +1152,14 @@ class TabularPredictor(BasePredictor):
             try:
                 from endgame.automl.search.genetic import GeneticSearch
 
+                n_gens = 100_000 if self.patience == 0 else 100
                 return GeneticSearch(
                     task_type=task_type,
                     eval_metric=self._get_eval_metric(),
                     model_pool=self._preset_config.model_pool,
                     population_size=max(20, len(self._preset_config.model_pool) // 2),
+                    n_generations=n_gens,
+                    patience=self.patience,
                     verbose=self.verbosity,
                     random_state=self.random_state,
                     excluded_models=set(self.excluded_models),
@@ -1236,27 +1239,42 @@ class TabularPredictor(BasePredictor):
         if profiling_result and profiling_result.output:
             self.meta_features_ = profiling_result.output.get("meta_features", {})
 
-        # Store trained models
+        # Store trained models — merge initial training + continuous loop
         training_result = orchestrator.stage_results_.get("model_training")
+
+        all_trained: dict = {}
+        all_oof: dict = {}
+        all_results: list = []
+
         if training_result and training_result.output:
-            trained_models = training_result.output.get("trained_models", {})
-            oof_predictions = training_result.output.get("oof_predictions", {})
-            results = training_result.output.get("results", [])
+            all_trained.update(training_result.output.get("trained_models", {}))
+            all_oof.update(training_result.output.get("oof_predictions", {}))
+            all_results.extend(training_result.output.get("results", []))
 
-            for model_name, model in trained_models.items():
-                # Find the corresponding result
-                model_result = next(
-                    (r for r in results if r.config.model_name == model_name),
-                    None
-                )
+        ctx = getattr(orchestrator, "_final_context", {})
+        if ctx:
+            all_trained.update(ctx.get("trained_models", {}))
+            all_oof.update(ctx.get("oof_predictions", {}))
+            seen = {id(r) for r in all_results}
+            for r in ctx.get("results", []):
+                if id(r) not in seen:
+                    all_results.append(r)
 
-                self._models[model_name] = {
-                    "estimator": model,
-                    "score": model_result.score if model_result else 0.0,
-                    "fit_time": model_result.fit_time if model_result else 0.0,
-                    "oof_predictions": oof_predictions.get(model_name),
-                    "n_features": len(self.feature_names_) if self.feature_names_ else 0,
-                }
+        for model_name, model in all_trained.items():
+            best_result = max(
+                (r for r in all_results
+                 if r.success and r.config.model_name == model_name),
+                key=lambda r: r.score,
+                default=None,
+            )
+
+            self._models[model_name] = {
+                "estimator": model,
+                "score": best_result.score if best_result else 0.0,
+                "fit_time": best_result.fit_time if best_result else 0.0,
+                "oof_predictions": all_oof.get(model_name),
+                "n_features": len(self.feature_names_) if self.feature_names_ else 0,
+            }
 
         # Store ensemble
         ensemble_result = orchestrator.stage_results_.get("ensembling")

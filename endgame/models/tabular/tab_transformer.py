@@ -276,8 +276,8 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
         # Build configs
         data_config = DataConfig(
             target=[target_col],
-            continuous_cols=self._num_cols if self._num_cols else None,
-            categorical_cols=self._cat_cols if self._cat_cols else None,
+            continuous_cols=self._num_cols or [],
+            categorical_cols=self._cat_cols or [],
         )
 
         model_config = TabTransformerConfig(
@@ -520,8 +520,8 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
         # Build configs
         data_config = DataConfig(
             target=[target_col],
-            continuous_cols=self._num_cols if self._num_cols else None,
-            categorical_cols=self._cat_cols if self._cat_cols else None,
+            continuous_cols=self._num_cols or [],
+            categorical_cols=self._cat_cols or [],
         )
 
         model_config = TabTransformerConfig(

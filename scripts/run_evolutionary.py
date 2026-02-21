@@ -251,7 +251,7 @@ Examples:
     # Evaluation on training data (sanity check)
     print_section("EVALUATION (train set)")
     try:
-        predictor.evaluate(df, print_report=True)
+        predictor.evaluate(df)
     except Exception as e:
         print(f"  Evaluation failed: {e}")
 

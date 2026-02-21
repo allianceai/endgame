@@ -942,11 +942,11 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         display_name="AutoSLE",
         family="bayesian",
         class_path="endgame.models.bayesian.AutoSLE",
-        task_types=["classification"],
+        task_types=[],
         typical_fit_time="medium",
         memory_usage="medium",
         default_params={},
-        notes="Automatic Structure Learning Ensemble for Bayesian networks.",
+        notes="Structure learning only — not an sklearn estimator, excluded from AutoML.",
     ),
     "ebmc_classifier": ModelInfo(
         name="ebmc_classifier",

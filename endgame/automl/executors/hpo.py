@@ -167,17 +167,29 @@ class HyperparameterTuningExecutor(BaseStageExecutor):
 
         space = get_space(info.tuning_space)
 
-        # Get the existing estimator to clone
+        # Get the existing estimator to clone.  If the model is wrapped
+        # in a Pipeline (preprocessing + model), extract the inner model
+        # for tuning so that HP names don't need a ``model__`` prefix.
+        from sklearn.base import clone
+        from sklearn.pipeline import Pipeline
+
         existing = trained_models.get(model_name)
         if existing is None:
             return None, None
 
-        from sklearn.base import clone
-
-        try:
-            estimator = clone(existing)
-        except Exception:
-            estimator = existing.__class__(**existing.get_params())
+        pipeline_prefix = None
+        if isinstance(existing, Pipeline):
+            inner = existing.named_steps.get("model", existing.steps[-1][1])
+            pipeline_prefix = existing
+            try:
+                estimator = clone(inner)
+            except Exception:
+                estimator = inner.__class__(**inner.get_params())
+        else:
+            try:
+                estimator = clone(existing)
+            except Exception:
+                estimator = existing.__class__(**existing.get_params())
 
         metric = "roc_auc" if task_type == "classification" else "neg_root_mean_squared_error"
 
@@ -193,6 +205,11 @@ class HyperparameterTuningExecutor(BaseStageExecutor):
 
         result = optimizer.optimize(X, y)
         if optimizer.best_estimator_ is not None:
-            return optimizer.best_score_, optimizer.best_estimator_
+            best = optimizer.best_estimator_
+            if pipeline_prefix is not None:
+                rebuilt = clone(pipeline_prefix)
+                rebuilt.steps[-1] = (rebuilt.steps[-1][0], best)
+                best = rebuilt
+            return optimizer.best_score_, best
 
         return None, None

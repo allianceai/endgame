@@ -199,10 +199,11 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
         else:
             sample_weight = np.ones(n_samples, dtype=np.float64)
 
-        # Store for later use in variable importance
-        self._X_train = X.copy()
-        self._y_train = y.copy()
-        self._sample_weight = sample_weight.copy()
+        # Store references for variable importance (no copy needed — fit
+        # owns these arrays and they're not mutated after this point).
+        self._X_train = X
+        self._y_train = y
+        self._sample_weight = sample_weight
 
         # Calculate default parameters
         self._max_terms = self.max_terms
@@ -524,62 +525,122 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
             for parent_idx in parent_indices:
                 parent = basis_functions[parent_idx]
 
-                # Skip if parent is already at max_degree
                 if parent.degree >= self.max_degree:
                     continue
 
-                # Consider each feature
+                parent_features = set(parent.feature_indices)
+
+                # Pre-evaluate parent once (intercept → all ones)
+                if parent.is_intercept:
+                    parent_vals = None  # signals "ones"
+                else:
+                    parent_vals = parent.evaluate(X)
+
                 for feature_j in range(n_features):
-                    # Skip constant features
                     if not self._valid_features[feature_j]:
                         continue
-
-                    # Skip if parent already uses this feature
-                    if feature_j in parent.feature_indices:
+                    if feature_j in parent_features:
                         continue
 
                     knots = knot_candidates[feature_j]
                     if len(knots) == 0:
                         continue
 
-                    # Try each knot
-                    for knot_t in knots:
-                        # Create the reflected pair of basis functions
+                    x_col = X[:, feature_j]
+
+                    # Vectorised hinge: compute for ALL knots at once
+                    # diff shape: (n_samples, n_knots)
+                    diff = x_col[:, np.newaxis] - knots[np.newaxis, :]
+                    h_plus_all = np.maximum(0.0, diff)   # max(0, x - t)
+                    h_minus_all = np.maximum(0.0, -diff)  # max(0, t - x)
+
+                    if parent_vals is not None:
+                        h_plus_all = h_plus_all * parent_vals[:, np.newaxis]
+                        h_minus_all = h_minus_all * parent_vals[:, np.newaxis]
+
+                    # Weight columns
+                    h_plus_w = h_plus_all * sqrt_w[:, np.newaxis]
+                    h_minus_w = h_minus_all * sqrt_w[:, np.newaxis]
+
+                    # Check for all-zeros columns (energy check)
+                    energy_plus = np.einsum("ij,ij->j", h_plus_w, h_plus_w)
+                    energy_minus = np.einsum("ij,ij->j", h_minus_w, h_minus_w)
+                    valid = (energy_plus > 1e-10) & (energy_minus > 1e-10)
+
+                    if not np.any(valid):
+                        # Try linear term if applicable
+                        if self.allow_linear and parent.is_intercept:
+                            col_linear = x_col * sqrt_w
+                            if np.dot(col_linear, col_linear) > 1e-10:
+                                rss_dec = self._compute_rss_decrease_single(
+                                    Q, y_weighted, col_linear,
+                                )
+                                if rss_dec > best_decrease:
+                                    best_decrease = rss_dec
+                                    best_pair = None
+                                    best_linear = (LinearBasisFunction(feature_j), col_linear)
+                        continue
+
+                    # Project all valid knot columns at once: Q.T @ col
+                    QtHp = Q.T @ h_plus_w[:, valid]   # (k, n_valid)
+                    QtHm = Q.T @ h_minus_w[:, valid]
+
+                    # Orthogonal component for each knot
+                    hp_orth = h_plus_w[:, valid] - Q @ QtHp
+                    hm_orth = h_minus_w[:, valid] - Q @ QtHm
+
+                    # Gram-Schmidt: orthogonalise minus against plus
+                    norms_p = np.sqrt(np.einsum("ij,ij->j", hp_orth, hp_orth))
+                    safe_p = norms_p > 1e-10
+
+                    var1 = np.zeros(safe_p.shape)
+                    if np.any(safe_p):
+                        hp_unit = hp_orth[:, safe_p] / norms_p[np.newaxis, safe_p]
+                        var1[safe_p] = np.einsum("ij,i->j", hp_unit, y_weighted) ** 2
+
+                        # Project hm_orth against hp_unit
+                        dot_pm = np.einsum("ij,ij->j", hp_unit, hm_orth[:, safe_p])
+                        hm_orth2 = hm_orth[:, safe_p] - hp_unit * dot_pm[np.newaxis, :]
+                    else:
+                        hm_orth2 = hm_orth
+
+                    # Compute var2 for all valid knots
+                    var2 = np.zeros(safe_p.shape)
+                    if np.any(safe_p):
+                        norms_m = np.sqrt(np.einsum("ij,ij->j", hm_orth2, hm_orth2))
+                        safe_m = norms_m > 1e-10
+                        if np.any(safe_m):
+                            hm_unit = hm_orth2[:, safe_m] / norms_m[np.newaxis, safe_m]
+                            v2_vals = np.einsum("ij,i->j", hm_unit, y_weighted) ** 2
+                            idx_m = np.where(safe_p)[0][safe_m]
+                            var2[idx_m] = v2_vals
+
+                    rss_dec_all = var1 + var2
+                    best_k = int(np.argmax(rss_dec_all))
+                    if rss_dec_all[best_k] > best_decrease:
+                        best_decrease = rss_dec_all[best_k]
+                        # Map back to original knot index
+                        orig_idx = np.where(valid)[0][best_k]
+                        knot_t = knots[orig_idx]
                         h_plus = parent.extend(HingeSpec(feature_j, knot_t, +1))
                         h_minus = parent.extend(HingeSpec(feature_j, knot_t, -1))
-
-                        # Evaluate new basis functions
-                        col_plus = h_plus.evaluate(X) * sqrt_w
-                        col_minus = h_minus.evaluate(X) * sqrt_w
-
-                        # Skip if either column is all zeros
-                        if np.sum(col_plus ** 2) < 1e-10 or np.sum(col_minus ** 2) < 1e-10:
-                            continue
-
-                        # Compute RSS decrease using QR update
-                        rss_decrease = self._compute_rss_decrease_fast(
-                            Q, y_weighted, col_plus, col_minus
+                        best_pair = (
+                            h_plus, h_minus,
+                            h_plus_w[:, orig_idx], h_minus_w[:, orig_idx],
                         )
-
-                        if rss_decrease > best_decrease:
-                            best_decrease = rss_decrease
-                            best_pair = (h_plus, h_minus, col_plus, col_minus)
-                            best_linear = None
+                        best_linear = None
 
                     # Also try linear term if allowed and parent is intercept
                     if self.allow_linear and parent.is_intercept:
-                        linear = LinearBasisFunction(feature_j)
-                        col_linear = linear.evaluate(X) * sqrt_w
-
-                        if np.sum(col_linear ** 2) > 1e-10:
-                            rss_decrease_linear = self._compute_rss_decrease_single(
-                                Q, y_weighted, col_linear
+                        col_linear = x_col * sqrt_w
+                        if np.dot(col_linear, col_linear) > 1e-10:
+                            rss_dec = self._compute_rss_decrease_single(
+                                Q, y_weighted, col_linear,
                             )
-
-                            if rss_decrease_linear > best_decrease:
-                                best_decrease = rss_decrease_linear
+                            if rss_dec > best_decrease:
+                                best_decrease = rss_dec
                                 best_pair = None
-                                best_linear = (linear, col_linear)
+                                best_linear = (LinearBasisFunction(feature_j), col_linear)
 
             # Stopping criterion
             if total_ss > 0:
@@ -647,63 +708,88 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
     ) -> list[BasisFunction | LinearBasisFunction]:
         """Backward pass to prune basis functions using GCV.
 
-        Parameters
-        ----------
-        basis_functions : list
-            Basis functions from forward pass.
-        X : ndarray of shape (n_samples, n_features)
-            Training data.
-        y : ndarray of shape (n_samples,)
-            Target values.
-        sample_weight : ndarray of shape (n_samples,)
-            Sample weights.
-
-        Returns
-        -------
-        pruned_basis : list
-            Pruned list of basis functions.
+        Optimized: precomputes the full basis matrix once and removes
+        columns by index rather than re-evaluating all basis functions.
         """
+        n = len(y)
+        sqrt_w = np.sqrt(sample_weight)
+        y_weighted = y * sqrt_w
+
         current = list(basis_functions)
-        best_gcv = self._compute_gcv(current, X, y, sample_weight)
+        active_cols = list(range(len(current)))
+
+        # Precompute full basis matrix once (n_samples × n_basis)
+        B_full = np.column_stack([bf.evaluate(X) for bf in current])
+        B_full_w = B_full * sqrt_w[:, np.newaxis]
+
+        best_gcv = self._compute_gcv_from_matrix(
+            B_full_w[:, active_cols], y_weighted, y, sample_weight,
+            current, n,
+        )
+        best_model_indices = list(active_cols)
         best_model = list(current)
 
-        while len(current) > 1:  # Keep at least intercept
+        while len(active_cols) > 1:
             best_removal_gcv = np.inf
-            term_to_remove = None
+            col_to_remove = None
 
-            # Find term whose removal hurts least
-            for i in range(len(current)):
-                if current[i].is_intercept:
-                    continue  # Never remove intercept
+            for idx in active_cols:
+                if current[idx].is_intercept:
+                    continue
 
-                # Try removing this term
-                subset = current[:i] + current[i + 1:]
-                gcv = self._compute_gcv(subset, X, y, sample_weight)
+                subset_cols = [c for c in active_cols if c != idx]
+                Bw_sub = B_full_w[:, subset_cols]
+                subset_bfs = [current[c] for c in subset_cols]
+                gcv = self._compute_gcv_from_matrix(
+                    Bw_sub, y_weighted, y, sample_weight, subset_bfs, n,
+                )
 
                 if gcv < best_removal_gcv:
                     best_removal_gcv = gcv
-                    term_to_remove = i
+                    col_to_remove = idx
 
-            if term_to_remove is None:
+            if col_to_remove is None:
                 break
 
-            # Record the removal
-            removed = current[term_to_remove]
             self.pruning_record_.append({
-                "removed": str(removed),
+                "removed": str(current[col_to_remove]),
                 "gcv_after": best_removal_gcv,
-                "n_terms_after": len(current) - 1,
+                "n_terms_after": len(active_cols) - 1,
             })
 
-            # Remove the term
-            current = current[:term_to_remove] + current[term_to_remove + 1:]
+            active_cols.remove(col_to_remove)
 
-            # Track best model seen
             if best_removal_gcv < best_gcv:
                 best_gcv = best_removal_gcv
-                best_model = list(current)
+                best_model_indices = list(active_cols)
+                best_model = [current[c] for c in active_cols]
 
         return best_model
+
+    def _compute_gcv_from_matrix(
+        self,
+        B_weighted: NDArray[np.floating],
+        y_weighted: NDArray[np.floating],
+        y: NDArray[np.floating],
+        sample_weight: NDArray[np.floating],
+        basis_functions: list,
+        n: int,
+    ) -> float:
+        """GCV from a pre-sliced weighted basis matrix (avoids re-evaluate)."""
+        try:
+            coef, _, _, _ = np.linalg.lstsq(B_weighted, y_weighted, rcond=None)
+        except np.linalg.LinAlgError:
+            return np.inf
+
+        y_pred = (B_weighted / np.sqrt(sample_weight)[:, np.newaxis]) @ coef
+        rss = np.dot(sample_weight, (y - y_pred) ** 2)
+
+        n_coefficients = B_weighted.shape[1]
+        n_knots = sum(bf.degree for bf in basis_functions)
+        effective_params = n_coefficients + self.penalty * n_knots
+        denom = n * (1 - effective_params / n) ** 2
+
+        return rss / denom if denom > 0 else np.inf
 
     def _compute_gcv(
         self,

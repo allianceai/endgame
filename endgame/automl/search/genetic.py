@@ -299,6 +299,7 @@ class GeneticSearch(BaseSearchStrategy):
         self._evaluated_ids: set[str] = set()
         self._hall_of_fame: list[Individual] = []
         self._gen_pending: int = 0  # unevaluated count in current gen
+        self._timeout_counts: dict[str, int] = {}  # model_name -> consecutive timeouts
 
     # ────────────────────────── public API ──────────────────────────
 
@@ -377,6 +378,13 @@ class GeneticSearch(BaseSearchStrategy):
             self._gen_pending = max(0, self._gen_pending - 1)
 
         self._evaluated_ids.add(result.config.config_id)
+
+        # Track timeout/failure patterns per model name
+        name = result.config.model_name
+        if not result.success:
+            self._timeout_counts[name] = self._timeout_counts.get(name, 0) + 1
+        else:
+            self._timeout_counts.pop(name, None)
 
         if result.success and result.score > 0:
             self._update_hall_of_fame(result)
@@ -600,35 +608,41 @@ class GeneticSearch(BaseSearchStrategy):
         attempts = 0
         while len(new_pop) < self.population_size and attempts < max_attempts:
             attempts += 1
-            p1 = self._tournament_select(evaluated)
-            p2 = self._tournament_select(evaluated)
+            try:
+                p1 = self._tournament_select(evaluated)
+                p2 = self._tournament_select(evaluated)
 
-            if self._rng.random() < self.crossover_rate:
-                child_cfg = self._crossover(p1.config, p2.config)
-                parent_ids = [p1.uid, p2.uid]
-            else:
-                child_cfg = copy.deepcopy(p1.config if p1.fitness >= p2.fitness else p2.config)
-                parent_ids = [p1.uid]
+                if self._rng.random() < self.crossover_rate:
+                    child_cfg = self._crossover(p1.config, p2.config)
+                    parent_ids = [p1.uid, p2.uid]
+                else:
+                    child_cfg = copy.deepcopy(p1.config if p1.fitness >= p2.fitness else p2.config)
+                    parent_ids = [p1.uid]
 
-            child_cfg = self._mutate(child_cfg)
-
-            child_cfg.config_id = None
-            child_cfg.metadata["generation"] = self._generation
-            child_cfg.__post_init__()
-
-            # Try to avoid exact duplicates (finite retries)
-            for _ in range(3):
-                if child_cfg.config_id not in self._evaluated_ids:
-                    break
                 child_cfg = self._mutate(child_cfg)
+
                 child_cfg.config_id = None
+                child_cfg.metadata["generation"] = self._generation
                 child_cfg.__post_init__()
 
-            new_pop.append(Individual(
-                config=child_cfg,
-                generation=self._generation,
-                parent_ids=parent_ids,
-            ))
+                # Try to avoid exact duplicates (finite retries)
+                for _ in range(3):
+                    if child_cfg.config_id not in self._evaluated_ids:
+                        break
+                    child_cfg = self._mutate(child_cfg)
+                    child_cfg.config_id = None
+                    child_cfg.__post_init__()
+
+                new_pop.append(Individual(
+                    config=child_cfg,
+                    generation=self._generation,
+                    parent_ids=parent_ids,
+                ))
+            except Exception as exc:
+                import logging as _log
+                _log.getLogger(__name__).debug(
+                    f"Offspring creation failed (attempt {attempts}): {exc}"
+                )
 
         self._population = new_pop
 
@@ -706,13 +720,17 @@ class GeneticSearch(BaseSearchStrategy):
         config = copy.deepcopy(config)
         rate = self.mutation_rate
 
-        # Mutate model choice — use full rate to maintain diversity
+        # Mutate model choice — use full rate to maintain diversity.
+        # Avoid models that have timed out >= 2 times consecutively.
         if self._rng.random() < rate:
-            config.model_name = self._rng.choice(self._available_models)
+            viable = [
+                m for m in self._available_models
+                if self._timeout_counts.get(m, 0) < 2
+            ] or self._available_models
+            config.model_name = self._rng.choice(viable)
             info = MODEL_REGISTRY.get(config.model_name)
             if info:
                 config.model_params = info.default_params.copy()
-                # Randomise a few HPs of the new model
                 config.model_params = self._random_params(config.model_name)
 
         # Mutate hyperparameters
