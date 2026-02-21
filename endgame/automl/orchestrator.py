@@ -1543,6 +1543,44 @@ class ModelTrainingExecutor(BaseStageExecutor):
         except Exception as e:
             logger.error(f"Model training failed: {e}")
 
+        # --- Fallback: if all models failed/killed, train a fast model ---
+        if not trained_models and results:
+            logger.warning(
+                "All models failed or were killed. "
+                "Training fast fallback model (HistGradientBoosting)."
+            )
+            if self.verbose > 0:
+                print("    All models killed/failed — training fallback model...", end="", flush=True)
+            try:
+                X = context.get("X_augmented",
+                    context.get("X_engineered",
+                        context.get("X_processed",
+                            context.get("X_cleaned", context.get("X")))))
+                y = context.get("y_augmented",
+                    context.get("y_cleaned", context.get("y")))
+                task_type = context.get("task_type", "classification")
+
+                if task_type == "regression":
+                    from sklearn.ensemble import HistGradientBoostingRegressor
+                    fallback = HistGradientBoostingRegressor(
+                        max_iter=100, max_depth=6, random_state=42,
+                    )
+                else:
+                    from sklearn.ensemble import HistGradientBoostingClassifier
+                    fallback = HistGradientBoostingClassifier(
+                        max_iter=100, max_depth=6, random_state=42,
+                    )
+
+                fallback.fit(X, y)
+                trained_models["fallback_hgb"] = fallback
+                if self.verbose > 0:
+                    print(" OK (fallback)")
+                logger.info("Fallback model trained successfully.")
+            except Exception as fallback_err:
+                if self.verbose > 0:
+                    print(f" FAILED ({fallback_err})")
+                logger.error(f"Fallback model also failed: {fallback_err}")
+
         duration = time.time() - start_time
 
         return StageResult(
