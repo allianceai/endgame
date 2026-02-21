@@ -609,7 +609,7 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         typical_fit_time="slow",
         memory_usage="high",
         min_samples=500,
-        default_params={"n_epochs": 100, "batch_size": 256},
+        default_params={"max_epochs": 100, "batch_size": 256},
         required_packages=["pytorch_tabular"],
         notes="Transformer for tabular with column-wise attention.",
     ),

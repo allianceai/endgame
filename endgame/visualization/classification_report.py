@@ -439,8 +439,14 @@ class ClassificationReport:
         }
 
     def _section_importances(self, w, h, colors):
-        imp = self.model.feature_importances_
-        names = self.feature_names or [f"Feature {i}" for i in range(len(imp))]
+        raw_imp = self.model.feature_importances_
+        # Handle dict-style importances (e.g., LGBMWrapper returns {name: value})
+        if isinstance(raw_imp, dict):
+            names = list(raw_imp.keys())
+            imp = np.array(list(raw_imp.values()))
+        else:
+            imp = np.asarray(raw_imp)
+            names = self.feature_names or [f"Feature {i}" for i in range(len(imp))]
         top_n = min(20, len(imp))
         idx = np.argsort(imp)[::-1][:top_n]
 

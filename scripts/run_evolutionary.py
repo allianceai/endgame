@@ -142,6 +142,8 @@ Examples:
     )
     parser.add_argument("--patience", type=int, default=10)
     parser.add_argument("--subsample", type=int, default=5000)
+    parser.add_argument("--seed", type=int, default=None,
+                        help="Random seed (default None = random order each run).")
     parser.add_argument("--output", type=str, default="automl_evolutionary_output")
     parser.add_argument(
         "--exclude",
@@ -176,6 +178,12 @@ Examples:
     default_excludes = ["gp", "gp_regressor", "svm", "svm_regressor"]
     excluded = list(set(default_excludes + args.exclude))
 
+    seed = args.seed
+    if seed is None:
+        import random as _rng
+        seed = _rng.randint(0, 2**31 - 1)
+        print(f"  Random seed: {seed} (use --seed {seed} to reproduce)")
+
     predictor = TabularPredictor(
         label=target_col,
         presets="exhaustive",
@@ -189,6 +197,7 @@ Examples:
         min_model_time=args.min_model_time,
         max_model_time=args.max_model_time,
         excluded_models=excluded,
+        random_state=seed,
         verbosity=2,
     )
 

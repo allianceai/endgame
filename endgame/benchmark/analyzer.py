@@ -114,6 +114,60 @@ class ResultsAnalyzer:
         self._df = None
         self._pivot_table = None
 
+    @classmethod
+    def from_pivot(
+        cls,
+        pivot: dict[str, dict[str, float]],
+        metric: str = "accuracy",
+        higher_is_better: bool = True,
+        significance_level: float = 0.05,
+    ) -> "ResultsAnalyzer":
+        """Create a ResultsAnalyzer from a pivot dict.
+
+        Convenience factory for external experiment systems that already have
+        results in {dataset: {method: score}} form.
+
+        Parameters
+        ----------
+        pivot : Dict[str, Dict[str, float]]
+            Mapping of dataset_name -> {method_name: score}.
+        metric : str, default="accuracy"
+            Name of the metric the scores represent.
+        higher_is_better : bool, default=True
+            Whether higher metric values are better.
+        significance_level : float, default=0.05
+            Alpha level for statistical tests.
+
+        Returns
+        -------
+        ResultsAnalyzer
+            Analyzer ready for ranking, comparison, and statistical tests.
+
+        Examples
+        --------
+        >>> pivot = {
+        ...     "iris": {"RF": 0.95, "XGB": 0.96},
+        ...     "wine": {"RF": 0.97, "XGB": 0.95},
+        ... }
+        >>> analyzer = ResultsAnalyzer.from_pivot(pivot, metric="accuracy")
+        >>> print(analyzer.summary_table())
+        """
+        tracker = ExperimentTracker(name="from_pivot")
+        for dataset_name, method_scores in pivot.items():
+            for method_name, score in method_scores.items():
+                if score is not None:
+                    tracker.log_experiment(
+                        dataset_name=dataset_name,
+                        model_name=method_name,
+                        metrics={metric: score},
+                    )
+        return cls(
+            tracker=tracker,
+            metric=metric,
+            higher_is_better=higher_is_better,
+            significance_level=significance_level,
+        )
+
     @property
     def df(self):
         """Get results as DataFrame."""

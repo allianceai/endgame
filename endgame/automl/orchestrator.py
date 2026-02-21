@@ -6,6 +6,7 @@ with intelligent time budget management and graceful degradation.
 
 import atexit
 import logging
+import os
 import time
 import weakref
 from abc import ABC, abstractmethod
@@ -1387,6 +1388,12 @@ class ModelTrainingExecutor(BaseStageExecutor):
         StageResult
             Contains trained_models and oof_predictions in output.
         """
+        # Prevent CUDA from being initialized in the parent process.
+        # _refit_model runs here and PyTorch models can lazily init CUDA
+        # which would poison all subsequent fork()ed children with
+        # "Cannot re-initialize CUDA in forked subprocess".
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
+
         start_time = time.time()
 
         # Initialise outside try so partial results survive exceptions
