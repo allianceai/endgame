@@ -38,4 +38,10 @@ def __getattr__(name: str):
     elif name == "BayesianSearch":
         from endgame.automl.search.bayesian import BayesianSearch
         return BayesianSearch
+    elif name == "BanditSearch":
+        from endgame.automl.search.bandit import BanditSearch
+        return BanditSearch
+    elif name == "AdaptiveSearch":
+        from endgame.automl.search.adaptive import AdaptiveSearch
+        return AdaptiveSearch
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

@@ -55,14 +55,13 @@ _SCALER_GENES: list[dict[str, Any] | None] = [
 
 _FEATURE_SELECTION_GENES: list[dict[str, Any] | None] = [
     None,  # no feature selection
+    None,  # extra weight toward no selection (it's safest)
+    {"method": "variance_threshold", "threshold": 0.0},
     {"method": "variance_threshold", "threshold": 0.001},
-    {"method": "variance_threshold", "threshold": 0.01},
-    {"method": "variance_threshold", "threshold": 0.05},
     {"method": "mutual_info", "k": 10},
     {"method": "mutual_info", "k": 20},
     {"method": "mutual_info", "k": 30},
     {"method": "mutual_info", "k": 50},
-    {"method": "boruta"},
 ]
 
 _DIM_REDUCTION_GENES: list[dict[str, Any] | None] = [
@@ -263,7 +262,7 @@ class GeneticSearch(BaseSearchStrategy):
         n_generations: int = 100,
         mutation_rate: float = 0.15,
         crossover_rate: float = 0.7,
-        tournament_size: int = 5,
+        tournament_size: int = 3,
         elitism: int = 3,
         patience: int = 15,
         random_state: int | None = None,
@@ -282,10 +281,12 @@ class GeneticSearch(BaseSearchStrategy):
         self.population_size = population_size
         self.n_generations = n_generations
         self.mutation_rate = mutation_rate
+        self._base_mutation_rate = mutation_rate
         self.crossover_rate = crossover_rate
         self.tournament_size = tournament_size
         self.elitism = elitism
         self.patience = patience
+        self.max_model_time: float = kwargs.pop("max_model_time", 300)
 
         self._rng = random.Random(random_state)
         self._np_rng = np.random.RandomState(random_state)
@@ -299,9 +300,32 @@ class GeneticSearch(BaseSearchStrategy):
         self._evaluated_ids: set[str] = set()
         self._hall_of_fame: list[Individual] = []
         self._gen_pending: int = 0  # unevaluated count in current gen
-        self._timeout_counts: dict[str, int] = {}  # model_name -> consecutive timeouts
+        self._fail_counts: dict[str, int] = {}
+        self._blacklisted_models: set[str] = set()
+        self._importance_mask: np.ndarray | None = None
+        self._importance_scores: np.ndarray | None = None
 
     # ────────────────────────── public API ──────────────────────────
+
+    def set_feature_importance_feedback(
+        self,
+        mask: np.ndarray,
+        scores: np.ndarray | None = None,
+    ) -> None:
+        """Inject feature importance feedback from trained models.
+
+        This enables iterative feature selection: future configs may
+        include an importance-based feature mask step.
+
+        Parameters
+        ----------
+        mask : np.ndarray of bool
+            Boolean mask — True for features to keep.
+        scores : np.ndarray, optional
+            Normalised importance scores per feature.
+        """
+        self._importance_mask = mask
+        self._importance_scores = scores
 
     def suggest(
         self,
@@ -338,7 +362,19 @@ class GeneticSearch(BaseSearchStrategy):
         if not unevaluated:
             return []
 
-        batch = unevaluated[:n_suggestions]
+        # Cap duplicates: at most 2 individuals with the same model_name
+        # per batch to prevent monoculture runs.
+        MAX_DUPES_PER_BATCH = 2
+        batch: list[Individual] = []
+        model_counts: dict[str, int] = {}
+        for ind in unevaluated:
+            name = ind.config.model_name
+            if model_counts.get(name, 0) >= MAX_DUPES_PER_BATCH:
+                continue
+            batch.append(ind)
+            model_counts[name] = model_counts.get(name, 0) + 1
+            if len(batch) >= n_suggestions:
+                break
 
         if self.verbose > 0 and batch:
             models = [ind.config.model_name for ind in batch]
@@ -379,12 +415,18 @@ class GeneticSearch(BaseSearchStrategy):
 
         self._evaluated_ids.add(result.config.config_id)
 
-        # Track timeout/failure patterns per model name
         name = result.config.model_name
         if not result.success:
-            self._timeout_counts[name] = self._timeout_counts.get(name, 0) + 1
+            self._fail_counts[name] = self._fail_counts.get(name, 0) + 1
+            if self._fail_counts[name] >= 3:
+                self._blacklisted_models.add(name)
+                if self.verbose > 0 and self._fail_counts[name] == 3:
+                    print(
+                        f"  [Genetic] Blacklisted '{name}' after "
+                        f"{self._fail_counts[name]} consecutive failures"
+                    )
         else:
-            self._timeout_counts.pop(name, None)
+            self._fail_counts.pop(name, None)
 
         if result.success and result.score > 0:
             self._update_hall_of_fame(result)
@@ -413,6 +455,16 @@ class GeneticSearch(BaseSearchStrategy):
         "symbolic_regression", "symbolic_regressor",
     }
 
+    # Models that frequently fail due to data requirements they can't
+    # communicate through the registry API (e.g. non-negative features,
+    # specific feature distributions).  They can still appear via
+    # mutation but won't waste a Gen-0 slot.
+    _FRAGILE_MODELS: set[str] = {
+        "ebmc_classifier",
+        "fasterrisk",
+        "slim",
+    }
+
     def _init_population(self, meta_features: dict[str, float] | None) -> None:
         """Seed gen 0 with one individual per model type, then fill randomly.
 
@@ -427,9 +479,10 @@ class GeneticSearch(BaseSearchStrategy):
         # Phase 1: one config per model type (deterministic coverage).
         # Prioritise fast models; if there are more model types than
         # population slots, the shuffled order decides which get in.
+        skip = self._SLOW_MODELS | self._FRAGILE_MODELS | self._blacklisted_models
         fast_models = [
             m for m in self._available_models
-            if m not in self._SLOW_MODELS
+            if m not in skip
         ]
         self._rng.shuffle(fast_models)
 
@@ -484,7 +537,7 @@ class GeneticSearch(BaseSearchStrategy):
         self, meta_features: dict, exclude_slow: bool = False,
     ) -> PipelineConfig:
         """Build a fully random pipeline configuration."""
-        pool = self._available_models
+        pool = self._viable_models()
         if exclude_slow:
             pool = [m for m in pool if m not in self._SLOW_MODELS] or pool
         model_name = self._rng.choice(pool)
@@ -541,9 +594,19 @@ class GeneticSearch(BaseSearchStrategy):
         if scaler is not None:
             steps.append(("scaler", scaler))
 
-        # Feature selection (40% chance)
-        if self._rng.random() < 0.4:
-            fs = self._rng.choice([g for g in _FEATURE_SELECTION_GENES if g is not None])
+        # Feature selection (30% chance; higher if we have importance feedback)
+        fs_prob = 0.40 if self._importance_mask is not None else 0.25
+        if self._rng.random() < fs_prob:
+            pool = [g for g in _FEATURE_SELECTION_GENES if g is not None]
+            if self.max_model_time >= 600:
+                pool.append({"method": "boruta"})
+            # Add importance-based selection when feedback is available
+            if self._importance_mask is not None:
+                mask_list = self._importance_mask.tolist()
+                pool.append({"method": "importance_mask", "mask": mask_list})
+                # Give it extra weight — it's informed by actual model perf
+                pool.append({"method": "importance_mask", "mask": mask_list})
+            fs = self._rng.choice(pool)
             steps.append(("feature_selection", fs))
 
         # Dimensionality reduction (25% chance, only if enough features)
@@ -559,12 +622,10 @@ class GeneticSearch(BaseSearchStrategy):
         """Create the next generation via selection + crossover + mutation."""
         self._generation += 1
 
-        # Sort by fitness (descending)
         evaluated = [ind for ind in self._population if ind.evaluated]
         evaluated.sort(key=lambda x: x.fitness, reverse=True)
 
         if not evaluated:
-            # Nothing evaluated yet — re-init
             self._init_population({})
             return
 
@@ -585,23 +646,52 @@ class GeneticSearch(BaseSearchStrategy):
         else:
             self._stale_generations += 1
             if self.verbose > 0:
+                unique_models = len({ind.config.model_name for ind in evaluated})
                 print(
                     f"  [Genetic] Gen {self._generation}: "
                     f"best={gen_best:.4f} "
-                    f"(no improvement {self._stale_generations}/{self.patience})"
+                    f"(stale {self._stale_generations}/{self.patience}, "
+                    f"{unique_models} unique models)"
                 )
 
-        # Elitism: keep top-k unchanged
+        # Adaptive mutation: ramp up when stagnating to break out of local optima
+        if self._stale_generations >= 5:
+            self.mutation_rate = min(0.6, self._base_mutation_rate + 0.1 * self._stale_generations)
+        else:
+            self.mutation_rate = self._base_mutation_rate
+
+        # Elitism: keep top-k unchanged (diverse elites only)
         new_pop: list[Individual] = []
-        for elite in evaluated[: self.elitism]:
-            clone = Individual(
+        elite_model_names: set[str] = set()
+        for elite in evaluated[: self.elitism * 2]:
+            if len(new_pop) >= self.elitism:
+                break
+            if elite.config.model_name in elite_model_names:
+                continue
+            elite_model_names.add(elite.config.model_name)
+            clone_ind = Individual(
                 config=copy.deepcopy(elite.config),
                 fitness=elite.fitness,
                 generation=self._generation,
-                evaluated=True,  # already scored — skip re-evaluation
+                evaluated=True,
                 parent_ids=[elite.uid],
             )
-            new_pop.append(clone)
+            new_pop.append(clone_ind)
+
+        # Random immigrants: inject fresh random individuals to maintain diversity.
+        # More immigrants when stagnating.
+        n_immigrants = max(2, self.population_size // 5)
+        if self._stale_generations >= 5:
+            n_immigrants = max(n_immigrants, self.population_size // 3)
+        for _ in range(n_immigrants):
+            if len(new_pop) >= self.population_size:
+                break
+            cfg = self._random_config({}, exclude_slow=True)
+            new_pop.append(Individual(
+                config=cfg,
+                generation=self._generation,
+                parent_ids=[],
+            ))
 
         # Fill the rest with offspring
         max_attempts = self.population_size * 5
@@ -625,7 +715,6 @@ class GeneticSearch(BaseSearchStrategy):
                 child_cfg.metadata["generation"] = self._generation
                 child_cfg.__post_init__()
 
-                # Try to avoid exact duplicates (finite retries)
                 for _ in range(3):
                     if child_cfg.config_id not in self._evaluated_ids:
                         break
@@ -639,12 +728,32 @@ class GeneticSearch(BaseSearchStrategy):
                     parent_ids=parent_ids,
                 ))
             except Exception as exc:
-                import logging as _log
-                _log.getLogger(__name__).debug(
+                logger.debug(
                     f"Offspring creation failed (attempt {attempts}): {exc}"
                 )
 
-        self._population = new_pop
+        # Enforce model diversity: cap any single model to 40% of population
+        max_per_model = max(3, int(self.population_size * 0.4))
+        model_counts: dict[str, int] = {}
+        diverse_pop: list[Individual] = []
+        for ind in new_pop:
+            name = ind.config.model_name
+            count = model_counts.get(name, 0)
+            if count < max_per_model:
+                diverse_pop.append(ind)
+                model_counts[name] = count + 1
+            # Excess individuals of this model are discarded
+
+        # Fill any slots freed by the diversity cap with fresh randoms
+        while len(diverse_pop) < self.population_size:
+            cfg = self._random_config({}, exclude_slow=True)
+            diverse_pop.append(Individual(
+                config=cfg,
+                generation=self._generation,
+                parent_ids=[],
+            ))
+
+        self._population = diverse_pop
 
     def _tournament_select(self, pool: list[Individual]) -> Individual:
         k = min(self.tournament_size, len(pool))
@@ -720,17 +829,18 @@ class GeneticSearch(BaseSearchStrategy):
         config = copy.deepcopy(config)
         rate = self.mutation_rate
 
-        # Mutate model choice — use full rate to maintain diversity.
-        # Avoid models that have timed out >= 2 times consecutively.
+        # Replace blacklisted model unconditionally
+        if config.model_name in self._blacklisted_models:
+            viable = self._viable_models()
+            if viable:
+                config.model_name = self._rng.choice(viable)
+                config.model_params = self._random_params(config.model_name)
+
+        # Mutate model choice with adaptive rate
         if self._rng.random() < rate:
-            viable = [
-                m for m in self._available_models
-                if self._timeout_counts.get(m, 0) < 2
-            ] or self._available_models
-            config.model_name = self._rng.choice(viable)
-            info = MODEL_REGISTRY.get(config.model_name)
-            if info:
-                config.model_params = info.default_params.copy()
+            viable = self._viable_models()
+            if viable:
+                config.model_name = self._rng.choice(viable)
                 config.model_params = self._random_params(config.model_name)
 
         # Mutate hyperparameters
@@ -747,6 +857,13 @@ class GeneticSearch(BaseSearchStrategy):
 
         return config
 
+    def _feature_selection_pool(self) -> list[dict[str, Any] | None]:
+        """Feature selection genes, including boruta only when budget allows."""
+        pool = list(_FEATURE_SELECTION_GENES)
+        if self.max_model_time >= 600:
+            pool.append({"method": "boruta"})
+        return pool
+
     def _mutate_preprocessing(
         self,
         steps: list[tuple[str, dict]],
@@ -754,11 +871,11 @@ class GeneticSearch(BaseSearchStrategy):
         steps = list(steps)  # shallow copy
         rate = self.mutation_rate
 
-        gene_pools = {
+        gene_pools: dict[str, list] = {
             "imputer": _IMPUTER_GENES,
             "encoder": _ENCODER_GENES,
             "scaler": _SCALER_GENES,
-            "feature_selection": _FEATURE_SELECTION_GENES,
+            "feature_selection": self._feature_selection_pool(),
             "dim_reduction": _DIM_REDUCTION_GENES,
         }
 
@@ -773,19 +890,24 @@ class GeneticSearch(BaseSearchStrategy):
             new_gene = self._rng.choice(pool)
 
             if new_gene is None:
-                # Remove step
                 if existing_idx is not None:
                     steps.pop(existing_idx)
             elif existing_idx is not None:
-                # Replace
                 steps[existing_idx] = (step_name, new_gene)
             else:
-                # Add
                 steps.append((step_name, new_gene))
 
         return steps
 
     # ──────────────────── helper methods ────────────────────────────
+
+    def _viable_models(self) -> list[str]:
+        """Available models minus blacklisted ones."""
+        viable = [
+            m for m in self._available_models
+            if m not in self._blacklisted_models
+        ]
+        return viable or self._available_models
 
     def _get_available_models(
         self,

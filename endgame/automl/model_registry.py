@@ -872,7 +872,7 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         interpretable=True,
         typical_fit_time="fast",
         memory_usage="low",
-        default_params={"method": "auto"},
+        default_params={"variant": "auto"},
         notes="Auto-selecting ordinal classifier for ordered categorical targets.",
     ),
     "logistic_at": ModelInfo(

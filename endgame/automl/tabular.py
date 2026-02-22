@@ -52,7 +52,8 @@ class TabularPredictor(BasePredictor):
     time_limit : int, optional
         Time limit in seconds. If None, uses preset default.
     search_strategy : str, default="portfolio"
-        Search strategy: "portfolio", "heuristic", "genetic", "random", "bayesian".
+        Search strategy: "portfolio", "heuristic", "genetic", "random",
+        "bayesian", "bandit", "adaptive".
     track_experiments : bool, default=True
         Whether to track experiments to the meta-learning database.
     output_path : str, optional
@@ -325,6 +326,10 @@ class TabularPredictor(BasePredictor):
             eval_metric=self.eval_metric,
             excluded_models=self.excluded_models,
         )
+
+        # Set persistence output directory if configured
+        if self.output_path and "persistence" in orchestrator._executors:
+            orchestrator._executors["persistence"].output_dir = Path(self.output_path)
 
         # Determine task type for orchestrator
         task_type = "regression" if self.problem_type_ == "regression" else "classification"
@@ -1163,6 +1168,7 @@ class TabularPredictor(BasePredictor):
                     verbose=self.verbosity,
                     random_state=self.random_state,
                     excluded_models=set(self.excluded_models),
+                    max_model_time=self.max_model_time,
                 )
             except ImportError:
                 logger.warning("GeneticSearch not available, falling back to PortfolioSearch")
@@ -1200,10 +1206,82 @@ class TabularPredictor(BasePredictor):
                 return BayesianSearch(
                     task_type=task_type,
                     eval_metric=self._get_eval_metric(),
-                    interpretable_only=interpretable_only,
+                    model_pool=self._preset_config.model_pool,
+                    random_state=self.random_state,
+                    verbose=self.verbosity,
+                    excluded_models=set(self.excluded_models),
                 )
             except ImportError:
                 logger.warning("BayesianSearch not available, falling back to PortfolioSearch")
+                from endgame.automl.search.portfolio import PortfolioSearch
+
+                return PortfolioSearch(
+                    task_type=task_type,
+                    preset=self.presets,
+                    interpretable_only=interpretable_only,
+                )
+
+        elif self.search_strategy == "adaptive":
+            try:
+                from endgame.automl.search.adaptive import AdaptiveSearch
+                from endgame.automl.search.portfolio import PortfolioSearch
+
+                # Phase 1: Portfolio for diverse coverage
+                portfolio = PortfolioSearch(
+                    task_type=task_type,
+                    preset=self.presets,
+                    eval_metric=self._get_eval_metric(),
+                    interpretable_only=interpretable_only,
+                )
+                # Phase 2: Bayesian for focused HPO
+                try:
+                    from endgame.automl.search.bayesian import BayesianSearch
+                    bayesian = BayesianSearch(
+                        task_type=task_type,
+                        eval_metric=self._get_eval_metric(),
+                        model_pool=self._preset_config.model_pool,
+                        random_state=self.random_state,
+                        verbose=self.verbosity,
+                        excluded_models=set(self.excluded_models),
+                    )
+                except ImportError:
+                    bayesian = None
+
+                phases = [(portfolio, 15)]
+                if bayesian:
+                    phases.append((bayesian, 0))
+
+                return AdaptiveSearch(
+                    strategies=phases,
+                    switch_patience=5,
+                    verbose=self.verbosity,
+                )
+            except ImportError:
+                logger.warning("AdaptiveSearch not available, falling back to PortfolioSearch")
+                from endgame.automl.search.portfolio import PortfolioSearch
+
+                return PortfolioSearch(
+                    task_type=task_type,
+                    preset=self.presets,
+                    interpretable_only=interpretable_only,
+                )
+
+        elif self.search_strategy == "bandit":
+            try:
+                from endgame.automl.search.bandit import BanditSearch
+
+                return BanditSearch(
+                    task_type=task_type,
+                    eval_metric=self._get_eval_metric(),
+                    model_pool=self._preset_config.model_pool,
+                    max_configs=27,
+                    reduction_factor=3,
+                    random_state=self.random_state,
+                    verbose=self.verbosity,
+                    excluded_models=set(self.excluded_models),
+                )
+            except ImportError:
+                logger.warning("BanditSearch not available, falling back to PortfolioSearch")
                 from endgame.automl.search.portfolio import PortfolioSearch
 
                 return PortfolioSearch(

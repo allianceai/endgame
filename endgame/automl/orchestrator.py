@@ -1394,6 +1394,9 @@ class ModelTrainingExecutor(BaseStageExecutor):
         # "Cannot re-initialize CUDA in forked subprocess".
         os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
+        # Auto-select CV strategy based on data characteristics
+        self._cv_strategy = self._select_cv_strategy(context)
+
         start_time = time.time()
 
         # Initialise outside try so partial results survive exceptions
@@ -1409,6 +1412,10 @@ class ModelTrainingExecutor(BaseStageExecutor):
                         context.get("X_cleaned", context.get("X")))))
             y = context.get("y_augmented",
                 context.get("y_cleaned", context.get("y")))
+            # Keep a reference to raw (pre-preprocessing) data so that
+            # configs with their own imputer/encoder can start from
+            # unprocessed features instead of the global pipeline output.
+            X_raw = context.get("X_cleaned", context.get("X"))
             configs = context["model_configs"]
             task_type = context.get("task_type", "classification")
             sample_weights = context.get("sample_weights")
@@ -1468,33 +1475,54 @@ class ModelTrainingExecutor(BaseStageExecutor):
                     )
 
                 try:
+                    # If the config has its own imputer or encoder, use raw
+                    # data so the per-config preprocessing can apply its own
+                    # strategy.  Otherwise use globally-preprocessed data.
+                    _has_preproc = any(
+                        s[0] in ("imputer", "encoder")
+                        for s in (config.preprocessing or [])
+                    )
+                    X_for_config = X_raw if (_has_preproc and X_raw is not None) else X
+
                     oof_pred, score = _train_with_timeout(
                         self._cv_score_model,
-                        config, X, y, task_type, model_budget,
+                        config, X_for_config, y, task_type, model_budget,
                         sample_weights=sample_weights,
                     )
 
                     oof_predictions[config.model_name] = oof_pred
 
-                    # Refit on all data in the parent process — no
-                    # pickle boundary, so PyTorch/C-extension models
-                    # that segfault during serialization work fine.
-                    refit_start = time.time()
-                    try:
-                        model = self._refit_model(
-                            config, X, y, task_type,
-                            sample_weights=sample_weights,
-                        )
-                        trained_models[config.model_name] = model
-                        refit_time = time.time() - refit_start
-                        print(
-                            f" refit {refit_time:.0f}s",
-                            end="", flush=True,
-                        )
-                    except Exception as refit_err:
-                        logger.warning(
-                            f"Refit failed for {config.model_name}: {refit_err}"
-                        )
+                    # Skip refit for partial-data bandit rungs — these
+                    # configs are just being scored for selection, not
+                    # used for final prediction.
+                    frac = config.metadata.get("data_fraction", 1.0)
+                    if frac < 1.0:
+                        if self.verbose > 0:
+                            print(
+                                f" score={score:.4f} "
+                                f"({time.time()-model_start:.1f}s, "
+                                f"{frac:.0%} data, skip refit)",
+                            )
+                    else:
+                        # Refit on all data in the parent process — no
+                        # pickle boundary, so PyTorch/C-extension models
+                        # that segfault during serialization work fine.
+                        refit_start = time.time()
+                        try:
+                            model = self._refit_model(
+                                config, X_for_config, y, task_type,
+                                sample_weights=sample_weights,
+                            )
+                            trained_models[config.model_name] = model
+                            refit_time = time.time() - refit_start
+                            print(
+                                f" refit {refit_time:.0f}s",
+                                end="", flush=True,
+                            )
+                        except Exception as refit_err:
+                            logger.warning(
+                                f"Refit failed for {config.model_name}: {refit_err}"
+                            )
 
                     result = SearchResult(
                         config=config,
@@ -1506,7 +1534,7 @@ class ModelTrainingExecutor(BaseStageExecutor):
                     )
                     results.append(result)
 
-                    if self.verbose > 0:
+                    if self.verbose > 0 and frac >= 1.0:
                         print(f" score={score:.4f} ({time.time()-model_start:.1f}s)")
                     logger.debug(f"Trained {config.model_name}: score={score:.4f}")
 
@@ -1612,11 +1640,36 @@ class ModelTrainingExecutor(BaseStageExecutor):
         Runs in a forked child process.  Returns only numpy/float data
         so there are never pickling issues.  The parent calls
         ``_refit_model`` afterwards in-process.
+
+        If the config has ``metadata["data_fraction"] < 1.0`` (set by
+        BanditSearch), only that fraction of data is used for CV.
         """
         import inspect
 
         from sklearn.base import clone
         from sklearn.model_selection import KFold, StratifiedKFold
+
+        # ── Data fraction subsampling (BanditSearch support) ────────
+        data_fraction = config.metadata.get("data_fraction", 1.0)
+        if data_fraction < 1.0:
+            n = len(X)
+            n_sub = max(20, int(n * data_fraction))
+            if n_sub < n:
+                rng = np.random.RandomState(42)
+                if task_type in ("classification", "binary", "multiclass"):
+                    # Stratified subsample to preserve class balance
+                    from sklearn.model_selection import StratifiedShuffleSplit
+                    sss = StratifiedShuffleSplit(
+                        n_splits=1, train_size=n_sub, random_state=42,
+                    )
+                    idx, _ = next(sss.split(X, y))
+                else:
+                    idx = rng.choice(n, size=n_sub, replace=False)
+                    idx.sort()
+                X = X[idx]
+                y = y[idx]
+                if sample_weights is not None:
+                    sample_weights = sample_weights[idx]
 
         model = self._instantiate_model(config, task_type)
 
@@ -1640,10 +1693,13 @@ class ModelTrainingExecutor(BaseStageExecutor):
             except (ValueError, TypeError):
                 pass
 
-        if task_type == "classification":
-            cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
-        else:
-            cv = KFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
+        # Use the intelligently-selected CV strategy (set by execute())
+        cv = getattr(self, "_cv_strategy", None)
+        if cv is None:
+            if task_type == "classification":
+                cv = StratifiedKFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
+            else:
+                cv = KFold(n_splits=self.cv_folds, shuffle=True, random_state=42)
 
         use_proba = task_type == "classification" and hasattr(model, "predict_proba")
 
@@ -1675,8 +1731,9 @@ class ModelTrainingExecutor(BaseStageExecutor):
             oof_pred[val_idx] = preds
 
             fold_time = time.time() - fold_start
+            n_total_folds = cv.get_n_splits(X, y) if hasattr(cv, "get_n_splits") else self.cv_folds
             print(
-                f" fold {fold_idx + 1}/{self.cv_folds} {fold_time:.0f}s",
+                f" fold {fold_idx + 1}/{n_total_folds} {fold_time:.0f}s",
                 end="", flush=True,
             )
 
@@ -1722,6 +1779,99 @@ class ModelTrainingExecutor(BaseStageExecutor):
             model.fit(X, y)
 
         return model
+
+    def _select_cv_strategy(self, context: dict[str, Any]) -> Any:
+        """Auto-select a CV splitter based on data characteristics.
+
+        Examines meta-features and context to choose the most appropriate
+        cross-validation strategy:
+
+        - Time series data -> PurgedTimeSeriesSplit (if time column detected)
+        - Grouped data -> StratifiedGroupKFold (if groups present)
+        - Small datasets (< 500 samples) -> RepeatedStratifiedKFold / RepeatedKFold
+        - Imbalanced classification (minority < 10%) -> StratifiedKFold
+        - Default classification -> StratifiedKFold
+        - Default regression -> KFold
+        """
+        from sklearn.model_selection import (
+            KFold,
+            RepeatedKFold,
+            RepeatedStratifiedKFold,
+            StratifiedKFold,
+        )
+
+        task_type = context.get("task_type", "classification")
+        meta_features = context.get("meta_features", {})
+        y = context.get("y_augmented", context.get("y_cleaned", context.get("y")))
+        n_folds = self.cv_folds
+        is_clf = task_type in ("classification", "binary", "multiclass")
+
+        n_samples = len(y) if y is not None else meta_features.get("nr_inst", 10_000)
+
+        # ── Time series: use purged time series split ───────────────
+        if meta_features.get("is_timeseries") or context.get("time_column"):
+            try:
+                from endgame.validation import PurgedTimeSeriesSplit
+                cv = PurgedTimeSeriesSplit(
+                    n_splits=n_folds,
+                    embargo_pct=0.01,
+                )
+                if self.verbose > 0:
+                    print(f"    CV strategy: PurgedTimeSeriesSplit (n_splits={n_folds})")
+                return cv
+            except ImportError:
+                pass
+
+        # ── Grouped data: use group-aware splitting ─────────────────
+        groups = context.get("groups")
+        if groups is not None:
+            try:
+                from endgame.validation import StratifiedGroupKFold as SGKFold
+                cv = SGKFold(n_splits=min(n_folds, len(np.unique(groups))))
+                if self.verbose > 0:
+                    print(f"    CV strategy: StratifiedGroupKFold (n_splits={cv.n_splits})")
+                return cv
+            except ImportError:
+                from sklearn.model_selection import GroupKFold
+                cv = GroupKFold(n_splits=min(n_folds, len(np.unique(groups))))
+                if self.verbose > 0:
+                    print(f"    CV strategy: GroupKFold (n_splits={cv.n_splits})")
+                return cv
+
+        # ── Small datasets: use repeated k-fold for more stable estimates
+        if n_samples < 500:
+            n_repeats = 3
+            if is_clf:
+                cv = RepeatedStratifiedKFold(
+                    n_splits=n_folds, n_repeats=n_repeats, random_state=42,
+                )
+                if self.verbose > 0:
+                    print(
+                        f"    CV strategy: RepeatedStratifiedKFold "
+                        f"({n_folds}x{n_repeats}, small dataset: {n_samples} samples)"
+                    )
+            else:
+                cv = RepeatedKFold(
+                    n_splits=n_folds, n_repeats=n_repeats, random_state=42,
+                )
+                if self.verbose > 0:
+                    print(
+                        f"    CV strategy: RepeatedKFold "
+                        f"({n_folds}x{n_repeats}, small dataset: {n_samples} samples)"
+                    )
+            return cv
+
+        # ── Default: stratified for classification, plain for regression
+        if is_clf:
+            cv = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+            if self.verbose > 1:
+                print(f"    CV strategy: StratifiedKFold (n_splits={n_folds})")
+        else:
+            cv = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+            if self.verbose > 1:
+                print(f"    CV strategy: KFold (n_splits={n_folds})")
+
+        return cv
 
     def _score_oof(
         self, oof_pred: np.ndarray, y: np.ndarray, task_type: str,
@@ -1852,6 +2002,33 @@ class ModelTrainingExecutor(BaseStageExecutor):
         return model_class(**config.model_params)
 
 
+class _ImportanceMaskSelector:
+    """Sklearn-compatible feature selector using a precomputed boolean mask.
+
+    Used by iterative feature selection: the mask is derived from
+    aggregate feature importances of previously trained models.
+    """
+
+    def __init__(self, mask: list[bool]):
+        self._mask = np.asarray(mask, dtype=bool)
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        if hasattr(X, "iloc"):
+            return X.iloc[:, self._mask[:X.shape[1]]]
+        return X[:, self._mask[:X.shape[1]]]
+
+    def fit_transform(self, X, y=None):
+        return self.fit(X, y).transform(X)
+
+    def get_support(self, indices=False):
+        if indices:
+            return np.where(self._mask)[0]
+        return self._mask
+
+
 def _build_preprocessing_step(step_name: str, params: dict) -> Any:
     """Build a single sklearn-compatible preprocessing transformer.
 
@@ -1890,6 +2067,11 @@ def _build_preprocessing_step(step_name: str, params: dict) -> Any:
                 return BorutaSelector(max_iter=30)
             except ImportError:
                 return None
+        elif method == "importance_mask":
+            # Importance-based mask from iterative feature selection feedback
+            mask = p.get("mask")
+            if mask is not None:
+                return _ImportanceMaskSelector(mask)
 
     elif step_name == "imputer":
         strategy = p.get("strategy", "median")
@@ -2052,14 +2234,21 @@ class EnsemblingExecutor(BaseStageExecutor):
         task_type: str,
     ) -> tuple[Any, dict[str, float], str]:
         """Try all ensemble methods and return the best by OOF score."""
-        from sklearn.metrics import accuracy_score, r2_score
+        from sklearn.metrics import roc_auc_score, r2_score
 
         is_clf = task_type in ("classification", "binary", "multiclass")
-        score_fn = accuracy_score if is_clf else r2_score
+
+        def _safe_roc_auc(y_true, y_pred):
+            try:
+                return roc_auc_score(y_true, y_pred)
+            except ValueError:
+                from sklearn.metrics import accuracy_score
+                return accuracy_score(y_true, y_pred)
+
+        score_fn = _safe_roc_auc if is_clf else r2_score
 
         candidates: list[tuple[Any, dict[str, float], str, float]] = []
 
-        # Collect valid OOF predictions (must match y length)
         valid_oof = {
             k: v for k, v in oof_predictions.items()
             if isinstance(v, np.ndarray) and len(v) == len(y)
@@ -2083,22 +2272,67 @@ class EnsemblingExecutor(BaseStageExecutor):
         except Exception as e:
             logger.debug(f"Stacking ensemble failed: {e}")
 
-        # Averaging
+        # Optuna-optimized blending
+        try:
+            ens, wts = self._optimized_blend_ensemble(
+                trained_models, valid_oof, y, task_type,
+            )
+            candidates.append((ens, wts, "optimized_blend", 0.0))
+        except Exception as e:
+            logger.debug(f"Optimized blend ensemble failed: {e}")
+
+        # Power-weighted blending
+        try:
+            ens, wts = self._power_blend_ensemble(
+                trained_models, valid_oof, y, task_type,
+            )
+            candidates.append((ens, wts, "power_blend", 0.0))
+        except Exception as e:
+            logger.debug(f"Power blend ensemble failed: {e}")
+
+        # Rank averaging
+        try:
+            ens, wts = self._rank_average_ensemble(
+                trained_models, valid_oof, y, task_type,
+            )
+            candidates.append((ens, wts, "rank_average", 0.0))
+        except Exception as e:
+            logger.debug(f"Rank average ensemble failed: {e}")
+
+        # Uniform averaging (always available as a baseline)
         try:
             ens, wts = self._average_ensemble(trained_models)
             candidates.append((ens, wts, "averaging", 0.0))
         except Exception as e:
             logger.debug(f"Averaging ensemble failed: {e}")
 
-        # Score each candidate on OOF predictions
+        # Score each candidate using OOF predictions
         for i, (ens, wts, method, _) in enumerate(candidates):
             try:
                 model_names = list(valid_oof.keys())
-                if callable(getattr(ens, "_meta_features", None)):
+                oof_pred = None
+
+                # Stacking: use the meta-estimator on the OOF stack
+                if hasattr(ens, "meta_estimator") and hasattr(ens, "model_order"):
                     meta_X = np.column_stack(
                         [valid_oof[n] for n in ens.model_order if n in valid_oof]
                     )
                     oof_pred = ens.meta_estimator.predict(meta_X)
+
+                # Rank averaging: use the blender's rank transform
+                elif hasattr(ens, "blender") and hasattr(ens.blender, "blend"):
+                    oof_preds_list = [
+                        valid_oof[n] for n in ens.model_order
+                        if n in valid_oof
+                    ]
+                    if oof_preds_list:
+                        blended = ens.blender.blend(oof_preds_list)
+                        if is_clf:
+                            oof_pred = (blended > 0.5).astype(int)
+                        else:
+                            oof_pred = blended
+
+                # Weighted ensembles (hill climbing, optimized blend, power blend, averaging)
                 elif hasattr(ens, "weights"):
                     total_w = sum(wts.get(n, 0) for n in model_names)
                     if total_w > 0 and is_clf:
@@ -2121,13 +2355,10 @@ class EnsemblingExecutor(BaseStageExecutor):
                             for n in model_names
                             if n in valid_oof and wts.get(n, 0) > 0
                         )
-                    else:
-                        continue
-                else:
-                    continue
 
-                score = score_fn(y, oof_pred)
-                candidates[i] = (ens, wts, method, score)
+                if oof_pred is not None:
+                    score = score_fn(y, oof_pred)
+                    candidates[i] = (ens, wts, method, score)
             except Exception as e:
                 logger.debug(f"Ensemble scoring failed for {method}: {e}")
 
@@ -2171,19 +2402,21 @@ class EnsemblingExecutor(BaseStageExecutor):
         try:
             from endgame.ensemble.hill_climbing import HillClimbingEnsemble
 
-            # Prepare predictions list
             preds_list = list(oof_predictions.values())
             model_names = list(oof_predictions.keys())
 
-            # Build ensemble
             hc = HillClimbingEnsemble(
-                metric="accuracy" if task_type == "classification" else "r2",
+                metric="roc_auc" if task_type == "classification" else "r2",
                 n_iterations=100,
             )
             hc.fit(preds_list, y)
 
-            # Create weighted ensemble wrapper
-            weights = {name: w for name, w in zip(model_names, hc.weights_)}
+            # hc.weights_ is {int_index: float_weight} — map to model names
+            weights = {
+                model_names[idx]: w
+                for idx, w in hc.weights_.items()
+                if idx < len(model_names)
+            }
 
             ensemble = _WeightedEnsemble(
                 models=trained_models,
@@ -2194,7 +2427,6 @@ class EnsemblingExecutor(BaseStageExecutor):
             return ensemble, weights
 
         except ImportError:
-            # Fallback to simple averaging
             return self._average_ensemble(trained_models)
 
     def _stacking_ensemble(
@@ -2275,6 +2507,165 @@ class EnsemblingExecutor(BaseStageExecutor):
         )
 
         return ensemble, weights
+
+    def _optimized_blend_ensemble(
+        self,
+        trained_models: dict[str, Any],
+        oof_predictions: dict[str, np.ndarray],
+        y: np.ndarray,
+        task_type: str,
+    ) -> tuple[Any, dict[str, float]]:
+        """Optuna-optimized blend weights."""
+        from endgame.ensemble.blending import OptimizedBlender
+
+        preds_list = list(oof_predictions.values())
+        model_names = list(oof_predictions.keys())
+
+        is_clf = task_type in ("classification", "binary", "multiclass")
+        blender = OptimizedBlender(
+            metric="roc_auc" if is_clf else "rmse",
+            n_trials=30,
+            maximize=is_clf,
+            verbose=False,
+        )
+        blender.fit(preds_list, y)
+
+        weights = {
+            model_names[idx]: w
+            for idx, w in blender.weights_.items()
+            if idx < len(model_names)
+        }
+
+        ensemble = _WeightedEnsemble(
+            models=trained_models,
+            weights=weights,
+            task_type=task_type,
+        )
+        return ensemble, weights
+
+    def _power_blend_ensemble(
+        self,
+        trained_models: dict[str, Any],
+        oof_predictions: dict[str, np.ndarray],
+        y: np.ndarray,
+        task_type: str,
+    ) -> tuple[Any, dict[str, float]]:
+        """Power-weighted blending based on individual OOF scores."""
+        from endgame.ensemble.blending import PowerBlender
+        from sklearn.metrics import roc_auc_score, r2_score
+
+        preds_list = list(oof_predictions.values())
+        model_names = list(oof_predictions.keys())
+
+        is_clf = task_type in ("classification", "binary", "multiclass")
+        score_fn = roc_auc_score if is_clf else r2_score
+
+        scores = []
+        for pred in preds_list:
+            try:
+                scores.append(score_fn(y, pred))
+            except Exception:
+                scores.append(0.5 if is_clf else 0.0)
+
+        blender = PowerBlender(scores=scores, power=3.0, higher_is_better=True)
+        blender.fit()
+
+        weights = {
+            model_names[idx]: w
+            for idx, w in blender.weights_.items()
+            if idx < len(model_names)
+        }
+
+        ensemble = _WeightedEnsemble(
+            models=trained_models,
+            weights=weights,
+            task_type=task_type,
+        )
+        return ensemble, weights
+
+    def _rank_average_ensemble(
+        self,
+        trained_models: dict[str, Any],
+        oof_predictions: dict[str, np.ndarray],
+        y: np.ndarray,
+        task_type: str,
+    ) -> tuple[Any, dict[str, float]]:
+        """Rank-based averaging — robust to different prediction scales."""
+        from endgame.ensemble.blending import RankAverageBlender
+
+        preds_list = list(oof_predictions.values())
+        model_names = list(oof_predictions.keys())
+
+        blender = RankAverageBlender()
+        blender.fit()
+
+        weights = {name: 1.0 / len(model_names) for name in model_names}
+
+        ensemble = _RankAverageEnsembleWrapper(
+            models=trained_models,
+            model_order=model_names,
+            blender=blender,
+            task_type=task_type,
+        )
+        return ensemble, weights
+
+
+class _RankAverageEnsembleWrapper:
+    """Wrapper for rank-average ensemble that applies rank transform at predict time."""
+
+    def __init__(
+        self,
+        models: dict[str, Any],
+        model_order: list[str],
+        blender: Any,
+        task_type: str = "classification",
+    ):
+        self.models = models
+        self.model_order = model_order
+        self.blender = blender
+        self.task_type = task_type
+        self.weights = {name: 1.0 / len(model_order) for name in model_order}
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        preds = []
+        for name in self.model_order:
+            if name in self.models:
+                try:
+                    if self.task_type == "classification" and hasattr(self.models[name], "predict_proba"):
+                        p = self.models[name].predict_proba(X)[:, 1]
+                    else:
+                        p = self.models[name].predict(X)
+                    preds.append(p)
+                except Exception:
+                    continue
+
+        if not preds:
+            return np.zeros(X.shape[0])
+
+        blended = self.blender.blend(preds)
+        if self.task_type == "classification":
+            return (blended > 0.5).astype(int)
+        return blended
+
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        preds = []
+        for name in self.model_order:
+            if name in self.models:
+                try:
+                    if hasattr(self.models[name], "predict_proba"):
+                        p = self.models[name].predict_proba(X)[:, 1]
+                    else:
+                        p = self.models[name].predict(X)
+                    preds.append(p)
+                except Exception:
+                    continue
+
+        if not preds:
+            p1 = np.full(X.shape[0], 0.5)
+            return np.column_stack([1 - p1, p1])
+
+        blended = self.blender.blend(preds)
+        return np.column_stack([1 - blended, blended])
 
 
 class _WeightedEnsemble:
@@ -2772,6 +3163,7 @@ class PipelineOrchestrator:
         ("calibration", 0.03),
         ("post_training", 0.02),
         ("explainability", 0.02),
+        ("persistence", 0.01),
     ]
 
     def __init__(
@@ -2861,6 +3253,7 @@ class PipelineOrchestrator:
             ConstraintCheckExecutor,
             ExplainabilityExecutor,
             HyperparameterTuningExecutor,
+            PersistenceExecutor,
             ThresholdOptimizationExecutor,
         )
         from endgame.automl.guardrails import QualityGuardrailsExecutor
@@ -2875,6 +3268,13 @@ class PipelineOrchestrator:
         )
         self._executors["threshold_opt"] = ThresholdOptimizationExecutor()
         self._executors["explainability"] = ExplainabilityExecutor()
+
+        # Persistence: auto-save when output_path is configured
+        # The output_path is passed via preset or constructor kwargs.
+        output_path = getattr(self.preset, "output_path", None)
+        self._executors["persistence"] = PersistenceExecutor(
+            output_dir=output_path,
+        )
 
         constraints = getattr(self.preset, "constraints", None)
         self._executors["constraint_check"] = ConstraintCheckExecutor(
@@ -3249,6 +3649,64 @@ class PipelineOrchestrator:
                     except Exception as e:
                         logger.warning(f"Feedback loop ensembling failed: {e}")
 
+    def _update_feature_selection_feedback(
+        self,
+        context: dict[str, Any],
+        trained_models: dict[str, Any],
+        results: list,
+    ) -> None:
+        """Compute aggregate feature importances from trained models and
+        store an informed feature mask in context.
+
+        This enables iterative feature selection: future pipeline configs
+        can reference ``context["important_feature_mask"]`` to focus on
+        features that matter, dropping noise columns.
+        """
+        try:
+            importances: list[np.ndarray] = []
+            for r in results:
+                if not r.success:
+                    continue
+                model = trained_models.get(r.config.model_name)
+                if model is None:
+                    continue
+                # Try to get feature importances from model
+                fi = getattr(model, "feature_importances_", None)
+                if fi is None and hasattr(model, "named_steps"):
+                    # Pipeline wrapper — get from final estimator
+                    final = model.named_steps.get("model", model)
+                    fi = getattr(final, "feature_importances_", None)
+                if fi is not None and len(fi) > 0:
+                    # Normalise to sum=1 so different models are comparable
+                    total = np.sum(np.abs(fi))
+                    if total > 0:
+                        importances.append(np.abs(fi) / total)
+
+            if len(importances) < 2:
+                return
+
+            # Stack and average across models
+            min_len = min(len(fi) for fi in importances)
+            stacked = np.stack([fi[:min_len] for fi in importances])
+            avg_importance = np.mean(stacked, axis=0)
+
+            # Mark features with >1% average importance as "important"
+            threshold = 0.01 / min_len if min_len > 0 else 0.01
+            mask = avg_importance > threshold
+            n_kept = int(np.sum(mask))
+
+            if 0 < n_kept < min_len:
+                context["important_feature_mask"] = mask
+                context["feature_importances_aggregated"] = avg_importance
+                if self.verbose > 1:
+                    print(
+                        f"  [AutoML] Feature selection feedback: "
+                        f"keeping {n_kept}/{min_len} features "
+                        f"(threshold={threshold:.6f})"
+                    )
+        except Exception as e:
+            logger.debug(f"Feature selection feedback failed: {e}")
+
     def _checkpoint(self, context: dict[str, Any], label: str = "") -> None:
         """Invoke the checkpoint callback if one is registered."""
         if self.checkpoint_callback is not None:
@@ -3305,9 +3763,15 @@ class PipelineOrchestrator:
         total_new_models = 0
 
         is_genetic = hasattr(strategy, "_evolve")  # duck-type GeneticSearch
+        is_bandit = hasattr(strategy, "current_rung")  # duck-type BanditSearch
+        is_adaptive = hasattr(strategy, "current_phase")  # duck-type AdaptiveSearch
 
         if self.verbose > 0:
-            if is_genetic:
+            if is_adaptive:
+                strategy_label = f"adaptive ({getattr(strategy, 'phase_name', '?')})"
+            elif is_bandit:
+                strategy_label = "bandit (successive halving)"
+            elif is_genetic:
                 strategy_label = "evolutionary"
             else:
                 phase = "model sweep" if not getattr(strategy, "initial_sweep_done", True) else "HPO variants"
@@ -3337,7 +3801,7 @@ class PipelineOrchestrator:
                     break
 
                 # ── Step 1: Get new configs from strategy ────────────
-                n_suggest = 5 if is_genetic else 3
+                n_suggest = 5 if (is_genetic or is_bandit) else 3
                 new_configs = None
                 for _suggest_attempt in range(3):
                     try:
@@ -3359,6 +3823,11 @@ class PipelineOrchestrator:
                         traceback.print_exc()
 
                 if not new_configs:
+                    # Bandit search returns empty when all rungs are complete
+                    if is_bandit and hasattr(strategy, "should_stop") and strategy.should_stop():
+                        if self.verbose > 0:
+                            print("  [AutoML] Bandit search completed all rungs, stopping")
+                        break
                     # Genetic search returns empty when should_stop is True
                     if is_genetic and hasattr(strategy, "should_stop") and strategy.should_stop():
                         if self.verbose > 0:
@@ -3369,7 +3838,11 @@ class PipelineOrchestrator:
                     break
 
                 source = new_configs[0].metadata.get("source", "")
-                if is_genetic:
+                if is_bandit:
+                    rung = new_configs[0].metadata.get("rung", "?")
+                    frac = new_configs[0].metadata.get("data_fraction", 1.0)
+                    phase_label = f"rung {rung} ({frac:.0%} data)"
+                elif is_genetic:
                     gen = new_configs[0].metadata.get("generation", "?")
                     phase_label = f"gen {gen}"
                 elif source == "portfolio_hpo_variant":
@@ -3483,6 +3956,20 @@ class PipelineOrchestrator:
                             f"  [AutoML] No improvement "
                             f"({rounds_without_improvement}/{self.patience})"
                         )
+
+                # ── Step 3b: Iterative feature selection feedback ────
+                # Every 3 iterations, compute aggregate feature importances
+                # from successful models and inject an informed feature
+                # mask into context so the next search iteration can use it.
+                if iteration % 3 == 0 and successful_results:
+                    self._update_feature_selection_feedback(
+                        context, trained_models, results,
+                    )
+                    # Pass feedback to the search strategy if it supports it
+                    mask = context.get("important_feature_mask")
+                    scores = context.get("feature_importances_aggregated")
+                    if mask is not None and hasattr(strategy, "set_feature_importance_feedback"):
+                        strategy.set_feature_importance_feedback(mask, scores)
 
                 # ── Step 4: Re-ensemble ──────────────────────────────
                 context["trained_models"] = trained_models

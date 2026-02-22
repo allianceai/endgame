@@ -15,6 +15,12 @@ import pandas as pd
 logger = logging.getLogger(__name__)
 
 
+def _h(text: str) -> str:
+    """HTML-escape a string."""
+    import html
+    return html.escape(str(text))
+
+
 @dataclass
 class AutoMLReport:
     """Structured report from an AutoML run.
@@ -160,6 +166,210 @@ class AutoMLReport:
             lines.append("")
 
         return "\n".join(lines)
+
+    def to_html(self, title: str = "AutoML Report") -> str:
+        """Render the report as a self-contained HTML page.
+
+        Returns a single HTML string with embedded CSS — no external
+        dependencies required.  Suitable for saving as a standalone
+        ``.html`` file or embedding in a dashboard.
+
+        Parameters
+        ----------
+        title : str, default="AutoML Report"
+            Page title.
+
+        Returns
+        -------
+        str
+            Complete HTML document.
+        """
+        css = """
+        <style>
+            * { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI',
+                   Roboto, sans-serif; background: #f5f7fa; color: #1a1a2e;
+                   padding: 2rem; line-height: 1.6; }
+            .container { max-width: 960px; margin: 0 auto; }
+            h1 { font-size: 1.8rem; margin-bottom: 1.5rem; color: #16213e; }
+            h2 { font-size: 1.3rem; margin: 2rem 0 0.8rem; color: #0f3460;
+                 border-bottom: 2px solid #e0e0e0; padding-bottom: 0.3rem; }
+            .cards { display: grid; grid-template-columns: repeat(auto-fit,
+                     minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+            .card { background: #fff; border-radius: 8px; padding: 1rem;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+            .card-label { font-size: 0.75rem; text-transform: uppercase;
+                          color: #666; letter-spacing: 0.05em; }
+            .card-value { font-size: 1.4rem; font-weight: 600; color: #16213e; }
+            table { width: 100%; border-collapse: collapse; margin: 0.5rem 0 1rem;
+                    background: #fff; border-radius: 8px; overflow: hidden;
+                    box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+            th { background: #16213e; color: #fff; padding: 0.6rem 1rem;
+                 text-align: left; font-size: 0.85rem; font-weight: 500; }
+            td { padding: 0.5rem 1rem; border-bottom: 1px solid #eee;
+                 font-size: 0.9rem; }
+            tr:last-child td { border-bottom: none; }
+            tr:hover td { background: #f0f4ff; }
+            .best-row td { background: #e8f5e9; font-weight: 600; }
+            .bar-cell { position: relative; }
+            .bar-fill { position: absolute; left: 0; top: 0; bottom: 0;
+                        background: rgba(15,52,96,0.08); border-radius: 0 4px 4px 0; }
+            .warning { background: #fff3e0; border-left: 4px solid #ff9800;
+                       padding: 0.5rem 1rem; margin: 0.3rem 0; border-radius: 0 4px 4px 0;
+                       font-size: 0.9rem; }
+            .warning-high { border-left-color: #f44336; background: #fce4ec; }
+            .tuning-item { background: #fff; padding: 0.6rem 1rem; margin: 0.3rem 0;
+                           border-radius: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+                           font-size: 0.9rem; }
+            .improved { color: #2e7d32; }
+            .no-improve { color: #666; }
+            footer { margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #ddd;
+                     font-size: 0.8rem; color: #888; text-align: center; }
+        </style>
+        """
+
+        parts = [
+            "<!DOCTYPE html>",
+            f"<html lang='en'><head><meta charset='utf-8'>",
+            f"<meta name='viewport' content='width=device-width,initial-scale=1'>",
+            f"<title>{_h(title)}</title>",
+            css,
+            "</head><body><div class='container'>",
+            f"<h1>{_h(title)}</h1>",
+        ]
+
+        # ── Summary cards ──────────────────────────────────────────
+        parts.append("<h2>Summary</h2><div class='cards'>")
+        card_items = [
+            ("Best Score", f"{self.summary.get('best_score', 0):.4f}"),
+            ("Models", str(self.summary.get("n_models", "?"))),
+            ("Total Time", f"{self.summary.get('total_time', 0):.1f}s"),
+            ("Preset", str(self.summary.get("preset", "?"))),
+            ("Task", str(self.summary.get("task_type", "?"))),
+        ]
+        for label, value in card_items:
+            parts.append(
+                f"<div class='card'>"
+                f"<div class='card-label'>{_h(label)}</div>"
+                f"<div class='card-value'>{_h(value)}</div></div>"
+            )
+        parts.append("</div>")
+
+        # ── Pipeline stages ────────────────────────────────────────
+        if not self.stage_summary.empty:
+            parts.append("<h2>Pipeline Stages</h2><table>")
+            parts.append(
+                "<tr><th>Stage</th><th>Status</th><th>Duration</th></tr>"
+            )
+            for _, row in self.stage_summary.iterrows():
+                status = "OK" if row.get("success") else "FAIL"
+                color = "#2e7d32" if row.get("success") else "#c62828"
+                dur = f"{row.get('duration', 0):.1f}s"
+                parts.append(
+                    f"<tr><td>{_h(row.get('stage', ''))}</td>"
+                    f"<td style='color:{color};font-weight:600'>{status}</td>"
+                    f"<td>{dur}</td></tr>"
+                )
+            parts.append("</table>")
+
+        # ── Model leaderboard ──────────────────────────────────────
+        if not self.model_leaderboard.empty:
+            parts.append("<h2>Model Leaderboard</h2><table>")
+            parts.append(
+                "<tr><th>#</th><th>Model</th><th>Score</th><th>Fit Time</th></tr>"
+            )
+            max_score = self.model_leaderboard["score"].max() if "score" in self.model_leaderboard else 1.0
+            for i, row in self.model_leaderboard.iterrows():
+                score = row.get("score", 0)
+                fit_time = row.get("fit_time", 0)
+                bar_pct = (score / max_score * 100) if max_score > 0 else 0
+                cls = " class='best-row'" if i == 0 else ""
+                parts.append(
+                    f"<tr{cls}><td>{i + 1}</td>"
+                    f"<td>{_h(row.get('model', ''))}</td>"
+                    f"<td class='bar-cell'>"
+                    f"<span class='bar-fill' style='width:{bar_pct:.0f}%'></span>"
+                    f"{score:.4f}</td>"
+                    f"<td>{fit_time:.1f}s</td></tr>"
+                )
+            parts.append("</table>")
+
+        # ── Feature importances ────────────────────────────────────
+        if self.feature_importances is not None and not self.feature_importances.empty:
+            top = self.feature_importances.head(15)
+            max_imp = top["importance"].max() if "importance" in top else 1.0
+            parts.append("<h2>Top Features</h2><table>")
+            parts.append("<tr><th>Feature</th><th>Importance</th></tr>")
+            for _, row in top.iterrows():
+                imp = row.get("importance", 0)
+                bar_pct = (imp / max_imp * 100) if max_imp > 0 else 0
+                parts.append(
+                    f"<tr><td>{_h(str(row.get('feature', '')))}</td>"
+                    f"<td class='bar-cell'>"
+                    f"<span class='bar-fill' style='width:{bar_pct:.0f}%'></span>"
+                    f"{imp:.4f}</td></tr>"
+                )
+            parts.append("</table>")
+
+        # ── Quality warnings ───────────────────────────────────────
+        if self.quality_warnings:
+            parts.append("<h2>Quality Warnings</h2>")
+            for w in self.quality_warnings:
+                sev = getattr(w, "severity", "info").lower()
+                cls = "warning-high" if sev in ("high", "critical") else ""
+                msg = getattr(w, "message", str(w))
+                parts.append(
+                    f"<div class='warning {cls}'>"
+                    f"<strong>[{_h(sev.upper())}]</strong> {_h(msg)}</div>"
+                )
+
+        # ── Tuning summary ─────────────────────────────────────────
+        if self.tuning_summary:
+            parts.append("<h2>Hyperparameter Tuning</h2>")
+            for entry in self.tuning_summary:
+                model = entry.get("model", "?")
+                orig = entry.get("original_score")
+                tuned = entry.get("tuned_score")
+                improved = entry.get("improved", False)
+                cls = "improved" if improved else "no-improve"
+                orig_s = f"{orig:.4f}" if orig is not None else "N/A"
+                tuned_s = f"{tuned:.4f}" if tuned is not None else "N/A"
+                arrow = "improved" if improved else "no improvement"
+                parts.append(
+                    f"<div class='tuning-item'>"
+                    f"<strong>{_h(model)}</strong>: "
+                    f"{orig_s} &rarr; {tuned_s} "
+                    f"<span class='{cls}'>({arrow})</span></div>"
+                )
+
+        # ── Constraint violations ──────────────────────────────────
+        if self.constraint_violations:
+            parts.append("<h2>Constraint Violations</h2>")
+            for v in self.constraint_violations:
+                msg = getattr(v, "message", str(v))
+                parts.append(f"<div class='warning warning-high'>{_h(msg)}</div>")
+
+        # ── Footer ─────────────────────────────────────────────────
+        parts.append(
+            "<footer>Generated by endgame AutoML</footer>"
+            "</div></body></html>"
+        )
+
+        return "\n".join(parts)
+
+    def save_html(self, path: str, title: str = "AutoML Report") -> None:
+        """Save the report as a standalone HTML file.
+
+        Parameters
+        ----------
+        path : str
+            Output file path (e.g. ``"report.html"``).
+        title : str, default="AutoML Report"
+            Page title.
+        """
+        html = self.to_html(title=title)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
 
     def display(self) -> None:
         """Print the report to stdout."""

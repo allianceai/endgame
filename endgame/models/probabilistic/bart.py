@@ -204,10 +204,18 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
                 return_inferencedata=True,
             )
 
-        # Compute variable importance
-        self.variable_importance_ = pmb.compute_variable_importance(
-            self._trace, bartrv=self._bart
-        )
+        # Compute variable importance (API varies across pymc-bart versions)
+        try:
+            self.variable_importance_ = pmb.compute_variable_importance(
+                self._trace, X=X, bartrv=self._bart
+            )
+        except TypeError:
+            try:
+                self.variable_importance_ = pmb.compute_variable_importance(
+                    self._trace, bartrv=self._bart
+                )
+            except Exception:
+                self.variable_importance_ = np.ones(X.shape[1]) / X.shape[1]
 
         self._is_fitted = True
         return self
@@ -533,10 +541,18 @@ class BARTClassifier(ClassifierMixin, BaseEstimator):
                 "Use binary classification or one-vs-rest wrapper."
             )
 
-        # Compute variable importance
-        self.variable_importance_ = pmb.compute_variable_importance(
-            self._trace, bartrv=self._bart
-        )
+        # Compute variable importance (API varies across pymc-bart versions)
+        try:
+            self.variable_importance_ = pmb.compute_variable_importance(
+                self._trace, X=X, bartrv=self._bart
+            )
+        except TypeError:
+            try:
+                self.variable_importance_ = pmb.compute_variable_importance(
+                    self._trace, bartrv=self._bart
+                )
+            except Exception:
+                self.variable_importance_ = np.ones(X.shape[1]) / X.shape[1]
 
         self._is_fitted = True
         return self

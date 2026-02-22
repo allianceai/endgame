@@ -21,7 +21,9 @@ class BayesianSearch(BaseSearchStrategy):
     """Bayesian optimization search using Optuna.
 
     This strategy uses Optuna's TPE (Tree-structured Parzen Estimator)
-    sampler for efficient hyperparameter optimization.
+    sampler for efficient hyperparameter optimization.  It co-optimises
+    the full pipeline — model choice, hyperparameters, preprocessing,
+    and feature selection — in a single Optuna study.
 
     Parameters
     ----------
@@ -30,7 +32,8 @@ class BayesianSearch(BaseSearchStrategy):
     eval_metric : str
         Evaluation metric to optimize.
     model_pool : list of str, optional
-        Models to optimize. If None, uses a default set.
+        Models to optimize.  If ``None``, uses all registry models
+        compatible with the task (filtered by meta-features).
     n_trials : int, default=100
         Maximum number of trials.
     timeout : int, optional
@@ -43,6 +46,8 @@ class BayesianSearch(BaseSearchStrategy):
         Random seed.
     verbose : int, default=0
         Verbosity level.
+    excluded_models : set of str, optional
+        Models to exclude from the search.
 
     Examples
     --------
@@ -55,6 +60,12 @@ class BayesianSearch(BaseSearchStrategy):
     >>> strategy.update(result)
     """
 
+    # Models that are too slow for Bayesian HPO rounds
+    _SLOW_MODELS: set[str] = {
+        "symbolic_regression", "symbolic_regressor",
+        "tabpfn", "tabpfn_classifier",
+    }
+
     def __init__(
         self,
         task_type: str = "classification",
@@ -66,12 +77,14 @@ class BayesianSearch(BaseSearchStrategy):
         pruner: str | None = "hyperband",
         random_state: int | None = None,
         verbose: int = 0,
+        excluded_models: set[str] | None = None,
     ):
         super().__init__(
             task_type=task_type,
             eval_metric=eval_metric,
             random_state=random_state,
             verbose=verbose,
+            excluded_models=excluded_models,
         )
 
         self.n_trials = n_trials
@@ -79,18 +92,15 @@ class BayesianSearch(BaseSearchStrategy):
         self.n_startup_trials = n_startup_trials
         self.pruner_type = pruner
 
-        # Set model pool
-        if model_pool is not None:
-            self.model_pool = model_pool
-        else:
-            # Default to fast models for Bayesian optimization
-            self.model_pool = ["lgbm", "xgb", "catboost", "mlp", "linear"]
+        # Set model pool — None means discover from registry
+        self._explicit_pool = model_pool
 
         # State
         self._study = None
         self._pending_trials: dict[str, Any] = {}  # config_id -> trial
         self._meta_features: dict[str, float] = {}
         self._available_models: list[str] = []
+        self._importance_mask: list[bool] | None = None
 
         # Lazy import optuna
         self._optuna = None
@@ -192,8 +202,21 @@ class BayesianSearch(BaseSearchStrategy):
 
         return configs
 
+    def set_feature_importance_feedback(
+        self,
+        mask: "np.ndarray",
+        scores: "np.ndarray | None" = None,
+    ) -> None:
+        """Inject feature importance feedback for informed feature selection."""
+        import numpy as np
+        self._importance_mask = np.asarray(mask, dtype=bool).tolist()
+
     def _get_available_models(self) -> list[str]:
         """Get available models for this task.
+
+        If no explicit model pool was given, discovers all compatible
+        models from the registry (filtering by task type, sample size,
+        and excluding slow/blacklisted models).
 
         Returns
         -------
@@ -203,8 +226,17 @@ class BayesianSearch(BaseSearchStrategy):
         available = []
         n_samples = self._meta_features.get("nr_inst", 10000)
 
-        for model_name in self.model_pool:
+        # Use explicit pool if provided, otherwise scan entire registry
+        pool = self._explicit_pool
+        if pool is None:
+            pool = list(MODEL_REGISTRY.keys())
+
+        for model_name in pool:
             if model_name not in MODEL_REGISTRY:
+                continue
+            if self.excluded_models and model_name in self.excluded_models:
+                continue
+            if model_name in self._SLOW_MODELS:
                 continue
 
             info = MODEL_REGISTRY[model_name]
@@ -281,15 +313,20 @@ class BayesianSearch(BaseSearchStrategy):
         """
         info = MODEL_REGISTRY.get(model_name)
         params = info.default_params.copy() if info else {}
+        family = getattr(info, "family", "") if info else ""
 
-        if model_name in ("lgbm", "xgb", "catboost"):
+        if model_name in ("lgbm", "xgb", "catboost") or family == "gbdt":
             params.update(self._sample_gbdt_params(trial, model_name))
-        elif model_name in ("ft_transformer", "saint", "tabnet", "mlp"):
+        elif model_name in ("ft_transformer", "saint", "tabnet", "mlp",
+                            "node", "nam", "gandalf", "tab_resnet") or family in ("neural", "deep_tabular"):
             params.update(self._sample_neural_params(trial, model_name))
-        elif model_name == "linear":
+        elif model_name in ("linear", "linear_classifier", "linear_regressor") or family in ("linear", "glm"):
             params.update(self._sample_linear_params(trial))
-        elif model_name == "svm":
+        elif model_name in ("svm", "svm_classifier") or family == "kernel":
             params.update(self._sample_svm_params(trial))
+        elif family in ("tree", "forest"):
+            params.update(self._sample_tree_params(trial, model_name))
+        # Other families: use registry defaults (no HPO)
 
         return params
 
@@ -397,6 +434,14 @@ class BayesianSearch(BaseSearchStrategy):
 
         return params
 
+    def _sample_tree_params(self, trial, model_name: str) -> dict[str, Any]:
+        """Sample tree/forest hyperparameters."""
+        params: dict[str, Any] = {}
+        params["n_estimators"] = trial.suggest_int("n_estimators", 50, 2000)
+        params["max_depth"] = trial.suggest_int("max_depth", 3, 30)
+        params["min_samples_leaf"] = trial.suggest_int("min_samples_leaf", 1, 50)
+        return params
+
     def _sample_preprocessing(self, trial) -> list[tuple[str, dict[str, Any]]]:
         """Sample preprocessing steps.
 
@@ -411,30 +456,49 @@ class BayesianSearch(BaseSearchStrategy):
             Preprocessing steps.
         """
         steps = []
+        mf = self._meta_features
 
-        # Imputation strategy
-        imputer_strategy = trial.suggest_categorical(
-            "imputer_strategy",
-            ["none", "mean", "median", "most_frequent"]
-        )
-        if imputer_strategy != "none":
-            steps.append(("imputer", {"strategy": imputer_strategy}))
+        # Imputation strategy — only suggest if data has missing values
+        if mf.get("pct_missing", 0) > 0:
+            imputer_strategy = trial.suggest_categorical(
+                "imputer_strategy",
+                ["none", "mean", "median", "most_frequent", "knn"]
+            )
+            if imputer_strategy == "knn":
+                steps.append(("imputer", {"strategy": "knn", "n_neighbors": 5}))
+            elif imputer_strategy != "none":
+                steps.append(("imputer", {"strategy": imputer_strategy}))
 
-        # Encoding method
-        encoder_method = trial.suggest_categorical(
-            "encoder_method",
-            ["none", "onehot", "target", "ordinal"]
-        )
-        if encoder_method != "none":
-            steps.append(("encoder", {"method": encoder_method}))
+        # Encoding method — only suggest if data has categoricals
+        if mf.get("nr_cat", 0) > 0:
+            encoder_method = trial.suggest_categorical(
+                "encoder_method",
+                ["none", "onehot", "target", "ordinal"]
+            )
+            if encoder_method != "none":
+                steps.append(("encoder", {"method": encoder_method}))
 
         # Scaling method
         scaler_method = trial.suggest_categorical(
             "scaler_method",
-            ["none", "standard", "minmax", "robust"]
+            ["none", "standard", "minmax", "robust", "quantile"]
         )
         if scaler_method != "none":
             steps.append(("scaler", {"method": scaler_method}))
+
+        # Feature selection
+        fs_options = ["none", "variance_threshold", "mutual_info_20", "mutual_info_50"]
+        if self._importance_mask is not None:
+            fs_options.append("importance_mask")
+        fs_method = trial.suggest_categorical("feature_selection", fs_options)
+        if fs_method == "variance_threshold":
+            steps.append(("feature_selection", {"method": "variance_threshold", "threshold": 0.001}))
+        elif fs_method == "mutual_info_20":
+            steps.append(("feature_selection", {"method": "mutual_info", "k": 20}))
+        elif fs_method == "mutual_info_50":
+            steps.append(("feature_selection", {"method": "mutual_info", "k": 50}))
+        elif fs_method == "importance_mask" and self._importance_mask is not None:
+            steps.append(("feature_selection", {"method": "importance_mask", "mask": self._importance_mask}))
 
         return steps
 

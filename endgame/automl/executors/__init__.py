@@ -9,6 +9,7 @@ from endgame.automl.executors.constraint_check import (
 )
 from endgame.automl.executors.explainability import ExplainabilityExecutor
 from endgame.automl.executors.hpo import HyperparameterTuningExecutor
+from endgame.automl.executors.persistence import PersistenceExecutor
 from endgame.automl.executors.threshold_opt import ThresholdOptimizationExecutor
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     "DeploymentConstraints",
     "ExplainabilityExecutor",
     "HyperparameterTuningExecutor",
+    "PersistenceExecutor",
     "ThresholdOptimizationExecutor",
 ]
