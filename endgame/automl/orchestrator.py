@@ -1588,7 +1588,6 @@ class ModelTrainingExecutor(BaseStageExecutor):
                         )
                         # Retry with GPU disabled for this model
                         try:
-                            import os
                             _prev = os.environ.get("CUDA_VISIBLE_DEVICES")
                             os.environ["CUDA_VISIBLE_DEVICES"] = ""
                             oof_pred, score = self._cv_score_model(

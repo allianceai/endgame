@@ -139,16 +139,42 @@ MODEL_POOLS = {
         "quantile_forest",
     ],
     "best_quality": [
-        "lgbm", "xgb", "catboost",
-        "ft_transformer", "saint", "tabnet",
-        "tabm", "realmlp", "grande",
-        "tabpfn_v2", "tabpfn_25", "xrfm",
+        # GBDTs (always strong)
+        "lgbm", "xgb", "catboost", "ngboost",
+        # Deep tabular (modern)
+        "ft_transformer", "saint", "tabnet", "node", "nam",
+        "tabular_resnet", "tabm", "realmlp", "grande",
         "gandalf", "tabr", "tabdpt", "modern_nca",
-        "rotation_forest", "rf", "extra_trees",
-        "oblique_forest", "extra_oblique_forest", "honest_forest",
-        "ngboost", "ebm",
-        "linear", "elm",
-        "tabpfn",
+        "tab_transformer", "mlp", "embedding_mlp",
+        # Custom trees
+        "rotation_forest", "c50", "c50_ensemble", "oblique_forest",
+        "extra_oblique_forest", "patch_oblique_forest", "honest_forest",
+        "evolutionary_tree", "rf", "extra_trees",
+        "adtree", "model_tree", "cubist",
+        # Linear
+        "linear", "elm", "mars",
+        # Kernel
+        "svm", "gp",
+        # Rules
+        "rulefit", "furia", "prim",
+        # Bayesian
+        "tan", "eskdb", "kdb", "bart", "naive_bayes",
+        "neural_kdb", "auto_sle", "ebmc_classifier",
+        # Interpretable
+        "ebm", "ebmc", "ebmr",
+        "gam", "node_gam", "gami_net",
+        "corels", "slim", "fasterrisk", "gosdt",
+        # Ordinal
+        "ordinal", "logistic_at", "logistic_it", "logistic_se",
+        "ordinal_ridge", "ordinal_lad",
+        # Discriminant
+        "lda", "qda", "knn",
+        # Foundation
+        "tabpfn", "tabpfn_v2", "tabpfn_25", "xrfm",
+        # Symbolic
+        "symbolic_regression", "symbolic_regressor",
+        # Quantile
+        "quantile_forest",
     ],
     "high_quality": [
         "lgbm", "xgb", "catboost",

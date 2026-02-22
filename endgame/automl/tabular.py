@@ -1179,7 +1179,6 @@ class TabularPredictor(BasePredictor):
                 return HeuristicSearch(
                     task_type=task_type,
                     eval_metric=self._get_eval_metric(),
-                    interpretable_only=interpretable_only,
                 )
             except ImportError:
                 logger.warning("HeuristicSearch not available, falling back to PortfolioSearch")
@@ -1225,7 +1224,6 @@ class TabularPredictor(BasePredictor):
                 return RandomSearch(
                     task_type=task_type,
                     eval_metric=self._get_eval_metric(),
-                    interpretable_only=interpretable_only,
                 )
             except ImportError:
                 logger.warning("RandomSearch not available, falling back to PortfolioSearch")

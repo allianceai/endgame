@@ -181,7 +181,7 @@ class TransformerClassifier(EndgameEstimator, ClassifierMixin):
             warmup_ratio=self.warmup_ratio,
             weight_decay=self.weight_decay,
             fp16=self.fp16 and torch.cuda.is_available(),
-            evaluation_strategy="epoch" if eval_dataset else "no",
+            eval_strategy="epoch" if eval_dataset else "no",
             save_strategy="no",
             logging_steps=100,
             report_to="none",

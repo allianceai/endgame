@@ -156,38 +156,76 @@ class VisionBackbone(EndgameEstimator):
             return timm.data.create_transform(**data_config, is_training=True)
         return timm.data.create_transform(**data_config, is_training=False)
 
-    def extract_features(self, images) -> np.ndarray:
+    def extract_features(self, images, batch_size: int = 64) -> np.ndarray:
         """Extract features from images.
+
+        Handles HWC uint8 images by converting to CHW float32,
+        scaling to [0, 1], resizing to the model's expected input size,
+        and applying model-specific normalization.
 
         Parameters
         ----------
         images : Tensor or array-like
-            Input images.
+            Input images. Can be:
+            - numpy array of shape (N, H, W, C) with uint8 or float values
+            - numpy array of shape (N, C, H, W) already in CHW format
+            - torch Tensor in (N, C, H, W) format
+        batch_size : int, default=64
+            Batch size for inference to avoid OOM.
 
         Returns
         -------
         ndarray
-            Feature vectors.
+            Feature vectors of shape (N, D).
         """
         import torch
+        import torch.nn.functional as F
 
         if self._model is None:
             self._create_model()
 
         self._model.eval()
+        config = self.get_config()
+        _, target_h, target_w = config["input_size"]
+        mean = torch.tensor(config["mean"], dtype=torch.float32).view(1, 3, 1, 1)
+        std = torch.tensor(config["std"], dtype=torch.float32).view(1, 3, 1, 1)
+        mean = mean.to(self._device)
+        std = std.to(self._device)
 
-        with torch.no_grad():
-            if not isinstance(images, torch.Tensor):
-                images = torch.tensor(images)
-            images = images.to(self._device)
+        if not isinstance(images, torch.Tensor):
+            images = np.asarray(images)
+            # Convert HWC to CHW if last dim is channels (3 or 1)
+            if images.ndim == 4 and images.shape[-1] in (1, 3):
+                images = images.transpose(0, 3, 1, 2)
+            images = torch.from_numpy(images.copy())
 
-            features = self._model.forward_features(images)
+        # Convert to float and scale to [0, 1] if needed
+        if images.dtype == torch.uint8:
+            images = images.float() / 255.0
+        elif images.dtype != torch.float32:
+            images = images.float()
 
-            # Global pooling if needed
-            if features.dim() == 4:
-                features = features.mean(dim=[2, 3])
+        all_features = []
+        for start in range(0, len(images), batch_size):
+            batch = images[start : start + batch_size].to(self._device)
 
-            return features.cpu().numpy()
+            # Resize to model's expected input size
+            if batch.shape[2] != target_h or batch.shape[3] != target_w:
+                batch = F.interpolate(
+                    batch, size=(target_h, target_w), mode="bilinear",
+                    align_corners=False,
+                )
+
+            # Normalize with model-specific mean/std
+            batch = (batch - mean) / std
+
+            with torch.no_grad():
+                features = self._model.forward_features(batch)
+                if features.dim() == 4:
+                    features = features.mean(dim=[2, 3])
+                all_features.append(features.cpu())
+
+        return torch.cat(all_features, dim=0).numpy()
 
     @staticmethod
     def list_models(filter_str: str = "") -> list[str]:
