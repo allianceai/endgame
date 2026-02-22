@@ -59,9 +59,12 @@ def _train_worker(func, args, kwargs, result_queue):
                 "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
         os.environ[key] = n_cpus
 
-    # Force CPU-only mode.  CUDA can't re-initialize after fork(), so
-    # any PyTorch/JAX model would crash.  For tabular data CPU is fine.
-    os.environ["CUDA_VISIBLE_DEVICES"] = ""
+    # Force CPU-only mode unless GPU is explicitly enabled via kwargs.
+    # CUDA can't re-initialize after fork(), so forked processes always
+    # disable CUDA.  GPU training uses the thread-based fallback path.
+    use_gpu = kwargs.pop("_use_gpu", False)
+    if not use_gpu:
+        os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
     signal.signal(signal.SIGTERM, lambda *_: os._exit(1))
     try:
@@ -83,7 +86,7 @@ def _train_worker(func, args, kwargs, result_queue):
             ))
 
 
-def _train_with_timeout(func, *args, sample_weights=None, **kwargs):
+def _train_with_timeout(func, *args, sample_weights=None, use_gpu=False, **kwargs):
     """Run *func* in a child **process** with a hard timeout.
 
     If the child exceeds the deadline, ``Process.kill()`` sends
@@ -91,7 +94,8 @@ def _train_with_timeout(func, *args, sample_weights=None, **kwargs):
     joblib / loky workers the model spawned.
 
     Falls back to thread-based execution if fork is unavailable
-    (e.g. macOS with spawn-only context).
+    (e.g. macOS with spawn-only context) or if ``use_gpu=True``
+    (CUDA cannot re-initialize after fork).
 
     Parameters match ``_train_model(config, X, y, task_type,
     time_budget, sample_weights=...)``.  The ``time_budget`` arg
@@ -104,16 +108,19 @@ def _train_with_timeout(func, *args, sample_weights=None, **kwargs):
     deadline = time_budget + min(30, time_budget * 0.3)
 
     # Prefer fork (child inherits memory = fast, supports bound methods).
-    # Fall back to thread if fork unavailable.
+    # Fall back to thread if fork unavailable or GPU mode is active
+    # (CUDA cannot re-init after fork).
     use_process = True
-    try:
-        ctx = mp.get_context("fork")
-    except ValueError:
+    if use_gpu:
         use_process = False
+    else:
+        try:
+            ctx = mp.get_context("fork")
+        except ValueError:
+            use_process = False
 
     if not use_process:
-        # Fallback: thread-based (can't hard-kill but at least enforces
-        # a timeout with cleanup attempt)
+        # Thread-based execution (required for GPU, fallback for no-fork)
         import os
         from concurrent.futures import ThreadPoolExecutor
         from concurrent.futures import TimeoutError as FuturesTimeout
@@ -124,6 +131,11 @@ def _train_with_timeout(func, *args, sample_weights=None, **kwargs):
                      "MKL_NUM_THREADS", "OPENBLAS_NUM_THREADS"):
             _env_backup[key] = os.environ.get(key)
             os.environ[key] = n_cpus
+
+        # Only force CPU when GPU is not requested
+        if not use_gpu:
+            _env_backup["CUDA_VISIBLE_DEVICES"] = os.environ.get("CUDA_VISIBLE_DEVICES")
+            os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
         pool = ThreadPoolExecutor(max_workers=1)
         future = pool.submit(func, *args, sample_weights=sample_weights)
@@ -144,7 +156,7 @@ def _train_with_timeout(func, *args, sample_weights=None, **kwargs):
     q = ctx.Queue()
     p = ctx.Process(
         target=_train_worker,
-        args=(func, args, {"sample_weights": sample_weights}, q),
+        args=(func, args, {"sample_weights": sample_weights, "_use_gpu": use_gpu}, q),
         daemon=False,
     )
     p.start()
@@ -1337,6 +1349,8 @@ class ModelTrainingExecutor(BaseStageExecutor):
         min_model_time: float = 300.0,
         max_model_time: float = 600.0,
         eval_metric: str = "auto",
+        early_stopping_rounds: int = 50,
+        use_gpu: bool = False,
     ):
         """Initialize model training executor.
 
@@ -1360,6 +1374,10 @@ class ModelTrainingExecutor(BaseStageExecutor):
             pipeline moves on to the next model.
         eval_metric : str, default="auto"
             Evaluation metric for scoring models.
+        early_stopping_rounds : int, default=50
+            Early stopping patience for GBDT models during CV.
+        use_gpu : bool, default=False
+            Whether to enable GPU acceleration.
         """
         self.cv_folds = cv_folds
         self.parallel = parallel
@@ -1368,6 +1386,8 @@ class ModelTrainingExecutor(BaseStageExecutor):
         self.min_model_time = min_model_time
         self.max_model_time = max_model_time
         self.eval_metric = eval_metric
+        self.early_stopping_rounds = early_stopping_rounds
+        self.use_gpu = use_gpu
 
     def execute(
         self,
@@ -1488,6 +1508,7 @@ class ModelTrainingExecutor(BaseStageExecutor):
                         self._cv_score_model,
                         config, X_for_config, y, task_type, model_budget,
                         sample_weights=sample_weights,
+                        use_gpu=self.use_gpu,
                     )
 
                     oof_predictions[config.model_name] = oof_pred
@@ -1552,6 +1573,74 @@ class ModelTrainingExecutor(BaseStageExecutor):
                         fit_time=elapsed,
                         success=False,
                         error=f"Killed after {elapsed:.0f}s",
+                    )
+                    results.append(result)
+
+                except RuntimeError as e:
+                    err_str = str(e)
+                    is_cuda_oom = "CUDA out of memory" in err_str
+                    if is_cuda_oom and self.use_gpu:
+                        if self.verbose > 0:
+                            print(f" CUDA OOM — falling back to CPU")
+                        logger.warning(
+                            f"CUDA OOM for {config.model_name}, "
+                            f"falling back to CPU retraining"
+                        )
+                        # Retry with GPU disabled for this model
+                        try:
+                            import os
+                            _prev = os.environ.get("CUDA_VISIBLE_DEVICES")
+                            os.environ["CUDA_VISIBLE_DEVICES"] = ""
+                            oof_pred, score = self._cv_score_model(
+                                config, X_for_config, y, task_type,
+                                model_budget,
+                                sample_weights=sample_weights,
+                            )
+                            oof_predictions[config.model_name] = oof_pred
+                            model = self._refit_model(
+                                config, X_for_config, y, task_type,
+                                sample_weights=sample_weights,
+                            )
+                            trained_models[config.model_name] = model
+                            result = SearchResult(
+                                config=config,
+                                score=score,
+                                scores={"primary": score},
+                                fit_time=time.time() - model_start,
+                                oof_predictions=oof_pred,
+                                success=True,
+                            )
+                            results.append(result)
+                            if self.verbose > 0:
+                                print(f" score={score:.4f} (CPU fallback, {time.time()-model_start:.1f}s)")
+                        except Exception as cpu_err:
+                            if self.verbose > 0:
+                                print(f" CPU fallback FAILED ({cpu_err})")
+                            logger.warning(f"CPU fallback failed for {config.model_name}: {cpu_err}")
+                            result = SearchResult(
+                                config=config,
+                                score=float("-inf"),
+                                fit_time=time.time() - model_start,
+                                success=False,
+                                error=str(cpu_err),
+                            )
+                            results.append(result)
+                        finally:
+                            if _prev is None:
+                                os.environ.pop("CUDA_VISIBLE_DEVICES", None)
+                            else:
+                                os.environ["CUDA_VISIBLE_DEVICES"] = _prev
+                        continue
+                    # Not a CUDA OOM — fall through to generic handler
+                    if self.verbose > 0:
+                        print(f" FAILED ({e})")
+                    logger.warning(f"Failed to train {config.model_name}: {e}")
+                    result = SearchResult(
+                        config=config,
+                        score=float("-inf"),
+                        fit_time=time.time() - model_start,
+                        success=False,
+                        error=str(e),
                     )
                     results.append(result)
 
@@ -1703,6 +1792,11 @@ class ModelTrainingExecutor(BaseStageExecutor):
 
         use_proba = task_type == "classification" and hasattr(model, "predict_proba")
 
+        # ── Detect GBDT models for early stopping ────────────────────
+        _GBDT_NAMES = {"lgbm", "xgb", "catboost", "ngboost"}
+        is_gbdt = config.model_name in _GBDT_NAMES
+        es_rounds = getattr(self, "early_stopping_rounds", 50) if is_gbdt else 0
+
         oof_pred = None
         cv_start = time.time()
 
@@ -1713,10 +1807,23 @@ class ModelTrainingExecutor(BaseStageExecutor):
 
             fold_model = clone(model)
 
+            fit_kwargs: dict[str, Any] = {}
             if supports_sw and sample_weights is not None:
-                fold_model.fit(X_tr, y_tr, sample_weight=sample_weights[train_idx])
-            else:
-                fold_model.fit(X_tr, y_tr)
+                fit_kwargs["sample_weight"] = sample_weights[train_idx]
+
+            # ── Early stopping for GBDTs ─────────────────────────────
+            if es_rounds > 0:
+                try:
+                    fit_kwargs.update(
+                        self._get_early_stopping_kwargs(
+                            fold_model, config.model_name,
+                            X_val, y_val, es_rounds,
+                        )
+                    )
+                except Exception:
+                    pass  # Fall back to training without early stopping
+
+            fold_model.fit(X_tr, y_tr, **fit_kwargs)
 
             if use_proba:
                 preds = fold_model.predict_proba(X_val)
@@ -1930,6 +2037,68 @@ class ModelTrainingExecutor(BaseStageExecutor):
                 return accuracy_score(y, pred_labels)
             from sklearn.metrics import r2_score
             return r2_score(y, oof_pred)
+
+    @staticmethod
+    def _get_early_stopping_kwargs(
+        model: Any,
+        model_name: str,
+        X_val: np.ndarray,
+        y_val: np.ndarray,
+        early_stopping_rounds: int,
+    ) -> dict[str, Any]:
+        """Build early-stopping fit kwargs for GBDT models.
+
+        Handles both bare estimators and sklearn Pipelines (where
+        preprocessing steps must transform X_val before it reaches the
+        final estimator).
+
+        Returns a dict of keyword arguments to pass to ``model.fit()``.
+        """
+        from sklearn.pipeline import Pipeline
+
+        # If the model is wrapped in a Pipeline, we need to transform
+        # X_val through the preprocessing steps and prefix the kwarg
+        # names with the final step name.
+        if isinstance(model, Pipeline):
+            # Transform X_val through all steps except the final estimator
+            X_val_transformed = X_val
+            for step_name, step_transformer in model.steps[:-1]:
+                if hasattr(step_transformer, "transform"):
+                    X_val_transformed = step_transformer.transform(X_val_transformed)
+            final_step_name = model.steps[-1][0]
+            prefix = f"{final_step_name}__"
+        else:
+            X_val_transformed = X_val
+            prefix = ""
+
+        kwargs: dict[str, Any] = {}
+
+        if model_name == "lgbm":
+            kwargs[f"{prefix}eval_set"] = [(X_val_transformed, y_val)]
+            try:
+                import lightgbm as lgb
+                kwargs[f"{prefix}callbacks"] = [
+                    lgb.early_stopping(early_stopping_rounds, verbose=False),
+                    lgb.log_evaluation(period=0),
+                ]
+            except ImportError:
+                # LightGBM not available — skip early stopping
+                return {}
+        elif model_name == "xgb":
+            kwargs[f"{prefix}eval_set"] = [(X_val_transformed, y_val)]
+            kwargs[f"{prefix}verbose"] = False
+        elif model_name == "catboost":
+            kwargs[f"{prefix}eval_set"] = (X_val_transformed, y_val)
+            kwargs[f"{prefix}early_stopping_rounds"] = early_stopping_rounds
+            kwargs[f"{prefix}verbose"] = 0
+        elif model_name == "ngboost":
+            kwargs[f"{prefix}X_val"] = X_val_transformed
+            kwargs[f"{prefix}Y_val"] = y_val
+            kwargs[f"{prefix}early_stopping_rounds"] = early_stopping_rounds
+        else:
+            return {}
+
+        return kwargs
 
     @staticmethod
     def _wrap_with_preprocessing(
@@ -3180,6 +3349,8 @@ class PipelineOrchestrator:
         max_model_time: float = 600.0,
         eval_metric: str = "auto",
         excluded_models: list[str] | None = None,
+        early_stopping_rounds: int = 50,
+        use_gpu: bool = False,
     ):
         if isinstance(preset, str):
             self.preset = PRESETS.get(preset, PRESETS["medium_quality"])
@@ -3207,6 +3378,8 @@ class PipelineOrchestrator:
         self.min_improvement = min_improvement
         self.min_model_time = min_model_time
         self.max_model_time = max_model_time
+        self.early_stopping_rounds = early_stopping_rounds
+        self.use_gpu = use_gpu
 
         # Configure logging based on verbosity
         if verbose >= 3:
@@ -3242,6 +3415,8 @@ class PipelineOrchestrator:
                 min_model_time=self.min_model_time,
                 max_model_time=self.max_model_time,
                 eval_metric=self.eval_metric,
+                early_stopping_rounds=self.early_stopping_rounds,
+                use_gpu=self.use_gpu,
             ),
             "ensembling": EnsemblingExecutor(method=self.preset.ensemble_method),
             "calibration": CalibrationExecutor(),

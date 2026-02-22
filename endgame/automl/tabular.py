@@ -71,6 +71,17 @@ class TabularPredictor(BasePredictor):
         Hard ceiling (in seconds) for any single model. If a model
         exceeds this time, its training is abandoned and the pipeline
         moves on. Prevents slow models from monopolizing the budget.
+    early_stopping_rounds : int, default=50
+        Early stopping patience for GBDT models (LightGBM, XGBoost,
+        CatBoost, NGBoost) during cross-validation. Training halts
+        when no improvement is seen for this many consecutive rounds.
+        Only applies during CV scoring — the final refit uses all
+        boosting rounds.
+    use_gpu : bool, default=False
+        Enable GPU acceleration for supported models. When True,
+        training uses thread-based execution (instead of fork) to
+        avoid CUDA re-initialization issues. Models that encounter
+        CUDA out-of-memory errors automatically fall back to CPU.
 
     Attributes
     ----------
@@ -136,6 +147,8 @@ class TabularPredictor(BasePredictor):
         min_model_time: float = 300.0,
         max_model_time: float = 600.0,
         excluded_models: list[str] | None = None,
+        early_stopping_rounds: int = 50,
+        use_gpu: bool = False,
     ):
         super().__init__(
             label=label,
@@ -163,6 +176,8 @@ class TabularPredictor(BasePredictor):
         self.min_model_time = min_model_time
         self.max_model_time = max_model_time
         self.excluded_models = excluded_models or []
+        self.early_stopping_rounds = early_stopping_rounds
+        self.use_gpu = use_gpu
 
         # Tabular-specific state
         self.meta_features_: dict[str, float] | None = None
@@ -240,6 +255,25 @@ class TabularPredictor(BasePredictor):
         # Store interpretable_only setting
         self._interpretable_only = interpretable_only
 
+        # Validate GPU availability if requested
+        if self.use_gpu:
+            try:
+                import torch
+                if not torch.cuda.is_available():
+                    logger.warning(
+                        "use_gpu=True but CUDA is not available. "
+                        "Models will fall back to CPU."
+                    )
+                    if self.verbosity > 0:
+                        print("  WARNING: CUDA not available, GPU models will fall back to CPU")
+            except ImportError:
+                logger.warning(
+                    "use_gpu=True but PyTorch is not installed. "
+                    "GPU acceleration requires PyTorch with CUDA support."
+                )
+                if self.verbosity > 0:
+                    print("  WARNING: PyTorch not installed, GPU acceleration unavailable")
+
         if self.verbosity > 0:
             print("Beginning AutoML training for tabular data")
             print(f"  Label: {self.label}")
@@ -248,6 +282,8 @@ class TabularPredictor(BasePredictor):
             print(f"  Time limit: {tl_str}")
             if interpretable_only:
                 print("  Mode: Interpretable models only")
+            if self.use_gpu:
+                print("  GPU: enabled")
 
         # Store data reference for refit_full()
         self._train_data_ref = train_data
@@ -325,6 +361,8 @@ class TabularPredictor(BasePredictor):
             max_model_time=self.max_model_time,
             eval_metric=self.eval_metric,
             excluded_models=self.excluded_models,
+            early_stopping_rounds=self.early_stopping_rounds,
+            use_gpu=self.use_gpu,
         )
 
         # Set persistence output directory if configured
