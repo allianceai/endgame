@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "endgame-ml"
-version = "0.7.0-alpha"
+version = "1.0.0"
 description = "A living library of machine learning — classic to SOTA, under one roof"
 readme = "README.md"
 license = "Apache-2.0"
@@ -25,7 +25,7 @@ keywords = [
     "scikit-learn",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",

@@ -66,7 +66,7 @@ pytest tests/ -v
 python -c "import endgame; print(endgame.__version__)"
 ```
 
-Expected output: `0.7.0-alpha`
+Expected output: `1.0.0`
 
 ## Platform Notes
 

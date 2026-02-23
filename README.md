@@ -430,7 +430,7 @@ If you use Endgame in your research, please cite:
   author    = {Hamilton, Cameron},
   year      = {2026},
   url       = {https://github.com/allianceai/endgame},
-  version   = {0.7.0-alpha},
+  version   = {1.0.0},
   license   = {Apache-2.0},
 }
 ```

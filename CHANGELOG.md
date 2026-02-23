@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0] - 2026-02-22
+
+First stable release of Endgame.
+
+### Changed
+- Version bump from 0.7.0-alpha to 1.0.0
+- Updated development status to Production/Stable
+
+### Fixed
+- `eg.timeseries`, `eg.signal`, `eg.automl`, `eg.dimensionality_reduction`, `eg.feature_selection` now accessible via top-level lazy loading
+- Updated `__all__` to include all public modules
+
 ## [0.7.0-alpha] - 2026-02-19
 
 Initial public release of Endgame.

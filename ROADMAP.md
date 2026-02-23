@@ -1,8 +1,8 @@
 # Endgame Development Roadmap
 
-**Last Updated:** 2026-02-15
-**Version:** 0.7.0-alpha
-**Status:** Active Development
+**Last Updated:** 2026-02-22
+**Version:** 1.0.0
+**Status:** Stable Release
 
 This document tracks all implemented features and planned additions for the Endgame library.
 
@@ -1126,7 +1126,7 @@ These features address the growing importance of data quality, fairness, and mod
 - [x] Geometric/Generative/LLM Imbalance Methods ✅
 - [x] Symbolic Regression ✅
 
-### v0.7.0 (Current) ✅
+### v0.7.0 ✅
 - [x] Interactive Decision Tree Visualization (HTML/JS, collapsible, zoomable) ✅
 - [x] Documentation Directory Setup (Sphinx/MkDocs scaffolding) ✅
 - [x] TabPFN v2 Integration (Nature 2025 foundation model) ✅
@@ -1165,12 +1165,13 @@ These features address the growing importance of data quality, fairness, and mod
 - [ ] RIPPER rule learner
 - [ ] Zero-Shot HPO
 
-### v1.0.0
-- [ ] All Tier 0-2 items complete
+### v1.0.0 (Current) ✅
+- [x] Version bump and stable release
+- [x] All public modules accessible via `eg.<name>` lazy loading
+- [x] API stability guarantee
 - [ ] Comprehensive documentation site
 - [ ] Tutorial notebooks for each module
 - [ ] Published performance benchmarks on TabArena
-- [ ] API stability guarantee
 
 ---
 

@@ -23,7 +23,7 @@ Usage:
     ensemble.fit(oof_predictions, y_train)
 """
 
-__version__ = "0.7.0-alpha"
+__version__ = "1.0.0"
 
 # Note: models imported lazily for heavyweight optional dependencies
 # from endgame import models
@@ -46,7 +46,7 @@ def __getattr__(name: str):
     import importlib
 
     # Models and other heavy modules imported lazily for optional dependencies
-    if name in ("models", "vision", "nlp", "audio", "benchmark", "kaggle", "quick", "visualization", "persistence", "explain", "tracking"):
+    if name in ("models", "vision", "nlp", "audio", "benchmark", "kaggle", "quick", "visualization", "persistence", "explain", "tracking", "timeseries", "signal", "automl", "dimensionality_reduction", "feature_selection"):
         module = importlib.import_module(f"endgame.{name}")
         globals()[name] = module
         return module
@@ -83,6 +83,11 @@ __all__ = [
     "visualization",
     "persistence",
     "tracking",
+    "timeseries",
+    "signal",
+    "automl",
+    "dimensionality_reduction",
+    "feature_selection",
     "save",
     "load",
     "export_onnx",

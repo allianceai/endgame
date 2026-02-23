@@ -9,8 +9,8 @@ Produces:
   paper/figures/loc_comparison.pdf      — Lines-of-code comparison
 
 Usage:
-    cd /home/cameron/endgame
-    .venv/bin/python paper/generate_paper_results.py
+    cd <project-root>
+    python paper/generate_paper_results.py
 """
 
 import gc

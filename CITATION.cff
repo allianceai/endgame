@@ -9,8 +9,8 @@ authors:
 repository-code: "https://github.com/allianceai/endgame"
 url: "https://github.com/allianceai/endgame"
 license: Apache-2.0
-version: 0.7.0-alpha
-date-released: "2026-02-15"
+version: 1.0.0
+date-released: "2026-02-22"
 keywords:
   - machine-learning
   - deep-learning

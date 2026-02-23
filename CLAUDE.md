@@ -8,35 +8,42 @@ Endgame is a comprehensive machine learning toolkit providing 300+ estimators, t
 
 **Import Convention:** `import endgame as eg`
 
-**Version:** 0.7.0-alpha (see ROADMAP.md for detailed implementation status)
+**Version:** 1.0.0 (see ROADMAP.md for detailed implementation status)
 
 **Core Philosophy:** Classic-to-SOTA under one API. Sklearn-native, Polars-powered, interpretability-first. For research, production, and competition.
 
 ## Architecture
 
-The library has fifteen core modules following the competition workflow:
+The library has the following core modules following the competition workflow:
 
 ```
-eg.validation       → CV strategies, adversarial validation, drift detection
-eg.preprocessing    → Feature engineering (Polars-based), encoding, class balancing
-eg.models           → 100+ models: GBDTs, trees, rules, Bayesian, neural, kernel, baselines
-eg.ensemble         → Hill climbing, stacking, blending, threshold optimization
-eg.calibration      → Conformal prediction, probability calibration, Venn-ABERS
-eg.tune             → Optuna integration with competition-specific search spaces
-eg.explain          → SHAP, LIME, PDP, feature interactions, counterfactuals
-eg.fairness         → Demographic parity, equalized odds, bias mitigation
-eg.anomaly          → Isolation Forest, LOF, GritBot, PyOD integration
-eg.semi_supervised  → Self-training for classification and regression
-eg.benchmark        → Systematic evaluation, meta-learning, learning curves
-eg.quick            → One-line model training and comparison
-eg.vision           → timm backbones, TTA, WBF, augmentation pipelines
-eg.nlp              → Transformers, DAPT, pseudo-labeling, LLM utilities
-eg.audio            → Spectrogram conversion, SED models, audio augmentation
-eg.timeseries       → Forecasting (statistical + neural), ROCKET classification
-eg.signal           → Filtering, spectral analysis, wavelets, entropy, complexity
-eg.kaggle           → Competition management, submissions, project scaffolding
-eg.persistence      → Model save/load, ONNX export, model serving
-eg.utils            → Metrics, submission helpers, Sharpe ratio analysis
+eg.validation              → CV strategies, adversarial validation, drift detection
+eg.preprocessing           → Feature engineering (Polars-based), encoding, class balancing
+eg.models                  → 100+ models: GBDTs, trees, rules, Bayesian, neural, kernel, baselines
+eg.ensemble                → Hill climbing, stacking, blending, threshold optimization
+eg.calibration             → Conformal prediction, probability calibration, Venn-ABERS
+eg.tune                    → Optuna integration with competition-specific search spaces
+eg.explain                 → SHAP, LIME, PDP, feature interactions, counterfactuals
+eg.fairness                → Demographic parity, equalized odds, bias mitigation
+eg.anomaly                 → Isolation Forest, LOF, GritBot, PyOD integration
+eg.semi_supervised         → Self-training for classification and regression
+eg.benchmark               → Systematic evaluation, meta-learning, learning curves
+eg.quick                   → One-line model training and comparison
+eg.vision                  → timm backbones, TTA, WBF, augmentation pipelines
+eg.nlp                     → Transformers, DAPT, pseudo-labeling, LLM utilities
+eg.audio                   → Spectrogram conversion, SED models, audio augmentation
+eg.timeseries              → Forecasting (statistical + neural), ROCKET classification
+eg.signal                  → Filtering, spectral analysis, wavelets, entropy, complexity
+eg.kaggle                  → Competition management, submissions, project scaffolding
+eg.persistence             → Model save/load, ONNX export, model serving
+eg.utils                   → Metrics, submission helpers, Sharpe ratio analysis
+eg.automl                  → Intelligent AutoML framework (TabularPredictor, multi-modal)
+eg.clustering              → 16 clustering algorithms with auto-selection
+eg.dimensionality_reduction → PCA, UMAP, t-SNE, TriMAP, PHATE, VAE
+eg.feature_selection       → 16+ methods: filter, wrapper, importance-based, advanced
+eg.visualization           → 42 interactive HTML chart types
+eg.tracking                → Experiment logging (MLflow, console)
+eg.mcp                     → MCP server for LLM-powered ML pipelines
 ```
 
 **Dependency Flow:** validation → preprocessing → models/vision/nlp/audio/signal/timeseries → ensemble → calibration
@@ -47,46 +54,53 @@ eg.utils            → Metrics, submission helpers, Sharpe ratio analysis
 2. **Polars-First**: Tabular preprocessing converts to `pl.LazyFrame` internally (accepts pandas/numpy input)
 3. **Configuration Presets**: Competition-winning hyperparameters as defaults (e.g., `preset='endgame'`)
 4. **Explicit Over Implicit**: No magic - every technique requires explicit invocation
-5. **Lazy Loading**: Heavy modules (models, vision, nlp, audio, benchmark, kaggle, quick) loaded on demand
+5. **Lazy Loading**: Heavy modules (models, vision, nlp, audio, benchmark, kaggle, quick, visualization, persistence, explain, tracking, timeseries, signal, automl, dimensionality_reduction, feature_selection) loaded on demand
 
 ## Directory Structure
 
 ```
 endgame/
-├── core/               # Base classes, Polars ops, config, types
-├── validation/         # AdversarialValidator, CV splitters (CPCV, StratifiedGroupKFold)
-├── preprocessing/      # Encoders, aggregation, feature selection, DAE, imbalanced learning
+├── core/                       # Base classes, Polars ops, config, types
+├── validation/                 # AdversarialValidator, CV splitters (CPCV, StratifiedGroupKFold)
+├── preprocessing/              # Encoders, aggregation, feature selection, DAE, imbalanced learning
 ├── models/
-│   ├── wrappers.py     # Unified GBDT interface (LightGBM/XGBoost/CatBoost)
-│   ├── trees/          # Rotation Forest, C5.0/Cubist (Rust), Oblique, Quantile, Evolutionary
-│   ├── rules/          # RuleFit, FURIA
-│   ├── bayesian/       # TAN, KDB, ESKDB, EBMC, AutoSLE, NeuralKDB
-│   ├── tabular/        # FT-Transformer, SAINT, NODE, TabPFN, NAM, GANDALF, TabularResNet
-│   ├── neural/         # MLP, EmbeddingMLP, TabNet
-│   ├── kernel/         # GP, SVM
-│   ├── baselines/      # ELM, NaiveBayes, LDA/QDA/RDA, KNN, Linear
-│   ├── probabilistic/  # BART, NGBoost
-│   ├── ordinal/        # Ordinal regression (mord wrappers)
-│   ├── symbolic/       # PySR symbolic regression
-│   ├── subgroup/       # PRIM bump hunting
-│   └── ebm.py          # Explainable Boosting Machines
-├── ensemble/           # Hill climbing, stacking, blending, threshold optimization
-├── calibration/        # Conformal prediction, scaling methods, Venn-ABERS
-├── anomaly/            # Isolation Forest, Extended IF, LOF, GritBot, PyOD
-├── semi_supervised/    # Self-training classifier/regressor
-├── tune/               # Optuna optimizer with preset search spaces
-├── benchmark/          # Suite loading, meta-learning, learning curves, synthetic data
-├── quick/              # One-line API (classify, regress, compare)
-├── vision/             # Backbones, TTA, WBF, segmentation
-├── nlp/                # Transformers, translation, DAPT, LLM utilities
-├── audio/              # Spectrograms, PCEN, SED
-├── timeseries/         # Forecasting (baselines, statsforecast, Darts), ROCKET classification
-├── signal/             # Filtering, spectral, wavelets, entropy, complexity, spatial, connectivity
-├── explain/            # SHAP, LIME, PDP, interactions, counterfactuals
-├── fairness/           # Fairness metrics, bias mitigation, reports
-├── persistence/        # Model save/load, ONNX export, model serving
-├── kaggle/             # Competition client, project scaffolding
-└── utils/              # Metrics, submission, reproducibility, Sharpe analysis
+│   ├── wrappers.py             # Unified GBDT interface (LightGBM/XGBoost/CatBoost)
+│   ├── trees/                  # Rotation Forest, C5.0/Cubist (Rust), Oblique, Quantile, Evolutionary
+│   ├── rules/                  # RuleFit, FURIA
+│   ├── bayesian/               # TAN, KDB, ESKDB, EBMC, AutoSLE, NeuralKDB
+│   ├── tabular/                # FT-Transformer, SAINT, NODE, TabPFN, NAM, GANDALF, TabularResNet
+│   ├── neural/                 # MLP, EmbeddingMLP, TabNet
+│   ├── kernel/                 # GP, SVM
+│   ├── baselines/              # ELM, NaiveBayes, LDA/QDA/RDA, KNN, Linear
+│   ├── probabilistic/          # BART, NGBoost
+│   ├── ordinal/                # Ordinal regression (mord wrappers)
+│   ├── symbolic/               # PySR symbolic regression
+│   ├── subgroup/               # PRIM bump hunting
+│   └── ebm.py                  # Explainable Boosting Machines
+├── ensemble/                   # Hill climbing, stacking, blending, threshold optimization
+├── calibration/                # Conformal prediction, scaling methods, Venn-ABERS
+├── anomaly/                    # Isolation Forest, Extended IF, LOF, GritBot, PyOD
+├── semi_supervised/            # Self-training classifier/regressor
+├── tune/                       # Optuna optimizer with preset search spaces
+├── benchmark/                  # Suite loading, meta-learning, learning curves, synthetic data
+├── quick/                      # One-line API (classify, regress, compare)
+├── vision/                     # Backbones, TTA, WBF, segmentation
+├── nlp/                        # Transformers, translation, DAPT, LLM utilities
+├── audio/                      # Spectrograms, PCEN, SED
+├── timeseries/                 # Forecasting (baselines, statsforecast, Darts), ROCKET classification
+├── signal/                     # Filtering, spectral, wavelets, entropy, complexity, spatial, connectivity
+├── explain/                    # SHAP, LIME, PDP, interactions, counterfactuals
+├── fairness/                   # Fairness metrics, bias mitigation, reports
+├── persistence/                # Model save/load, ONNX export, model serving
+├── kaggle/                     # Competition client, project scaffolding
+├── automl/                     # Intelligent AutoML framework (TabularPredictor, multi-modal)
+├── clustering/                 # 16 clustering algorithms with auto-selection
+├── dimensionality_reduction/   # PCA, UMAP, TriMAP, PHATE, VAE
+├── feature_selection/          # 16+ methods: filter, wrapper, importance-based, advanced
+├── visualization/              # 42 interactive HTML chart types
+├── tracking/                   # Experiment logging (MLflow, console)
+├── mcp/                        # MCP server for LLM-powered ML pipelines
+└── utils/                      # Metrics, submission, reproducibility, Sharpe analysis
 ```
 
 ## Key Implemented Classes
@@ -166,7 +180,7 @@ endgame/
 
 ## Dependencies
 
-Core: numpy, polars, scikit-learn, optuna
+Core: numpy, polars, scikit-learn, optuna, scipy, networkx
 Tabular: xgboost, lightgbm, catboost, pytorch, ngboost
 Trees: c50-rs (Rust backend for C5.0/Cubist)
 Vision: timm, albumentations, segmentation-models-pytorch

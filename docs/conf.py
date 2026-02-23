@@ -7,9 +7,9 @@ sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 project = "Endgame"
-copyright = "2026, Cameron"
-author = "Cameron"
-release = "0.7.0-alpha"
+copyright = "2026, Cameron Hamilton"
+author = "Cameron Hamilton"
+release = "1.0.0"
 
 # -- General configuration ---------------------------------------------------
 extensions = [
