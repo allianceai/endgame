@@ -1,10 +1,10 @@
 <p align="center">
   <h1 align="center">Endgame</h1>
   <p align="center">
-    <strong>A unified framework for tabular, time-series, and multimodal machine learning</strong>
+    <strong>Production-aware machine learning under the scikit-learn API</strong>
   </p>
   <p align="center">
-    Competition-grade models &middot; Research architectures &middot; Production guardrails &middot; Agent-ready via MCP
+    Calibrated probabilities &middot; Interpretable models &middot; Deployment guardrails &middot; Agent-ready via MCP
   </p>
   <p align="center">
     <a href="https://pypi.org/project/endgame-ml/"><img src="https://img.shields.io/pypi/v/endgame-ml.svg" alt="PyPI"></a>
@@ -13,7 +13,8 @@
   </p>
   <p align="center">
     <a href="#quick-start">Quick Start</a> &middot;
-    <a href="#what-you-get">What You Get</a> &middot;
+    <a href="#why-endgame">Why Endgame</a> &middot;
+    <a href="#benchmark-results">Benchmarks</a> &middot;
     <a href="#installation">Installation</a> &middot;
     <a href="#modules">Modules</a> &middot;
     <a href="https://endgame-ml.readthedocs.io">Documentation</a>
@@ -22,11 +23,15 @@
 
 ---
 
-Endgame began as a personal research and production toolkit --- a way to unify competition-grade modeling, modern tabular architectures, and deployable pipelines under one coherent API.
+## Why Endgame
 
-Most ML work today means gluing together dozens of libraries with incompatible APIs. Endgame eliminates that. Every component --- from a LightGBM wrapper to a wavelet packet transformer to a Venn-ABERS calibrator --- implements `fit`, `predict`, and `transform`. You can drop any of them into a scikit-learn pipeline, and you can drop any scikit-learn component into an Endgame ensemble.
+Most ML libraries optimize for leaderboard accuracy. Endgame optimizes for **deployment integrity** --- calibrated probabilities, interpretable models, and guardrails against leakage --- all under the scikit-learn API you already know. Every estimator is a scikit-learn estimator. If you know `fit` and `predict`, you already know Endgame.
 
-Endgame doesn't replace scikit-learn. It extends it --- with the models, calibration methods, and production tooling that sklearn doesn't ship.
+```
+Data → Validation → Preprocessing → Models → Ensemble → Calibration → Deploy
+                                      ↑
+                          Vision / NLP / Audio / Signal / TimeSeries
+```
 
 ```python
 import endgame as eg
@@ -38,14 +43,12 @@ Endgame is built and maintained by [Cameron Hamilton](https://github.com/allianc
 
 This framework grew out of years of research and production work spanning financial ML, healthcare modeling, and competition pipelines --- systems where interpretability, calibration, and deployment constraints matter as much as raw accuracy. It powers internal tooling at [Alliance AI](https://github.com/allianceai) and serves as the modeling backbone for [FitPilot](https://github.com/allianceai/fitpilot), a nutrition intelligence engine.
 
-I built Endgame because I wanted something that followed scikit-learn's syntax but included *everything* I actually reach for --- SOTA deep tabular models, competition-winning ensemble techniques, unusual methods like fuzzy rule learners and Bayesian network classifiers, and rigorous tools like conformal prediction and Venn-ABERS calibration. Several novel methods developed alongside Endgame are currently under peer review and will be integrated upon publication. Research modules currently under review are temporarily withheld from the public release and will be added following publication.
+I built Endgame because I wanted something that followed scikit-learn's syntax but included *everything* I actually reach for --- SOTA deep tabular models, competition-winning ensemble techniques, unusual methods like fuzzy rule learners and Bayesian network classifiers, and rigorous tools like conformal prediction and Venn-ABERS calibration. Several novel methods developed alongside Endgame are currently under peer review and will be integrated upon publication.
 
-## Who This Is For
+### Used By
 
-- **ML researchers** building new tabular models or running large-scale benchmarks
-- **Engineers** shipping production systems that need interpretability, calibration, or deployment constraints
-- **Competitors and data scientists** who want competition-winning defaults without the glue code
-- **Teams needing auditable models** --- 30+ glass-box estimators with the same `fit`/`predict` API
+- **[Alliance AI](https://github.com/allianceai)** --- Production ML infrastructure
+- **[FitPilot](https://github.com/allianceai/fitpilot)** --- Nutrition intelligence engine
 
 ## Quick Start
 
@@ -154,7 +157,7 @@ print(slim.get_scorecard())
 
 ### Agent-ready: build ML pipelines with natural language
 
-Endgame is one of the first ML frameworks designed to be driven by LLM agents. It ships a [Model Context Protocol](docs/guides/mcp_server.md) (MCP) server that lets any LLM host autonomously build, evaluate, and explain production-grade models:
+Endgame ships a [Model Context Protocol](docs/guides/mcp_server.md) (MCP) server that lets any LLM host autonomously build, evaluate, and explain production-grade models:
 
 ```
 You: Load the German Credit dataset and build me the best classifier you can.
@@ -186,19 +189,35 @@ See the [MCP Server Guide](docs/guides/mcp_server.md) for full documentation.
 
 ## What You Get
 
-- **100+ supervised models.** GBDTs, deep tabular architectures (FT-Transformer, SAINT, TabPFN v2.5, NODE, GRANDE, TabR), custom trees (Rotation Forest, C5.0, Oblique), Bayesian classifiers, rule learners, kernel methods, and interpretable models --- plus dedicated modules for time series, signal processing, vision, NLP, and audio.
+- **Calibrated, interpretable, sklearn-compatible.** 100+ estimators spanning 12 model families --- GBDTs, deep tabular architectures, Bayesian classifiers, rule learners, kernel methods, and 30+ glass-box models --- with conformal prediction, Venn-ABERS calibration, and deployment guardrails built in.
 
-- **30+ interpretable models.** Explainable Boosting Machines, GAMs (pyGAM, GAMI-Net, NODE-GAM, NAM), optimal rule lists (CORELS), optimal sparse trees (GOSDT), integer risk scorecards (SLIM, FasterRisk), symbolic regression (PySR), and fuzzy rule learners (FURIA) --- all with the same `fit`/`predict` API.
+- **Depth, not just breadth.** Conformal prediction with finite-sample coverage guarantees. 8 cross-validation strategies including combinatorial purged CV for finance. Adversarial validation for drift detection. 42 self-contained interactive HTML visualizations.
 
-- **Depth, not just numbers.** Conformal prediction with finite-sample coverage guarantees. Venn-ABERS calibration. 8 cross-validation strategies including combinatorial purged CV for finance. Adversarial validation for drift detection. 42 self-contained interactive HTML visualizations.
+- **Ensembles that win.** Super Learner with NNLS-optimal weighting. Bayesian Model Averaging. Negative Correlation Learning. Cascade ensembles with early exit. Hill climbing. Optuna-optimized blending.
 
-- **Ensembles that win.** Super Learner with NNLS-optimal weighting. Bayesian Model Averaging. Negative Correlation Learning. Cascade ensembles with early exit. Snapshot ensembles. Hill climbing. Optuna-optimized blending. 22 ensemble methods total.
+- **Full AutoML.** 15-stage pipeline: profiling, quality guardrails, preprocessing, feature engineering, model selection, training, constraint checking, HPO, ensembling, threshold optimization, calibration, and explainability. Time-budgeted with dynamic reallocation.
 
-- **Full AutoML.** 15-stage pipeline: profiling, quality guardrails, preprocessing, feature engineering, augmentation, model selection, training, constraint checking, HPO, ensembling, threshold optimization, calibration, post-training, and explainability. Time-budgeted with dynamic reallocation. Includes TabPFN v2.5 as a default model for datasets under 50K samples.
+- **Domain modules.** Dedicated modules for time series (statistical + neural forecasting, ROCKET classification), signal processing (filtering, spectral, wavelets, entropy, complexity), vision, NLP, and audio --- all with the same `fit`/`predict` interface.
 
-- **Agent-ready architecture.** One of the first ML libraries designed to be driven by LLM agents. Ships a [Model Context Protocol](docs/guides/mcp_server.md) (MCP) server with 20 tools and 6 resources, allowing AI agents (Claude Code, Claude Desktop, VS Code Copilot) to autonomously build, evaluate, and explain production-grade models.
+- **Agent-ready architecture.** Ships a [Model Context Protocol](docs/guides/mcp_server.md) (MCP) server enabling LLM agents to build ML pipelines through natural language, with 20 tools and 6 resources for autonomous model building.
 
 - **No lock-in.** Every estimator is a scikit-learn estimator. Your existing code works. Your existing pipelines work. Endgame adds to your toolkit --- it doesn't replace it.
+
+## Benchmark Results
+
+Run benchmarks yourself: `python benchmarks/run_tabular_benchmark.py`
+
+<details>
+<summary>Full benchmark methodology</summary>
+
+- **Datasets:** Full Grinsztajn NeurIPS 2022 benchmark (~45 datasets, classification + regression)
+- **Reference:** "Why do tree-based models still outperform deep learning on typical tabular data?" (NeurIPS 2022)
+- **Protocol:** 5-fold StratifiedKFold, max 5000 samples, 600s timeout per model
+- **Metrics:** Accuracy, balanced accuracy, F1 (weighted), ROC-AUC, Brier score, log loss, ECE, fit time
+
+See `benchmarks/README.md` for full reproduction instructions.
+
+</details>
 
 ## Installation
 
@@ -244,7 +263,7 @@ Endgame is organized into 26 modules following the ML workflow:
 |---|---|---|
 | `eg.models` | 100+ estimators: GBDTs, deep tabular, trees, rules, Bayesian, kernel, neural, baselines | `LGBMWrapper`, `FTTransformerClassifier`, `RotationForestClassifier`, `TANClassifier` |
 | `eg.models.interpretable` | 30+ glass-box models: EBM, GAM, GAMI-Net, NODE-GAM, NAM, CORELS, GOSDT, SLIM, FasterRisk, PySR | `EBMClassifier`, `GAMClassifier`, `GOSDTClassifier`, `CORELSClassifier`, `SLIMClassifier` |
-| `eg.ensemble` | 22 ensemble methods: voting, bagging, boosting, stacking, Super Learner, BMA, NCL, cascades | `SuperLearner`, `VotingClassifier`, `AdaBoostClassifier`, `CascadeEnsemble` |
+| `eg.ensemble` | Ensemble methods: voting, bagging, boosting, stacking, Super Learner, BMA, NCL, cascades | `SuperLearner`, `VotingClassifier`, `AdaBoostClassifier`, `CascadeEnsemble` |
 | `eg.calibration` | Conformal prediction, Venn-ABERS, temperature/Platt/beta/isotonic scaling | `ConformalClassifier`, `VennABERS`, `TemperatureScaling` |
 | `eg.tune` | Optuna integration with domain-specific search spaces | `OptunaOptimizer` |
 
@@ -261,7 +280,7 @@ Endgame is organized into 26 modules following the ML workflow:
 
 | Module | Description | Key Classes |
 |---|---|---|
-| `eg.timeseries` | 31 classes: statistical + neural forecasting, ROCKET/HYDRA classification | `AutoARIMAForecaster`, `NBEATSForecaster`, `MiniRocketClassifier` |
+| `eg.timeseries` | Statistical + neural forecasting, ROCKET/HYDRA classification | `AutoARIMAForecaster`, `NBEATSForecaster`, `MiniRocketClassifier` |
 | `eg.signal` | 45 transforms: filtering, spectral analysis, wavelets, entropy, complexity, spatial | `ButterworthFilter`, `WelchPSD`, `CSP`, `PermutationEntropy` |
 | `eg.vision` | timm backbones, TTA, WBF, segmentation, augmentation pipelines | `VisionBackbone`, `WeightedBoxesFusion` |
 | `eg.nlp` | Transformers, DAPT, pseudo-labeling, back-translation, LLM utilities | `TransformerClassifier`, `DomainAdaptivePretrainer` |
@@ -271,7 +290,7 @@ Endgame is organized into 26 modules following the ML workflow:
 
 | Module | Description |
 |---|---|
-| `eg.automl` | Full AutoML: 15-stage pipeline with quality guardrails, HPO, constraint checking, explainability, feedback loop, and performance reports |
+| `eg.automl` | Full AutoML: 15-stage pipeline with quality guardrails, HPO, constraint checking, explainability |
 | `eg.visualization` | 42 interactive chart types + model reports, all self-contained HTML |
 | `eg.tracking` | Experiment tracking: MLflow, console logger, abstract interface |
 | `eg.mcp` | MCP server: 20 tools + 6 resources for LLM-powered ML pipelines |
@@ -282,23 +301,9 @@ Endgame is organized into 26 modules following the ML workflow:
 | `eg.persistence` | Model save/load, ONNX export, model serving |
 | `eg.kaggle` | Competition management, submissions, project scaffolding |
 
-## Design Principles
-
-1. **Sklearn interface everywhere.** Every estimator implements `fit`/`predict`/`transform`. No proprietary APIs to learn. Works inside `Pipeline`, `GridSearchCV`, `cross_val_score`.
-
-2. **Polars-first preprocessing.** Tabular transformations use `pl.LazyFrame` internally for speed and memory efficiency, while accepting pandas/numpy input transparently.
-
-3. **Explicit over implicit.** No magic. Every technique requires explicit invocation. You control the pipeline, the features, the ensemble, the calibration.
-
-4. **Depth over convenience.** Conformal prediction sets, calibration curves, decision rules, feature importances --- these are first-class citizens, not afterthoughts.
-
-5. **Production-aware defaults.** Quality guardrails catch target leakage and data drift before training starts. Deployment constraints enforce latency and model size limits. Calibration ensures predicted probabilities mean something.
-
-6. **Self-contained outputs.** Every visualization generates a standalone HTML file with all CSS and JavaScript inlined. No CDN dependencies, no network required. Open it anywhere, share it with anyone.
-
 ## How Endgame Extends the Ecosystem
 
-Endgame is fully scikit-learn compatible --- it adds to your toolkit rather than replacing it. Here's what it brings beyond existing frameworks:
+Endgame is fully scikit-learn compatible --- it adds to your toolkit rather than replacing it.
 
 | Capability | Endgame | scikit-learn | AutoGluon | PyCaret |
 |---|---|---|---|---|
@@ -316,6 +321,20 @@ Endgame is fully scikit-learn compatible --- it adds to your toolkit rather than
 | Experiment tracking (MLflow) | Yes | --- | --- | Yes |
 | AutoML with deployment constraints | Yes | --- | --- | --- |
 | LLM agent integration (MCP) | 20 tools + 6 resources | --- | --- | --- |
+
+## Design Principles
+
+1. **Sklearn interface everywhere.** Every estimator implements `fit`/`predict`/`transform`. No proprietary APIs to learn. Works inside `Pipeline`, `GridSearchCV`, `cross_val_score`.
+
+2. **Polars-first preprocessing.** Tabular transformations use `pl.LazyFrame` internally for speed and memory efficiency, while accepting pandas/numpy input transparently.
+
+3. **Explicit over implicit.** No magic. Every technique requires explicit invocation. You control the pipeline, the features, the ensemble, the calibration.
+
+4. **Depth over convenience.** Conformal prediction sets, calibration curves, decision rules, feature importances --- these are first-class citizens, not afterthoughts.
+
+5. **Production-aware defaults.** Quality guardrails catch target leakage and data drift before training starts. Deployment constraints enforce latency and model size limits. Calibration ensures predicted probabilities mean something.
+
+6. **Self-contained outputs.** Every visualization generates a standalone HTML file with all CSS and JavaScript inlined. No CDN dependencies, no network required. Open it anywhere, share it with anyone.
 
 ## Roadmap
 
@@ -345,13 +364,13 @@ endgame/
 │   ├── kernel/        #   GP, SVM
 │   ├── baselines/     #   ELM, NaiveBayes, LDA/QDA, KNN, Linear
 │   └── probabilistic/ #   BART, NGBoost
-├── ensemble/          # 22 ensemble methods
+├── ensemble/          # Ensemble methods
 ├── calibration/       # Conformal prediction, probability calibration
 ├── preprocessing/     # 45+ transformers
 ├── validation/        # 8 CV strategies, adversarial validation
 ├── visualization/     # 42 chart types + model reports
 ├── timeseries/        # Forecasting + classification
-├── signal/            # 41 signal processing transforms
+├── signal/            # Signal processing transforms
 ├── automl/            # Full AutoML system
 ├── tracking/          # Experiment tracking (MLflow, console)
 ├── anomaly/           # Anomaly detection
@@ -439,10 +458,8 @@ If you use Endgame in your research, please cite:
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
 
-Development of Endgame is ongoing and public. Feedback, contributions, and research collaboration are welcome.
-
 ---
 
 <p align="center">
-  <em>Classic to SOTA. Research to production to competition. Go deeper.</em>
+  <em>If Endgame saves you time, consider giving it a ⭐</em>
 </p>

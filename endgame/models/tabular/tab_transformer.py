@@ -44,25 +44,19 @@ try:
     from pytorch_tabular.models import TabTransformerConfig
     HAS_PYTORCH_TABULAR = True
 
-    # Fix for PyTorch 2.6+ compatibility with checkpoint loading
-    try:
-        import omegaconf
-        import torch.serialization
-        safe_classes = [
-            omegaconf.DictConfig,
-            omegaconf.ListConfig,
-        ]
-        if hasattr(omegaconf, 'base'):
-            if hasattr(omegaconf.base, 'ContainerMetadata'):
-                safe_classes.append(omegaconf.base.ContainerMetadata)
-            if hasattr(omegaconf.base, 'Metadata'):
-                safe_classes.append(omegaconf.base.Metadata)
-        if hasattr(omegaconf, 'nodes'):
-            if hasattr(omegaconf.nodes, 'ValueNode'):
-                safe_classes.append(omegaconf.nodes.ValueNode)
-        torch.serialization.add_safe_globals(safe_classes)
-    except (ImportError, AttributeError, TypeError):
-        pass
+    # Fix for PyTorch 2.6+ which defaults torch.load to weights_only=True.
+    # pytorch-tabular checkpoints contain omegaconf objects that require
+    # weights_only=False. Patch torch.load's default for compatibility.
+    import functools as _functools
+    _original_torch_load = torch.load
+
+    @_functools.wraps(_original_torch_load)
+    def _patched_torch_load(*args, **kwargs):
+        if "weights_only" not in kwargs:
+            kwargs["weights_only"] = False
+        return _original_torch_load(*args, **kwargs)
+
+    torch.load = _patched_torch_load
 
 except ImportError:
     HAS_PYTORCH_TABULAR = False
@@ -104,9 +98,9 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
         Dropout rate for attention layers.
     ff_dropout : float, default=0.1
         Dropout rate for feed-forward layers.
-    add_shared_embed : bool, default=True
+    share_embedding : bool, default=True
         Whether to add shared embedding across all categorical features.
-    share_embedding_fraction : float, default=0.25
+    shared_embedding_fraction : float, default=0.25
         Fraction of embedding shared across categories.
     learning_rate : float, default=1e-3
         Learning rate for optimizer.
@@ -159,8 +153,8 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
         num_attn_blocks: int = 6,
         attn_dropout: float = 0.1,
         ff_dropout: float = 0.1,
-        add_shared_embed: bool = True,
-        share_embedding_fraction: float = 0.25,
+        share_embedding: bool = True,
+        shared_embedding_fraction: float = 0.25,
         learning_rate: float = 1e-3,
         batch_size: int = 256,
         max_epochs: int = 100,
@@ -174,8 +168,8 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
         self.num_attn_blocks = num_attn_blocks
         self.attn_dropout = attn_dropout
         self.ff_dropout = ff_dropout
-        self.add_shared_embed = add_shared_embed
-        self.share_embedding_fraction = share_embedding_fraction
+        self.share_embedding = share_embedding
+        self.shared_embedding_fraction = shared_embedding_fraction
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.max_epochs = max_epochs
@@ -286,8 +280,8 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
             num_heads=self.num_heads,
             num_attn_blocks=self.num_attn_blocks,
             attn_dropout=self.attn_dropout,
-            add_shared_embed=self.add_shared_embed,
-            share_embedding_fraction=self.share_embedding_fraction,
+            share_embedding=self.share_embedding,
+            shared_embedding_fraction=self.shared_embedding_fraction,
             learning_rate=self.learning_rate,
         )
 
@@ -377,9 +371,9 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
         Dropout rate for attention layers.
     ff_dropout : float, default=0.1
         Dropout rate for feed-forward layers.
-    add_shared_embed : bool, default=True
+    share_embedding : bool, default=True
         Whether to add shared embedding across all categorical features.
-    share_embedding_fraction : float, default=0.25
+    shared_embedding_fraction : float, default=0.25
         Fraction of embedding shared across categories.
     learning_rate : float, default=1e-3
         Learning rate for optimizer.
@@ -413,8 +407,8 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
         num_attn_blocks: int = 6,
         attn_dropout: float = 0.1,
         ff_dropout: float = 0.1,
-        add_shared_embed: bool = True,
-        share_embedding_fraction: float = 0.25,
+        share_embedding: bool = True,
+        shared_embedding_fraction: float = 0.25,
         learning_rate: float = 1e-3,
         batch_size: int = 256,
         max_epochs: int = 100,
@@ -428,8 +422,8 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
         self.num_attn_blocks = num_attn_blocks
         self.attn_dropout = attn_dropout
         self.ff_dropout = ff_dropout
-        self.add_shared_embed = add_shared_embed
-        self.share_embedding_fraction = share_embedding_fraction
+        self.share_embedding = share_embedding
+        self.shared_embedding_fraction = shared_embedding_fraction
         self.learning_rate = learning_rate
         self.batch_size = batch_size
         self.max_epochs = max_epochs
@@ -530,8 +524,8 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
             num_heads=self.num_heads,
             num_attn_blocks=self.num_attn_blocks,
             attn_dropout=self.attn_dropout,
-            add_shared_embed=self.add_shared_embed,
-            share_embedding_fraction=self.share_embedding_fraction,
+            share_embedding=self.share_embedding,
+            shared_embedding_fraction=self.shared_embedding_fraction,
             learning_rate=self.learning_rate,
         )
 

@@ -36,6 +36,7 @@ class NEATClassifier(BaseEstimator, ClassifierMixin):
 
     def __init__(self, population_size=150, n_generations=100, n_hidden=0,
                  activation_default='sigmoid', random_state=None, verbose=0):
+        import neat as _neat  # noqa: F401
         self.population_size = population_size
         self.n_generations = n_generations
         self.n_hidden = n_hidden
@@ -51,6 +52,7 @@ class NEATClassifier(BaseEstimator, ClassifierMixin):
         fitness_threshold     = 1.0
         pop_size              = {self.population_size}
         reset_on_extinction   = True
+        no_fitness_termination = True
 
         [DefaultGenome]
         # node activation options
@@ -86,6 +88,7 @@ class NEATClassifier(BaseEstimator, ClassifierMixin):
 
         feed_forward            = True
         initial_connection      = full_direct
+        single_structural_mutation = False
 
         # node add/remove rates
         node_add_prob           = 0.3
@@ -234,6 +237,7 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
 
     def __init__(self, population_size=150, n_generations=100, n_hidden=0,
                  activation_default='sigmoid', random_state=None, verbose=0):
+        import neat as _neat  # noqa: F401
         self.population_size = population_size
         self.n_generations = n_generations
         self.n_hidden = n_hidden
@@ -249,6 +253,7 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
         fitness_threshold     = 1e10
         pop_size              = {self.population_size}
         reset_on_extinction   = True
+        no_fitness_termination = True
 
         [DefaultGenome]
         activation_default      = {self.activation_default}
@@ -278,6 +283,7 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
 
         feed_forward            = True
         initial_connection      = full_direct
+        single_structural_mutation = False
 
         node_add_prob           = 0.3
         node_delete_prob        = 0.1

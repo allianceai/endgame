@@ -65,7 +65,7 @@ endgame/
 ├── preprocessing/              # Encoders, aggregation, feature selection, DAE, imbalanced learning
 ├── models/
 │   ├── wrappers.py             # Unified GBDT interface (LightGBM/XGBoost/CatBoost)
-│   ├── trees/                  # Rotation Forest, C5.0/Cubist (Rust), Oblique, Quantile, Evolutionary
+│   ├── trees/                  # Rotation Forest, C5.0/Cubist, Oblique, Quantile, Evolutionary
 │   ├── rules/                  # RuleFit, FURIA
 │   ├── bayesian/               # TAN, KDB, ESKDB, EBMC, AutoSLE, NeuralKDB
 │   ├── tabular/                # FT-Transformer, SAINT, NODE, TabPFN, NAM, GANDALF, TabularResNet
@@ -118,7 +118,7 @@ endgame/
 
 ### Models (100+ total)
 - **GBDTs**: `LGBMWrapper`, `XGBWrapper`, `CatBoostWrapper` with presets
-- **Custom Trees**: `RotationForest`, `C50Classifier` (Rust), `ObliqueRandomForest`, `QuantileRegressorForest`, `EvolutionaryTree`
+- **Custom Trees**: `RotationForest`, `C50Classifier`, `ObliqueRandomForest`, `QuantileRegressorForest`, `EvolutionaryTree`
 - **Rules**: `RuleFitClassifier`, `FURIAClassifier` (fuzzy rules)
 - **Bayesian**: `TANClassifier`, `KDBClassifier`, `ESKDBClassifier`, `AutoSLE`
 - **Deep Tabular**: `FTTransformer`, `SAINT`, `NODE`, `TabPFN`, `NAM`, `GANDALF`, `TabularResNet`, `TabTransformer`
@@ -182,7 +182,6 @@ endgame/
 
 Core: numpy, polars, scikit-learn, optuna, scipy, networkx
 Tabular: xgboost, lightgbm, catboost, pytorch, ngboost
-Trees: c50-rs (Rust backend for C5.0/Cubist)
 Vision: timm, albumentations, segmentation-models-pytorch
 NLP: transformers, tokenizers, bitsandbytes
 Audio: librosa, torchaudio

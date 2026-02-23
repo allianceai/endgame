@@ -582,16 +582,15 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
 
 
 class PRIMClassifier(ClassifierMixin, BaseEstimator):
-    """PRIM for classification (finds regions with high class probability).
+    """PRIM for classification via one-vs-rest subgroup discovery.
 
-    Uses PRIM on the binary indicator of the target class to find
-    regions where that class is most prevalent.
+    Trains a PRIM regressor per class (one-vs-rest) on the binary
+    indicator for each class. At prediction time, the class whose
+    box gives the highest density for a sample wins; samples not in
+    any box are assigned the majority class.
 
     Parameters
     ----------
-    target_class : int or str, default=1
-        The class to find high-density regions for.
-        If 'minority', automatically selects the minority class.
     alpha : float, default=0.05
         Peeling fraction.
     min_support : int or float, default=20
@@ -601,28 +600,27 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
     paste_alpha : float, default=0.01
         Pasting fraction.
     n_boxes : int, default=1
-        Number of boxes to find.
+        Number of boxes to find per class.
 
     Examples
     --------
     >>> from endgame.models.subgroup import PRIMClassifier
-    >>> prim = PRIMClassifier(target_class='minority')
+    >>> prim = PRIMClassifier(alpha=0.05)
     >>> prim.fit(X, y)
-    >>> print(prim.boxes_[0].to_rules())
+    >>> preds = prim.predict(X)
+    >>> print(prim.get_rules())
     """
 
     _estimator_type = "classifier"
 
     def __init__(
         self,
-        target_class: int | str = 1,
         alpha: float = 0.05,
         min_support: int | float = 20,
         pasting: bool = True,
         paste_alpha: float = 0.01,
         n_boxes: int = 1,
     ):
-        self.target_class = target_class
         self.alpha = alpha
         self.min_support = min_support
         self.pasting = pasting
@@ -630,13 +628,14 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
         self.n_boxes = n_boxes
 
         self.classes_: np.ndarray | None = None
-        self._target_class_idx: int = 1
-        self._prim_regressor: PRIMRegressor | None = None
+        self._prim_regressors: list[PRIMRegressor] = []
+        self._base_rates: np.ndarray | None = None
         self._label_encoder: LabelEncoder | None = None
+        self._majority_class_idx: int = 0
         self._is_fitted: bool = False
 
     def fit(self, X, y, feature_names: list[str] | None = None) -> "PRIMClassifier":
-        """Fit PRIM to find regions with high target class probability.
+        """Fit one PRIM model per class (one-vs-rest).
 
         Parameters
         ----------
@@ -651,96 +650,63 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
         -------
         self
         """
-        X = np.asarray(X)
+        X = np.asarray(X, dtype=np.float64)
         y = np.asarray(y)
 
-        # Encode labels
         self._label_encoder = LabelEncoder()
         y_encoded = self._label_encoder.fit_transform(y)
         self.classes_ = self._label_encoder.classes_
+        n_classes = len(self.classes_)
 
-        # Determine target class
-        if self.target_class == "minority":
-            counts = np.bincount(y_encoded)
-            self._target_class_idx = np.argmin(counts)
-        elif isinstance(self.target_class, int):
-            self._target_class_idx = self.target_class
-        else:
-            self._target_class_idx = np.where(
-                self.classes_ == self.target_class
-            )[0][0]
+        counts = np.bincount(y_encoded, minlength=n_classes)
+        self._majority_class_idx = int(np.argmax(counts))
+        self._base_rates = counts / len(y_encoded)
 
-        # Create binary target (1 if target class, 0 otherwise)
-        y_binary = (y_encoded == self._target_class_idx).astype(np.float64)
-        self._base_rate = y_binary.mean()
-
-        # Fit PRIM regressor on binary target
-        self._prim_regressor = PRIMRegressor(
-            alpha=self.alpha,
-            min_support=self.min_support,
-            pasting=self.pasting,
-            paste_alpha=self.paste_alpha,
-            n_boxes=self.n_boxes,
-        )
-        self._prim_regressor.fit(X, y_binary, feature_names=feature_names)
+        self._prim_regressors = []
+        for c in range(n_classes):
+            y_binary = (y_encoded == c).astype(np.float64)
+            reg = PRIMRegressor(
+                alpha=self.alpha,
+                min_support=self.min_support,
+                pasting=self.pasting,
+                paste_alpha=self.paste_alpha,
+                n_boxes=self.n_boxes,
+            )
+            reg.fit(X, y_binary, feature_names=feature_names)
+            self._prim_regressors.append(reg)
 
         self._is_fitted = True
         return self
 
     @property
-    def boxes_(self) -> list[Box]:
-        """Get the discovered boxes."""
-        if self._prim_regressor is None:
-            return []
-        return self._prim_regressor.boxes_
-
-    @property
-    def result_(self) -> PRIMResult | None:
-        """Get full PRIM result."""
-        if self._prim_regressor is None:
-            return None
-        return self._prim_regressor.result_
+    def boxes_(self) -> list[list[Box]]:
+        """Get the discovered boxes for each class."""
+        return [r.boxes_ for r in self._prim_regressors]
 
     @property
     def feature_names_in_(self) -> np.ndarray | None:
         """Get feature names."""
-        if self._prim_regressor is None:
+        if not self._prim_regressors:
             return None
-        return self._prim_regressor.feature_names_in_
+        return self._prim_regressors[0].feature_names_in_
 
     @property
     def n_features_in_(self) -> int:
         """Get number of features."""
-        if self._prim_regressor is None:
+        if not self._prim_regressors:
             return 0
-        return self._prim_regressor.n_features_in_
-
-    def predict(self, X) -> np.ndarray:
-        """Predict whether points fall in the found box(es).
-
-        Parameters
-        ----------
-        X : array-like
-            Data points.
-
-        Returns
-        -------
-        mask : ndarray
-            Boolean mask, True if point is in any box.
-        """
-        if not self._is_fitted:
-            raise RuntimeError("PRIMClassifier has not been fitted.")
-        return self._prim_regressor.predict(X)
+        return self._prim_regressors[0].n_features_in_
 
     def predict_proba(self, X) -> np.ndarray:
-        """Estimate class probability based on box membership.
+        """Estimate class probabilities based on box densities.
 
-        Points in box get the box's density as probability for target class.
-        Points outside get the overall class frequency.
+        For each sample, the probability for class *c* is the density
+        of the best box that contains it, or the base rate if no box
+        contains it. Probabilities are row-normalised.
 
         Parameters
         ----------
-        X : array-like
+        X : array-like of shape (n_samples, n_features)
             Data points.
 
         Returns
@@ -751,25 +717,42 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
         if not self._is_fitted:
             raise RuntimeError("PRIMClassifier has not been fitted.")
 
-        X = np.asarray(X)
+        X = np.asarray(X, dtype=np.float64)
         n_samples = len(X)
         n_classes = len(self.classes_)
-        tc = self._target_class_idx
-        oc = 1 - tc
 
-        proba = np.empty((n_samples, n_classes))
-        proba[:, tc] = self._base_rate
-        proba[:, oc] = 1.0 - self._base_rate
+        proba = np.tile(self._base_rates, (n_samples, 1)).astype(np.float64)
 
-        for box in self.boxes_:
-            mask = box.contains(X)
-            proba[mask, tc] = box.density
-            proba[mask, oc] = 1.0 - box.density
+        for c, reg in enumerate(self._prim_regressors):
+            for box in reg.boxes_:
+                mask = box.contains(X)
+                if mask.any():
+                    proba[mask, c] = max(box.density, proba[mask, c].max())
 
+        row_sums = proba.sum(axis=1, keepdims=True)
+        row_sums[row_sums == 0] = 1.0
+        proba /= row_sums
         return proba
 
+    def predict(self, X) -> np.ndarray:
+        """Predict class labels.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Data points.
+
+        Returns
+        -------
+        labels : ndarray of shape (n_samples,)
+            Predicted class labels.
+        """
+        proba = self.predict_proba(X)
+        indices = np.argmax(proba, axis=1)
+        return self._label_encoder.inverse_transform(indices)
+
     def score(self, X, y) -> float:
-        """Score the model: precision of target class in boxes.
+        """Classification accuracy.
 
         Parameters
         ----------
@@ -781,24 +764,18 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
         Returns
         -------
         score : float
-            Precision of target class in predicted boxes.
+            Accuracy.
+        """
+        return float(np.mean(self.predict(X) == np.asarray(y)))
+
+    def get_rules(self) -> list[list[list[str]]]:
+        """Get human-readable rules for all classes and boxes.
+
+        Returns
+        -------
+        rules : list[list[list[str]]]
+            rules[class_idx][box_idx] is a list of rule strings.
         """
         if not self._is_fitted:
             raise RuntimeError("PRIMClassifier has not been fitted.")
-
-        X = np.asarray(X)
-        y = np.asarray(y)
-        y_encoded = self._label_encoder.transform(y)
-
-        mask = self.predict(X)
-        if mask.sum() == 0:
-            return 0.0
-
-        # Precision: proportion of target class in boxes
-        return (y_encoded[mask] == self._target_class_idx).mean()
-
-    def get_rules(self) -> list[list[str]]:
-        """Get human-readable rules for all boxes."""
-        if not self._is_fitted:
-            raise RuntimeError("PRIMClassifier has not been fitted.")
-        return self._prim_regressor.get_rules()
+        return [reg.get_rules() for reg in self._prim_regressors]

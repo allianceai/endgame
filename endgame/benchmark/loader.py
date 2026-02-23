@@ -212,22 +212,36 @@ BUILTIN_SUITES: dict[str, dict[str, Any]] = {
         "datasets": ["iris", "wine", "breast_cancer"],
         "description": "Quick test suite with small datasets",
     },
-    # Grinsztajn benchmark (NeurIPS 2022)
+    # Grinsztajn benchmark (NeurIPS 2022) — full 45 datasets across 4 suites
+    # Reference: "Why do tree-based models still outperform deep learning
+    # on typical tabular data?" (Grinsztajn et al., NeurIPS 2022)
     "grinsztajn": {
         "type": "openml",
-        "task_ids": [
-            # Classification datasets
-            146606,  # Higgs
-            168868,  # Jannis
-            168329,  # Helena
-            168335,  # MiniBooNE
-            # Additional from Grinsztajn paper
-            167119,  # Covertype (alternative ID)
-            167120,  # Electricity
-            167141,  # Eye movements
-            168330,  # Dionis
+        "suite_ids": [
+            337,  # Classification on numerical features
+            334,  # Classification on numerical + categorical features
+            336,  # Regression on numerical features
+            335,  # Regression on numerical + categorical features
         ],
-        "description": "Grinsztajn et al. NeurIPS 2022 benchmark datasets",
+        "description": "Grinsztajn et al. NeurIPS 2022 benchmark (~45 datasets, classification + regression)",
+    },
+    # Grinsztajn classification-only subset
+    "grinsztajn-classif": {
+        "type": "openml",
+        "suite_ids": [
+            337,  # Classification on numerical features
+            334,  # Classification on numerical + categorical features
+        ],
+        "description": "Grinsztajn NeurIPS 2022 classification datasets only",
+    },
+    # Grinsztajn regression-only subset
+    "grinsztajn-regression": {
+        "type": "openml",
+        "suite_ids": [
+            336,  # Regression on numerical features
+            335,  # Regression on numerical + categorical features
+        ],
+        "description": "Grinsztajn NeurIPS 2022 regression datasets only",
     },
 }
 
@@ -304,7 +318,10 @@ class SuiteLoader:
         elif self.suite in BUILTIN_SUITES:
             suite_config = BUILTIN_SUITES[self.suite]
             if suite_config["type"] == "openml":
-                if "suite_id" in suite_config:
+                if "suite_ids" in suite_config:
+                    for sid in suite_config["suite_ids"]:
+                        yield from self._load_openml_suite(sid)
+                elif "suite_id" in suite_config:
                     yield from self._load_openml_suite(suite_config["suite_id"])
                 elif "task_ids" in suite_config:
                     yield from self._load_openml_tasks(suite_config["task_ids"])

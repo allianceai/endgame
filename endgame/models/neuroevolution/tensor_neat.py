@@ -8,6 +8,65 @@ Falls back gracefully if JAX/TensorNEAT are not installed.
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 
+try:
+    import jax
+    import jax.numpy as jnp
+    from tensorneat.problem import BaseProblem
+
+    class _TabularClassificationProblem(BaseProblem):
+        jitable = True
+
+        def __init__(self, n_feats, n_outputs, n_samples, X_jax, y_jax):
+            self._n_feats = n_feats
+            self._n_outputs = n_outputs
+            self._n_samples = n_samples
+            self._X_jax = X_jax
+            self._y_jax = y_jax
+
+        @property
+        def input_shape(self):
+            return (self._n_feats,)
+
+        @property
+        def output_shape(self):
+            return (self._n_outputs,)
+
+        def evaluate(self, state, network, params):
+            outputs = jax.vmap(
+                lambda xi: network(state, params, xi)
+            )(self._X_jax)
+            preds = jnp.argmax(outputs, axis=-1)
+            correct = jnp.sum(preds == self._y_jax)
+            return correct / self._n_samples
+
+    class _TabularRegressionProblem(BaseProblem):
+        jitable = True
+
+        def __init__(self, n_feats, n_samples, X_jax, y_jax):
+            self._n_feats = n_feats
+            self._n_samples = n_samples
+            self._X_jax = X_jax
+            self._y_jax = y_jax
+
+        @property
+        def input_shape(self):
+            return (self._n_feats,)
+
+        @property
+        def output_shape(self):
+            return (1,)
+
+        def evaluate(self, state, network, params):
+            outputs = jax.vmap(
+                lambda xi: network(state, params, xi)
+            )(self._X_jax)
+            mse = jnp.mean((outputs[:, 0] - self._y_jax) ** 2)
+            return -mse
+
+    _HAS_TENSORNEAT = True
+except ImportError:
+    _HAS_TENSORNEAT = False
+
 
 class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
     """
@@ -29,6 +88,8 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
 
     def __init__(self, population_size=1000, n_generations=100, species_size=10,
                  random_state=None, verbose=0):
+        if not _HAS_TENSORNEAT:
+            raise ImportError("tensorneat and jax are required for TensorNEATClassifier")
         self.population_size = population_size
         self.n_generations = n_generations
         self.species_size = species_size
@@ -37,18 +98,9 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
 
     def fit(self, X, y):
         """Fit the TensorNEAT classifier."""
-        try:
-            import jax
-            import jax.numpy as jnp
-            from tensorneat.pipeline import Pipeline
-            from tensorneat.algorithm.neat import NEAT
-            from tensorneat.genome import DefaultGenome
-            from tensorneat.problem import BaseProblem
-        except ImportError:
-            raise ImportError(
-                "TensorNEAT requires JAX and tensorneat. "
-                "Install: pip install jax jaxlib tensorneat>=0.3"
-            )
+        from tensorneat.pipeline import Pipeline
+        from tensorneat.algorithm.neat import NEAT
+        from tensorneat.genome import DefaultGenome
 
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y)
@@ -57,38 +109,17 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
         n_inputs = X.shape[1]
         n_outputs = self.n_classes_
 
-        # Store data for inference
-        self._X_train = X
-        self._y_train = y
-
         seed = self.random_state if self.random_state is not None else 0
 
-        class TabularClassificationProblem(BaseProblem):
-            jitable = False
+        X_jax = jnp.array(X)
+        y_jax = jnp.array(y, dtype=jnp.int32)
+        n_samples = X_jax.shape[0]
+        n_feats = X_jax.shape[1]
 
-            def __init__(self, X_data, y_data, n_classes):
-                self.X_data = X_data
-                self.y_data = y_data
-                self._n_classes = n_classes
-
-            @property
-            def input_shape(self):
-                return (self.X_data.shape[1],)
-
-            @property
-            def output_shape(self):
-                return (self._n_classes,)
-
-            def evaluate(self, state, network, params):
-                correct = 0
-                for xi, yi in zip(self.X_data, self.y_data):
-                    output = network(state, params, jnp.array(xi))
-                    pred = jnp.argmax(output)
-                    if int(pred) == int(yi):
-                        correct += 1
-                return correct / len(self.y_data)
-
-        problem = TabularClassificationProblem(X, y, self.n_classes_)
+        problem = _TabularClassificationProblem(
+            n_feats=n_feats, n_outputs=n_outputs,
+            n_samples=n_samples, X_jax=X_jax, y_jax=y_jax,
+        )
 
         genome = DefaultGenome(
             num_inputs=n_inputs,
@@ -115,18 +146,11 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
         self.best_state_ = state
         self.best_genome_params_ = best
 
-        del self._X_train
-        del self._y_train
-
         return self
 
     def predict_proba(self, X):
         """Predict class probabilities using the best evolved genome."""
-        try:
-            import jax.numpy as jnp
-            from scipy.special import softmax
-        except ImportError:
-            raise ImportError("JAX and scipy required for TensorNEAT inference.")
+        from scipy.special import softmax
 
         X = np.asarray(X, dtype=np.float32)
         pipeline = self.pipeline_
@@ -169,6 +193,8 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
 
     def __init__(self, population_size=1000, n_generations=100, species_size=10,
                  random_state=None, verbose=0):
+        if not _HAS_TENSORNEAT:
+            raise ImportError("tensorneat and jax are required for TensorNEATRegressor")
         self.population_size = population_size
         self.n_generations = n_generations
         self.species_size = species_size
@@ -177,18 +203,9 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
 
     def fit(self, X, y):
         """Fit the TensorNEAT regressor."""
-        try:
-            import jax
-            import jax.numpy as jnp
-            from tensorneat.pipeline import Pipeline
-            from tensorneat.algorithm.neat import NEAT
-            from tensorneat.genome import DefaultGenome
-            from tensorneat.problem import BaseProblem
-        except ImportError:
-            raise ImportError(
-                "TensorNEAT requires JAX and tensorneat. "
-                "Install: pip install jax jaxlib tensorneat>=0.3"
-            )
+        from tensorneat.pipeline import Pipeline
+        from tensorneat.algorithm.neat import NEAT
+        from tensorneat.genome import DefaultGenome
 
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y, dtype=np.float32)
@@ -196,30 +213,15 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
 
         seed = self.random_state if self.random_state is not None else 0
 
-        class TabularRegressionProblem(BaseProblem):
-            jitable = False
+        X_jax = jnp.array(X)
+        y_jax = jnp.array(y)
+        n_samples = X_jax.shape[0]
+        n_feats = X_jax.shape[1]
 
-            def __init__(self, X_data, y_data):
-                self.X_data = X_data
-                self.y_data = y_data
-
-            @property
-            def input_shape(self):
-                return (self.X_data.shape[1],)
-
-            @property
-            def output_shape(self):
-                return (1,)
-
-            def evaluate(self, state, network, params):
-                mse = 0.0
-                for xi, yi in zip(self.X_data, self.y_data):
-                    output = network(state, params, jnp.array(xi))
-                    mse += float((output[0] - yi) ** 2)
-                mse /= len(self.y_data)
-                return -mse  # Negative MSE (higher is better)
-
-        problem = TabularRegressionProblem(X, y)
+        problem = _TabularRegressionProblem(
+            n_feats=n_feats, n_samples=n_samples,
+            X_jax=X_jax, y_jax=y_jax,
+        )
 
         genome = DefaultGenome(
             num_inputs=n_inputs,
@@ -250,11 +252,6 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
 
     def predict(self, X):
         """Predict continuous values using the best evolved genome."""
-        try:
-            import jax.numpy as jnp
-        except ImportError:
-            raise ImportError("JAX required for TensorNEAT inference.")
-
         X = np.asarray(X, dtype=np.float32)
         pipeline = self.pipeline_
         state = self.best_state_

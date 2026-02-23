@@ -130,9 +130,9 @@ This document tracks all implemented features and planned additions for the Endg
 - [x] `NGBoostClassifier` - Natural Gradient Boosting for probabilistic classification
 
 #### Custom Tree Models
-- [x] `C50Classifier` - Quinlan's C5.0 algorithm (with Rust backend)
+- [x] `C50Classifier` - Quinlan's C5.0 algorithm
 - [x] `C50Ensemble` - Boosted C5.0 ensemble
-- [x] `CubistRegressor` - Rule-based regression (with Rust backend)
+- [x] `CubistRegressor` - Rule-based regression
 - [x] `RotationForestClassifier` / `RotationForestRegressor` - PCA rotation forests
 - [x] `ObliqueRandomForestClassifier` / `ObliqueRandomForestRegressor` - Oblique splits (ridge, PCA, LDA, SVM, Householder)
 - [x] `ObliqueDecisionTreeClassifier` / `ObliqueDecisionTreeRegressor`

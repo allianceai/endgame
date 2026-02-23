@@ -152,11 +152,9 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
         n_samples, n_features = X.shape
         self.n_features_in_ = n_features
 
-        # Scale features
         if self.auto_scale:
             self._scaler = StandardScaler()
             X_scaled = self._scaler.fit_transform(X)
-            # Scale target for numerical stability
             self._y_mean = np.mean(y)
             self._y_std = np.std(y) + 1e-8
             y_scaled = (y - self._y_mean) / self._y_std
@@ -164,37 +162,31 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
             X_scaled = X.copy()
             y_scaled = y.copy()
 
-        # Handle NaN
         X_scaled = np.nan_to_num(X_scaled, nan=0.0)
         y_scaled = np.nan_to_num(y_scaled, nan=0.0)
 
-        # Store data for predictions
-        self._X_train = X_scaled
-
-        # Build PyMC model with BART
         with pm.Model() as model:
-            # BART prior for the regression function
+            self._X_shared = pm.Data("X", X_scaled)
+
             self._bart = pmb.BART(
                 "bart",
-                X_scaled,
+                self._X_shared,
                 y_scaled,
                 m=self.n_trees,
                 alpha=self.alpha,
                 beta=self.beta,
             )
 
-            # Noise model
             sigma = pm.HalfNormal("sigma", sigma=1.0)
 
-            # Likelihood
-            likelihood = pm.Normal(
-                "y",
+            pm.Normal(
+                "y_obs",
                 mu=self._bart,
                 sigma=sigma,
                 observed=y_scaled,
+                shape=self._bart.shape,
             )
 
-            # Sample from posterior
             self._trace = pm.sample(
                 draws=self.n_samples,
                 tune=self.n_tune,
@@ -204,21 +196,32 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
                 return_inferencedata=True,
             )
 
-        # Compute variable importance (API varies across pymc-bart versions)
+        self._model = model
+
         try:
-            self.variable_importance_ = pmb.compute_variable_importance(
-                self._trace, X=X, bartrv=self._bart
+            vi = pmb.compute_variable_importance(
+                self._trace, bartrv=self._bart, X=X_scaled,
             )
-        except TypeError:
-            try:
-                self.variable_importance_ = pmb.compute_variable_importance(
-                    self._trace, bartrv=self._bart
-                )
-            except Exception:
-                self.variable_importance_ = np.ones(X.shape[1]) / X.shape[1]
+            self.variable_importance_ = vi.get(
+                "r2_mean", np.ones(n_features) / n_features
+            ) if isinstance(vi, dict) else vi
+        except Exception:
+            self.variable_importance_ = np.ones(n_features) / n_features
 
         self._is_fitted = True
         return self
+
+    def _predict_samples(self, X_scaled: np.ndarray) -> np.ndarray:
+        """Get posterior predictive samples for new data."""
+        with self._model:
+            self._X_shared.set_value(X_scaled)
+            ppc = pm.sample_posterior_predictive(
+                trace=self._trace,
+                var_names=["bart"],
+                random_seed=self.random_state,
+                progressbar=False,
+            )
+        return ppc.posterior_predictive["bart"].values
 
     def predict(self, X) -> np.ndarray:
         """Predict mean target values.
@@ -237,45 +240,17 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
             raise RuntimeError("BARTRegressor has not been fitted.")
 
         X = np.asarray(X, dtype=np.float64)
-
-        if self.auto_scale:
-            X_scaled = self._scaler.transform(X)
-        else:
-            X_scaled = X.copy()
-
+        X_scaled = self._scaler.transform(X) if self.auto_scale else X.copy()
         X_scaled = np.nan_to_num(X_scaled, nan=0.0)
 
-        # Get posterior predictions
-        with pm.Model():
-            # Use fitted BART to predict
-            pmb.BART(
-                "bart_pred",
-                self._X_train,
-                np.zeros(len(self._X_train)),  # dummy y
-                m=self.n_trees,
-            )
+        samples = self._predict_samples(X_scaled)
+        y_pred = samples.mean(axis=(0, 1))
 
-        # Predict using posterior samples
-        y_pred_samples = pmb.predict(
-            self._trace,
-            rng=np.random.default_rng(self.random_state),
-            X_new=X_scaled,
-        )
-
-        # Mean prediction
-        y_pred = y_pred_samples.mean(axis=(0, 1))
-
-        # Inverse scale
         if self.auto_scale:
             y_pred = y_pred * self._y_std + self._y_mean
-
         return y_pred
 
-    def predict_interval(
-        self,
-        X,
-        alpha: float = 0.1
-    ) -> np.ndarray:
+    def predict_interval(self, X, alpha: float = 0.1) -> np.ndarray:
         """Predict credible intervals.
 
         Parameters
@@ -294,29 +269,15 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
             raise RuntimeError("BARTRegressor has not been fitted.")
 
         X = np.asarray(X, dtype=np.float64)
-
-        if self.auto_scale:
-            X_scaled = self._scaler.transform(X)
-        else:
-            X_scaled = X.copy()
-
+        X_scaled = self._scaler.transform(X) if self.auto_scale else X.copy()
         X_scaled = np.nan_to_num(X_scaled, nan=0.0)
 
-        # Predict using posterior samples
-        y_pred_samples = pmb.predict(
-            self._trace,
-            rng=np.random.default_rng(self.random_state),
-            X_new=X_scaled,
-        )
+        samples = self._predict_samples(X_scaled)
+        y_flat = samples.reshape(-1, samples.shape[-1])
 
-        # Flatten chains and samples
-        y_flat = y_pred_samples.reshape(-1, y_pred_samples.shape[-1])
-
-        # Compute quantiles
         lower = np.percentile(y_flat, 100 * alpha / 2, axis=0)
         upper = np.percentile(y_flat, 100 * (1 - alpha / 2), axis=0)
 
-        # Inverse scale
         if self.auto_scale:
             lower = lower * self._y_std + self._y_mean
             upper = upper * self._y_std + self._y_mean
@@ -340,31 +301,15 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
             raise RuntimeError("BARTRegressor has not been fitted.")
 
         X = np.asarray(X, dtype=np.float64)
-
-        if self.auto_scale:
-            X_scaled = self._scaler.transform(X)
-        else:
-            X_scaled = X.copy()
-
+        X_scaled = self._scaler.transform(X) if self.auto_scale else X.copy()
         X_scaled = np.nan_to_num(X_scaled, nan=0.0)
 
-        # Predict using posterior samples
-        y_pred_samples = pmb.predict(
-            self._trace,
-            rng=np.random.default_rng(self.random_state),
-            X_new=X_scaled,
-        )
-
-        # Flatten chains and samples
-        y_flat = y_pred_samples.reshape(-1, y_pred_samples.shape[-1])
-
-        # Compute std
+        samples = self._predict_samples(X_scaled)
+        y_flat = samples.reshape(-1, samples.shape[-1])
         std = np.std(y_flat, axis=0)
 
-        # Scale back
         if self.auto_scale:
             std = std * self._y_std
-
         return std
 
     @property
@@ -485,45 +430,35 @@ class BARTClassifier(ClassifierMixin, BaseEstimator):
         n_samples, n_features = X.shape
         self.n_features_in_ = n_features
 
-        # Encode labels
         self._label_encoder = LabelEncoder()
         y_encoded = self._label_encoder.fit_transform(y)
         self.classes_ = self._label_encoder.classes_
         self.n_classes_ = len(self.classes_)
 
-        # Scale features
         if self.auto_scale:
             self._scaler = StandardScaler()
             X_scaled = self._scaler.fit_transform(X)
         else:
             X_scaled = X.copy()
 
-        # Handle NaN
         X_scaled = np.nan_to_num(X_scaled, nan=0.0)
 
-        # Store for prediction
-        self._X_train = X_scaled
-
         if self.n_classes_ == 2:
-            # Binary classification with probit link
             with pm.Model() as model:
-                # BART prior
+                self._X_shared = pm.Data("X", X_scaled)
+
                 self._bart = pmb.BART(
                     "bart",
-                    X_scaled,
+                    self._X_shared,
                     y_encoded,
                     m=self.n_trees,
                     alpha=self.alpha,
                     beta=self.beta,
                 )
 
-                # Probit link
                 p = pm.Deterministic("p", pm.math.invprobit(self._bart))
+                pm.Bernoulli("y_obs", p=p, observed=y_encoded, shape=p.shape)
 
-                # Likelihood
-                likelihood = pm.Bernoulli("y", p=p, observed=y_encoded)
-
-                # Sample
                 self._trace = pm.sample(
                     draws=self.n_samples,
                     tune=self.n_tune,
@@ -533,26 +468,22 @@ class BARTClassifier(ClassifierMixin, BaseEstimator):
                     return_inferencedata=True,
                 )
         else:
-            # Multiclass: one-vs-rest with separate BART models
-            # For simplicity, we use a single model with softmax
-            # This is an approximation - full multiclass BART is more complex
             raise NotImplementedError(
                 "Multiclass BART is not yet supported. "
                 "Use binary classification or one-vs-rest wrapper."
             )
 
-        # Compute variable importance (API varies across pymc-bart versions)
+        self._model = model
+
         try:
-            self.variable_importance_ = pmb.compute_variable_importance(
-                self._trace, X=X, bartrv=self._bart
+            vi = pmb.compute_variable_importance(
+                self._trace, bartrv=self._bart, X=X_scaled,
             )
-        except TypeError:
-            try:
-                self.variable_importance_ = pmb.compute_variable_importance(
-                    self._trace, bartrv=self._bart
-                )
-            except Exception:
-                self.variable_importance_ = np.ones(X.shape[1]) / X.shape[1]
+            self.variable_importance_ = vi.get(
+                "r2_mean", np.ones(n_features) / n_features
+            ) if isinstance(vi, dict) else vi
+        except Exception:
+            self.variable_importance_ = np.ones(n_features) / n_features
 
         self._is_fitted = True
         return self
@@ -594,33 +525,26 @@ class BARTClassifier(ClassifierMixin, BaseEstimator):
             raise RuntimeError("BARTClassifier has not been fitted.")
 
         X = np.asarray(X, dtype=np.float64)
-
-        if self.auto_scale:
-            X_scaled = self._scaler.transform(X)
-        else:
-            X_scaled = X.copy()
-
+        X_scaled = self._scaler.transform(X) if self.auto_scale else X.copy()
         X_scaled = np.nan_to_num(X_scaled, nan=0.0)
 
-        # Predict latent values
-        latent_samples = pmb.predict(
-            self._trace,
-            rng=np.random.default_rng(self.random_state),
-            X_new=X_scaled,
-        )
+        with self._model:
+            self._X_shared.set_value(X_scaled)
+            ppc = pm.sample_posterior_predictive(
+                trace=self._trace,
+                var_names=["bart"],
+                random_seed=self.random_state,
+                progressbar=False,
+            )
 
-        # Apply probit link
+        latent = ppc.posterior_predictive["bart"].values
         from scipy.stats import norm
-        p_samples = norm.cdf(latent_samples)
-
-        # Mean probability
+        p_samples = norm.cdf(latent)
         p_mean = p_samples.mean(axis=(0, 1))
 
-        # Binary classification
         if self.n_classes_ == 2:
             proba = np.column_stack([1 - p_mean, p_mean])
         else:
-            # Not implemented for multiclass
             proba = p_mean
 
         return proba

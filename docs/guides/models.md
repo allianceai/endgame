@@ -188,9 +188,9 @@ rf = RotationForestClassifier(n_estimators=100, n_features_per_subset=3)
 rf.fit(X_train, y_train)
 ```
 
-### C5.0 (Rust backend)
+### C5.0
 
-The classic C5.0 decision tree algorithm with a high-performance Rust backend.
+The classic C5.0 decision tree algorithm.
 Includes rule extraction, pruning, and boosting.
 
 ```python

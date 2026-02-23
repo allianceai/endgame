@@ -114,9 +114,9 @@ CATBOOST_ENDGAME_DEFAULTS: dict[str, Any] = {
 }
 
 CATBOOST_FAST_DEFAULTS: dict[str, Any] = {
-    "learning_rate": 0.05,
-    "iterations": 1000,
-    "depth": 8,
+    "learning_rate": 0.1,
+    "iterations": 200,
+    "depth": 6,
     "l2_leaf_reg": 3.0,
     "verbose": False,
     "thread_count": -1,

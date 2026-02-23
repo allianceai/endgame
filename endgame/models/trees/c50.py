@@ -423,8 +423,9 @@ class C50Classifier(ClassifierMixin, BaseEstimator):
         Use subset splits for categorical attributes.
     global_pruning : bool, default=True
         Apply global pruning in addition to local pruning.
-    use_rust : bool, default=True
-        Use Rust backend if available for better performance.
+    use_rust : bool, default=False
+        Use Rust backend if available. Disabled by default due to a
+        classification routing bug in the current Rust extension.
     random_state : int or None, default=None
         Random state for reproducibility.
 
@@ -457,7 +458,7 @@ class C50Classifier(ClassifierMixin, BaseEstimator):
         cf: float = 0.25,
         use_subset: bool = True,
         global_pruning: bool = True,
-        use_rust: bool = True,
+        use_rust: bool = False,
         random_state: int | None = None,
     ):
         self.min_cases = min_cases
@@ -852,8 +853,9 @@ class C50Ensemble(ClassifierMixin, BaseEstimator):
         Confidence factor for pruning.
     use_subset : bool, default=True
         Use subset splits for categorical attributes.
-    use_rust : bool, default=True
-        Use Rust backend if available.
+    use_rust : bool, default=False
+        Use Rust backend if available. Disabled by default due to a
+        classification routing bug in the current Rust extension.
     random_state : int or None, default=None
         Random state for reproducibility.
 
@@ -875,7 +877,7 @@ class C50Ensemble(ClassifierMixin, BaseEstimator):
         min_cases: int = 2,
         cf: float = 0.25,
         use_subset: bool = True,
-        use_rust: bool = True,
+        use_rust: bool = False,
         random_state: int | None = None,
     ):
         self.n_trials = n_trials

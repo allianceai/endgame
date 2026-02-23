@@ -40,28 +40,19 @@ try:
     from pytorch_tabular.models import GANDALFConfig
     HAS_PYTORCH_TABULAR = True
 
-    # Fix for PyTorch 2.6+ compatibility with checkpoint loading
-    # pytorch-tabular uses omegaconf for config which needs to be allowlisted
-    try:
-        import omegaconf
-        import torch.serialization
-        # Add all omegaconf classes that might be serialized
-        safe_classes = [
-            omegaconf.DictConfig,
-            omegaconf.ListConfig,
-        ]
-        # Also add base classes if they exist
-        if hasattr(omegaconf, 'base'):
-            if hasattr(omegaconf.base, 'ContainerMetadata'):
-                safe_classes.append(omegaconf.base.ContainerMetadata)
-            if hasattr(omegaconf.base, 'Metadata'):
-                safe_classes.append(omegaconf.base.Metadata)
-        if hasattr(omegaconf, 'nodes'):
-            if hasattr(omegaconf.nodes, 'ValueNode'):
-                safe_classes.append(omegaconf.nodes.ValueNode)
-        torch.serialization.add_safe_globals(safe_classes)
-    except (ImportError, AttributeError, TypeError):
-        pass  # Older PyTorch or omegaconf not available
+    # Fix for PyTorch 2.6+ which defaults torch.load to weights_only=True.
+    # pytorch-tabular checkpoints contain omegaconf objects that require
+    # weights_only=False. Patch torch.load's default for compatibility.
+    import functools as _functools
+    _original_torch_load = torch.load
+
+    @_functools.wraps(_original_torch_load)
+    def _patched_torch_load(*args, **kwargs):
+        if "weights_only" not in kwargs:
+            kwargs["weights_only"] = False
+        return _original_torch_load(*args, **kwargs)
+
+    torch.load = _patched_torch_load
 
 except ImportError:
     HAS_PYTORCH_TABULAR = False
@@ -383,7 +374,7 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
             devices=1,
             auto_select_gpus=True,
             progress_bar="none" if not self.verbose else "rich",
-            load_best=False,  # Disabled due to PyTorch 2.6+ checkpoint compatibility
+            load_best=True,
         )
 
         optimizer_config = OptimizerConfig(
@@ -738,7 +729,7 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
             devices=1,
             auto_select_gpus=True,
             progress_bar="none" if not self.verbose else "rich",
-            load_best=False,  # Disabled due to PyTorch 2.6+ checkpoint compatibility
+            load_best=True,
         )
 
         optimizer_config = OptimizerConfig(
