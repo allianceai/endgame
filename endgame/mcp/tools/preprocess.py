@@ -15,11 +15,11 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
     @mcp.tool()
     def preprocess(
         dataset_id: str,
-        operations: str,
+        operations: str | list,
     ) -> str:
         """Apply preprocessing operations to a dataset. Returns a new dataset ID.
 
-        operations is a JSON array of operations, each with a 'type' and optional parameters.
+        operations: array of operations, each with a 'type' and optional parameters.
         Supported types:
         - impute: Fill missing values. params: {strategy: 'mean'|'median'|'most_frequent'|'constant'}
         - scale: Scale numeric features. params: {method: 'standard'|'minmax'|'robust'}
@@ -28,11 +28,14 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         - select_features: Feature selection. params: {method: 'variance'|'mutual_info', top_k: 20}
         - drop_columns: Drop specific columns. params: {columns: ['col1', 'col2']}
 
-        Example: '[{"type": "impute", "strategy": "median"}, {"type": "scale", "method": "standard"}]'
+        Example: [{"type": "impute", "strategy": "median"}, {"type": "scale", "method": "standard"}]
         """
         try:
             ds = session.get_dataset(dataset_id)
-            ops = json.loads(operations)
+            if isinstance(operations, list):
+                ops = operations
+            else:
+                ops = json.loads(operations)
 
             with capture_stdout():
                 import numpy as np

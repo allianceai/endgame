@@ -17,15 +17,20 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         dataset_id: str,
         method: str = "auto",
         n_clusters: int | None = None,
-        params: str | None = None,
+        params: str | dict | None = None,
     ) -> str:
         """Cluster a dataset. Methods: auto, kmeans, hdbscan, dbscan, agglomerative, gaussian_mixture.
 
-        params: optional JSON string of method-specific parameters.
+        params: optional dict or JSON string of method-specific parameters.
         """
         try:
             ds = session.get_dataset(dataset_id)
-            extra = json.loads(params) if params else {}
+            if isinstance(params, dict):
+                extra = params
+            elif isinstance(params, str):
+                extra = json.loads(params)
+            else:
+                extra = {}
 
             with capture_stdout():
                 import numpy as np

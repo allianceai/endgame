@@ -74,7 +74,9 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     get_interpretable_portfolio,
                 )
 
-                task_type = ds.task_type or "classification"
+                raw_task = ds.task_type or "classification"
+                # Normalize: "binary"/"multiclass" → "classification" for registry lookup
+                task_type = "classification" if raw_task in ("binary", "multiclass") else raw_task
                 n_samples = len(ds.df)
 
                 if interpretable_only:

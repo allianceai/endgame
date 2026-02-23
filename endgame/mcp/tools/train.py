@@ -18,13 +18,13 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
     def train_model(
         dataset_id: str,
         model_name: str,
-        params: str | None = None,
+        params: str | dict | None = None,
         cv_folds: int = 5,
         metric: str = "auto",
     ) -> str:
         """Train a single model on a dataset with cross-validation.
 
-        params is a JSON string of hyperparameter overrides, e.g. '{"n_estimators": 500}'.
+        params: hyperparameter overrides as a dict or JSON string, e.g. {"n_estimators": 500}.
         Returns a model ID with CV metrics.
         """
         try:
@@ -41,9 +41,12 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 from endgame.automl.model_registry import get_model_info, instantiate_model
 
                 # Parse params
-                override_params = {}
-                if params:
+                if isinstance(params, dict):
+                    override_params = params
+                elif isinstance(params, str):
                     override_params = json.loads(params)
+                else:
+                    override_params = {}
 
                 task_type = ds.task_type or "classification"
                 info = get_model_info(model_name)
@@ -52,11 +55,10 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 X = ds.df.drop(columns=[ds.target_column])
                 y = ds.df[ds.target_column]
 
-                # Handle non-numeric columns for models that don't support them
-                feature_encoders = {}
-                if not info.handles_categorical:
-                    from endgame.mcp.tools._encoding import fit_feature_encoders
-                    X, feature_encoders = fit_feature_encoders(X)
+                # Always label-encode categorical features for MCP consistency
+                # (ensures eval/predict/visualize use the same encoders)
+                from endgame.mcp.tools._encoding import fit_feature_encoders
+                X, feature_encoders = fit_feature_encoders(X)
 
                 # Handle missing values for models that don't support them
                 if not info.handles_missing and X.isna().any().any():
@@ -66,10 +68,10 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
 
                 # Encode target for classification if needed
                 label_encoder = None
-                if task_type != "regression" and y.dtype == "object":
+                if task_type != "regression" and y.dtype in ("object", "category"):
                     from sklearn.preprocessing import LabelEncoder
                     label_encoder = LabelEncoder()
-                    y = pd.Series(label_encoder.fit_transform(y), name=y.name)
+                    y = pd.Series(label_encoder.fit_transform(y.astype(str)), name=y.name)
 
                 # Instantiate model
                 estimator = instantiate_model(model_name, task_type=task_type, **override_params)
@@ -121,7 +123,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     fit_time=fit_time,
                     feature_names=list(X.columns),
                     oof_predictions=oof_preds,
-                    label_encoders=feature_encoders or None,
+                    label_encoders=feature_encoders if feature_encoders else None,
                     target_encoder=label_encoder,
                 )
 

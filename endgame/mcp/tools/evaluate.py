@@ -155,17 +155,24 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                             hint="Try method='permutation' instead",
                         )
 
-                    # Build sorted list
-                    if len(feature_names) != len(importances):
-                        feature_names = [f"feature_{i}" for i in range(len(importances))]
+                    # Build sorted list — handle dict (e.g. LGBMWrapper) or array
+                    if isinstance(importances, dict):
+                        pairs = sorted(
+                            importances.items(),
+                            key=lambda x: abs(x[1]),
+                            reverse=True,
+                        )[:top_n]
+                    else:
+                        imp_list = importances.tolist() if hasattr(importances, "tolist") else list(importances)
+                        if len(feature_names) != len(imp_list):
+                            feature_names = [f"feature_{i}" for i in range(len(imp_list))]
+                        pairs = sorted(
+                            zip(feature_names, imp_list),
+                            key=lambda x: abs(x[1]),
+                            reverse=True,
+                        )[:top_n]
 
-                    pairs = sorted(
-                        zip(feature_names, importances.tolist()),
-                        key=lambda x: abs(x[1]),
-                        reverse=True,
-                    )[:top_n]
-
-                    features = [{"feature": f, "importance": round(v, 4)} for f, v in pairs]
+                    features = [{"feature": f, "importance": round(float(v), 4)} for f, v in pairs]
 
                     return ok_response({
                         "model_id": model_id,
@@ -193,7 +200,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                         reverse=True,
                     )[:top_n]
 
-                    features = [{"feature": f, "importance": round(v, 4)} for f, v in pairs]
+                    features = [{"feature": f, "importance": round(float(v), 4)} for f, v in pairs]
 
                     return ok_response({
                         "model_id": model_id,

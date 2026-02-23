@@ -16,7 +16,7 @@
     <a href="#what-you-get">What You Get</a> &middot;
     <a href="#installation">Installation</a> &middot;
     <a href="#modules">Modules</a> &middot;
-    <a href="https://endgame.readthedocs.io">Documentation</a>
+    <a href="https://endgame-ml.readthedocs.io">Documentation</a>
   </p>
 </p>
 

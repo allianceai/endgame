@@ -20,35 +20,33 @@ def encode_features(
     """Encode categorical features using stored encoders from training.
 
     If ``label_encoders`` is provided (from a trained ModelArtifact), uses
-    those fitted encoders for consistent mapping.  Otherwise, fits fresh
-    encoders (only appropriate during training).
+    those fitted encoders for consistent mapping.  If ``None``, the model
+    handles categoricals natively — features are returned unchanged.
 
     Unseen categories are mapped to ``-1``.
     """
+    if label_encoders is None:
+        # No encoders stored — model handles categoricals natively (e.g. LightGBM, CatBoost)
+        return X
+
     cat_cols = X.select_dtypes(include=["object", "category"]).columns
     if len(cat_cols) == 0:
         return X
 
     X = X.copy()
 
-    if label_encoders is not None:
-        for col in cat_cols:
-            if col in label_encoders:
-                le = label_encoders[col]
-                known = set(le.classes_)
-                X[col] = X[col].astype(str).map(
-                    lambda v, _known=known, _le=le: (
-                        int(_le.transform([v])[0]) if v in _known else -1
-                    )
+    for col in cat_cols:
+        if col in label_encoders:
+            le = label_encoders[col]
+            known = set(le.classes_)
+            X[col] = X[col].astype(str).map(
+                lambda v, _known=known, _le=le: (
+                    int(_le.transform([v])[0]) if v in _known else -1
                 )
-            else:
-                # Column wasn't encoded during training — fit a new one
-                from sklearn.preprocessing import LabelEncoder
-                le = LabelEncoder()
-                X[col] = le.fit_transform(X[col].astype(str))
-    else:
-        from sklearn.preprocessing import LabelEncoder
-        for col in cat_cols:
+            )
+        else:
+            # Column wasn't encoded during training — fit a new one
+            from sklearn.preprocessing import LabelEncoder
             le = LabelEncoder()
             X[col] = le.fit_transform(X[col].astype(str))
 
@@ -68,6 +66,10 @@ def encode_target(
         vals = y.values
     else:
         vals = np.asarray(y)
+
+    # Handle pandas Categorical — convert to object array for encoding
+    if hasattr(vals, "categories"):
+        vals = np.array(vals, dtype=object)
 
     if vals.dtype == object:
         if target_encoder is not None:
