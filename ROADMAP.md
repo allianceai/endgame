@@ -1144,7 +1144,7 @@ These features address the growing importance of data quality, fairness, and mod
 - [x] Nested CV ✅
 - [x] Knowledge Distillation ✅
 
-### v0.8.0 (Next Release)
+### v0.8.0
 - [x] Comprehensive Visualization Suite (42 chart types, 6 tiers, shared infrastructure) ✅
 - [x] Explainability Module (SHAP, LIME, PDP, interactions, counterfactuals) ✅
 - [x] Fairness Module (metrics + mitigation + reports) ✅
@@ -1152,27 +1152,26 @@ These features address the growing importance of data quality, fairness, and mod
 - [x] Experiment Tracking (MLflow + console logger + AutoML integration) ✅
 - [x] Refit on Full Data (`refit_full()` for deployment) ✅
 - [x] MultiModal Enhancement (embedding + attention fusion) ✅
-- [ ] Data Quality Module (profiling, drift detection)
-- [ ] ExcelFormer, TabICL (remaining SOTA tabular models)
-- [ ] Active Learning framework
-- [ ] SWA Training Utility
-- [ ] Pipeline Templates
-
-### v0.9.0
-- [ ] Survival Analysis (RSF, Cox, DeepSurv)
-- [ ] Causal Inference (CausalForest, DoublyRobust)
-- [ ] Online/Streaming Learning (River integration)
-- [ ] RIPPER rule learner
-- [ ] Zero-Shot HPO
 
 ### v1.0.0 (Current) ✅
 - [x] Version bump and stable release
 - [x] All public modules accessible via `eg.<name>` lazy loading
 - [x] API stability guarantee
-- [ ] Comprehensive documentation site
-- [ ] Tutorial notebooks for each module
-- [ ] Published performance benchmarks on TabArena
+- [x] Comprehensive documentation site
+- [x] Tutorial notebooks for each module
+- [x] Neuroevolution models (NEAT, TensorNEAT)
 
+### v1.1.0 (Next)
+- [ ] Data Quality Module (profiling, drift detection)
+- [ ] ExcelFormer, TabICL (remaining SOTA tabular models)
+- [ ] Active Learning framework
+- [ ] SWA Training Utility
+- [ ] Pipeline Templates
+- [ ] Survival Analysis (RSF, Cox, DeepSurv)
+- [ ] Causal Inference (CausalForest, DoublyRobust)
+- [ ] Online/Streaming Learning (River integration)
+- [ ] Zero-Shot HPO
+- [ ] Published performance benchmarks on TabArena
 ---
 
 ## Test Coverage
