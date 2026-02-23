@@ -109,6 +109,10 @@ timeseries = [
 signal = [
     "PyWavelets>=1.5",
 ]
+neuroevolution = [
+    "neat-python>=0.92",
+    "tensorneat>=0.3",
+]
 benchmark = [
     "openml>=0.14",
     "pymfe>=0.4",
@@ -141,7 +145,7 @@ mcp = [
     "mcp>=1.2.0",
 ]
 all = [
-    "endgame-ml[tabular,trees,bayesian,vision,nlp,audio,timeseries,signal,benchmark,calibration,explain,fairness,anomaly,deployment,tracking,mcp]",
+    "endgame-ml[tabular,trees,bayesian,vision,nlp,audio,timeseries,signal,benchmark,calibration,explain,fairness,anomaly,deployment,tracking,mcp,neuroevolution]",
 ]
 dev = [
     "pytest>=7.0",

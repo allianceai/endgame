@@ -312,3 +312,28 @@ try:
     ])
 except ImportError:
     pass
+
+# Neuroevolution (NEAT, TensorNEAT)
+try:
+    from endgame.models.neuroevolution import (
+        NEATClassifier,
+        NEATRegressor,
+    )
+    __all__.extend([
+        "NEATClassifier",
+        "NEATRegressor",
+    ])
+except ImportError:
+    pass
+
+try:
+    from endgame.models.neuroevolution import (
+        TensorNEATClassifier,
+        TensorNEATRegressor,
+    )
+    __all__.extend([
+        "TensorNEATClassifier",
+        "TensorNEATRegressor",
+    ])
+except ImportError:
+    pass
