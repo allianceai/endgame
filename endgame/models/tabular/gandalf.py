@@ -58,6 +58,24 @@ except ImportError:
     HAS_PYTORCH_TABULAR = False
 
 
+def _suppress_lightning_logging():
+    """Silence all pytorch-tabular / Lightning console output."""
+    import logging
+    for name in ("pytorch_tabular", "lightning", "lightning.pytorch",
+                 "lightning.fabric", "lightning.fabric.utilities.seed",
+                 "lightning.pytorch.utilities.rank_zero",
+                 "lightning.pytorch.accelerators.cuda"):
+        logging.getLogger(name).setLevel(logging.ERROR)
+    try:
+        from lightning.pytorch.utilities.rank_zero import rank_zero_only as _rzo
+        import lightning.pytorch.utilities.rank_zero as _rz_mod
+        _rz_mod.rank_zero_info = lambda *a, **kw: None
+        import lightning.fabric.utilities.rank_zero as _rz_fab
+        _rz_fab.rank_zero_info = lambda *a, **kw: None
+    except (ImportError, AttributeError):
+        pass
+
+
 def _check_dependencies():
     """Check that required dependencies are installed."""
     if not HAS_TORCH:
@@ -338,20 +356,33 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
         self._log(f"Categorical features: {len(self._cat_features)}")
         self._log(f"Continuous features: {len(self._cont_features)}")
 
-        # Prepare validation data
+        # Prepare validation data with stratified split to avoid unseen labels
         val_df = None
         if eval_set is not None:
             X_val, y_val = eval_set
             y_val_encoded = self._label_encoder.transform(np.asarray(y_val))
             val_df = self._prepare_data(X_val, y_val_encoded, fit=False)
+        elif self.validation_fraction and self.validation_fraction > 0:
+            from sklearn.model_selection import StratifiedShuffleSplit
+            sss = StratifiedShuffleSplit(
+                n_splits=1,
+                test_size=self.validation_fraction,
+                random_state=self.random_state or 42,
+            )
+            train_idx, val_idx = next(sss.split(train_df, y_encoded))
+            val_df = train_df.iloc[val_idx].reset_index(drop=True)
+            train_df = train_df.iloc[train_idx].reset_index(drop=True)
+
+        if not self.verbose:
+            _suppress_lightning_logging()
 
         # Configure pytorch-tabular
         data_config = DataConfig(
             target=["target"],
             continuous_cols=self._cont_features if self._cont_features else [],
             categorical_cols=self._cat_features if self._cat_features else [],
-            validation_split=self.validation_fraction if eval_set is None else None,
-            num_workers=0,  # Avoid multiprocessing issues
+            validation_split=None,
+            num_workers=0,
         )
 
         model_config = GANDALFConfig(
@@ -365,6 +396,10 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
             seed=self.random_state or 42,
         )
 
+        _trainer_kw = {}
+        if not self.verbose:
+            _trainer_kw["enable_model_summary"] = False
+
         trainer_config = TrainerConfig(
             batch_size=self.batch_size,
             max_epochs=self.n_epochs,
@@ -375,6 +410,7 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
             auto_select_gpus=True,
             progress_bar="none" if not self.verbose else "rich",
             load_best=True,
+            trainer_kwargs=_trainer_kw,
         )
 
         optimizer_config = OptimizerConfig(
@@ -699,6 +735,10 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
         if self.target_range is not None:
             target_range_config = [list(self.target_range)]
 
+        # Suppress Lightning logging when not verbose
+        if not self.verbose:
+            _suppress_lightning_logging()
+
         # Configure pytorch-tabular
         data_config = DataConfig(
             target=["target"],
@@ -720,6 +760,10 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
             seed=self.random_state or 42,
         )
 
+        _trainer_kw = {}
+        if not self.verbose:
+            _trainer_kw["enable_model_summary"] = False
+
         trainer_config = TrainerConfig(
             batch_size=self.batch_size,
             max_epochs=self.n_epochs,
@@ -730,6 +774,7 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
             auto_select_gpus=True,
             progress_bar="none" if not self.verbose else "rich",
             load_best=True,
+            trainer_kwargs=_trainer_kw,
         )
 
         optimizer_config = OptimizerConfig(
@@ -780,17 +825,23 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
         # Get predictions from pytorch-tabular
         preds = self.model_.predict(test_df)
 
-        # Extract prediction column
-        pred_col = [col for col in preds.columns if "prediction" in col.lower() or "target" in col.lower()]
-        if pred_col:
-            return preds[pred_col[0]].values
-        else:
-            # Fallback: return first numeric column
-            for col in preds.columns:
-                if preds[col].dtype in [np.float32, np.float64, np.int32, np.int64]:
-                    return preds[col].values
+        # Extract prediction column — explicit name first, then fallback
+        if "__target___prediction" in preds.columns:
+            return preds["__target___prediction"].values
+        if "target_prediction" in preds.columns:
+            return preds["target_prediction"].values
 
-            raise ValueError("Could not extract predictions from model output")
+        # Fallback: find column ending with "_prediction"
+        pred_cols = [col for col in preds.columns if col.endswith("_prediction")]
+        if pred_cols:
+            return preds[pred_cols[0]].values
+
+        # Last resort: first numeric column
+        for col in preds.columns:
+            if preds[col].dtype in [np.float32, np.float64, np.int32, np.int64]:
+                return preds[col].values
+
+        raise ValueError("Could not extract predictions from model output")
 
     @property
     def feature_importances_(self) -> np.ndarray | None:

@@ -677,6 +677,12 @@ class NGBoostClassifier(ClassifierMixin, EndgameEstimator):
         self.classes_ = np.unique(y_arr)
         self.n_classes_ = len(self.classes_)
 
+        # Remap labels to contiguous 0..n-1 (required by ngboost k_categorical)
+        self._label_remap = None
+        if not np.array_equal(self.classes_, np.arange(self.n_classes_)):
+            self._label_remap = {c: i for i, c in enumerate(self.classes_)}
+            y_arr = np.array([self._label_remap[v] for v in y_arr])
+
         # Store feature names
         self._feature_names = self._get_feature_names(X, X_arr.shape[1])
 
@@ -695,6 +701,8 @@ class NGBoostClassifier(ClassifierMixin, EndgameEstimator):
         if X_val is not None and y_val is not None:
             X_val_arr = self._to_numpy(X_val)
             y_val_arr = np.asarray(y_val).ravel()
+            if self._label_remap is not None:
+                y_val_arr = np.array([self._label_remap.get(v, v) for v in y_val_arr])
             fit_kwargs["X_val"] = X_val_arr
             fit_kwargs["Y_val"] = y_val_arr
             if val_sample_weight is not None:
@@ -723,7 +731,10 @@ class NGBoostClassifier(ClassifierMixin, EndgameEstimator):
         """
         self._check_is_fitted()
         X_arr = self._to_numpy(X)
-        return self.model_.predict(X_arr)
+        preds = self.model_.predict(X_arr)
+        if self._label_remap is not None:
+            preds = self.classes_[preds.astype(int)]
+        return preds
 
     def predict_proba(self, X) -> np.ndarray:
         """Predict class probabilities.

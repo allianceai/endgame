@@ -582,10 +582,28 @@ class BaseBayesianClassifier(ClassifierMixin, EndgameEstimator, BayesianClassifi
         """Check if input needs discretization (has continuous features)."""
         if np.issubdtype(X.dtype, np.integer):
             return False
-        # Check if values are actually integers
         if np.allclose(X, X.astype(int)):
             return False
         return True
+
+    def _remap_to_nonnegative(self, X: np.ndarray, fit: bool = True) -> np.ndarray:
+        """Remap integer features so all values start at 0.
+
+        Bayesian networks treat features as categorical indices, so shifting
+        by a constant doesn't change the model semantics.
+        """
+        X = X.copy()
+        if fit:
+            self._feature_min_offsets = np.zeros(X.shape[1], dtype=int)
+            for i in range(X.shape[1]):
+                col_min = int(X[:, i].min())
+                if col_min < 0:
+                    self._feature_min_offsets[i] = -col_min
+        if hasattr(self, '_feature_min_offsets'):
+            for i in range(X.shape[1]):
+                if self._feature_min_offsets[i] != 0:
+                    X[:, i] += self._feature_min_offsets[i]
+        return X
 
     def _discretize_input(self, X: np.ndarray, y: np.ndarray = None, fit: bool = True) -> np.ndarray:
         """Apply discretization to continuous input.
@@ -645,17 +663,22 @@ class BaseBayesianClassifier(ClassifierMixin, EndgameEstimator, BayesianClassifi
         # Store original n_features before any transformations
         self.n_features_in_ = X.shape[1]
 
-        # Check if discretization is needed
-        if self._needs_discretization(X):
-            if self.auto_discretize:
-                X = self._discretize_input(X, y, fit=True)
-            else:
-                raise ValueError(
-                    "BayesianClassifiers require discrete (integer) input. "
-                    "Set auto_discretize=True or use BayesianDiscretizer to convert continuous features."
-                )
+        # Always discretize when auto_discretize=True: the BayesianDiscretizer
+        # handles per-feature detection (keeps low-cardinality integer features
+        # as-is, bins the rest).  This avoids the global _needs_discretization
+        # check which can miss high-cardinality integer features.
+        if self.auto_discretize:
+            X = self._discretize_input(X, y, fit=True)
+        elif self._needs_discretization(X):
+            raise ValueError(
+                "BayesianClassifiers require discrete (integer) input. "
+                "Set auto_discretize=True or use BayesianDiscretizer to convert continuous features."
+            )
         else:
-            self.discretizer_ = None  # No discretization needed
+            self.discretizer_ = None
+
+        # Shift any negative integer features to start at 0
+        X = self._remap_to_nonnegative(X, fit=True)
 
         # Validate discrete input
         X, y = self._validate_discrete_input(X, y, self.max_cardinality)
@@ -663,6 +686,13 @@ class BaseBayesianClassifier(ClassifierMixin, EndgameEstimator, BayesianClassifi
         # Store metadata
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
+
+        # Remap y to contiguous 0..n_classes_-1 indices.
+        # Required because CPT dimensions are sized by n_classes_, so raw
+        # label values (e.g. [0, 2, 5]) would index out of bounds.
+        self._class_to_idx = {c: i for i, c in enumerate(self.classes_)}
+        y = np.array([self._class_to_idx[v] for v in y])
+
         self.cardinalities_ = self._compute_cardinalities(X, y)
 
         self._log(f"Fitting {self.__class__.__name__} on {X.shape[0]} samples, "
@@ -706,6 +736,9 @@ class BaseBayesianClassifier(ClassifierMixin, EndgameEstimator, BayesianClassifi
         # Apply discretization if it was used during training
         if self.discretizer_ is not None:
             X = self._discretize_input(X, fit=False)
+
+        # Apply the same non-negative remapping used during fit
+        X = self._remap_to_nonnegative(X, fit=False)
 
         return X
 

@@ -68,6 +68,7 @@ class NEATClassifier(BaseEstimator, ClassifierMixin):
         # node bias options
         bias_init_mean          = 0.0
         bias_init_stdev         = 1.0
+        bias_init_type          = gaussian
         bias_max_value          = 30.0
         bias_min_value          = -30.0
         bias_mutate_power       = 0.5
@@ -83,12 +84,15 @@ class NEATClassifier(BaseEstimator, ClassifierMixin):
         conn_delete_prob        = 0.2
 
         # connection enable options
-        enabled_default         = True
-        enabled_mutate_rate     = 0.01
+        enabled_default             = True
+        enabled_mutate_rate         = 0.01
+        enabled_rate_to_true_add    = 0.0
+        enabled_rate_to_false_add   = 0.0
 
         feed_forward            = True
         initial_connection      = full_direct
         single_structural_mutation = False
+        structural_mutation_surer = default
 
         # node add/remove rates
         node_add_prob           = 0.3
@@ -102,6 +106,7 @@ class NEATClassifier(BaseEstimator, ClassifierMixin):
         # node response options
         response_init_mean      = 1.0
         response_init_stdev     = 0.0
+        response_init_type      = gaussian
         response_max_value      = 30.0
         response_min_value      = -30.0
         response_mutate_power   = 0.0
@@ -111,6 +116,7 @@ class NEATClassifier(BaseEstimator, ClassifierMixin):
         # connection weight options
         weight_init_mean        = 0.0
         weight_init_stdev       = 1.0
+        weight_init_type        = gaussian
         weight_max_value        = 30
         weight_min_value        = -30
         weight_mutate_power     = 0.5
@@ -128,6 +134,7 @@ class NEATClassifier(BaseEstimator, ClassifierMixin):
         [DefaultReproduction]
         elitism            = 2
         survival_threshold = 0.2
+        min_species_size   = 1
         """)
         return config_text
 
@@ -217,7 +224,8 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
     NEAT regressor using neat-python.
 
     Evolves neural network topology and weights using the NEAT algorithm,
-    optimizing for mean squared error.
+    optimizing for mean squared error.  Targets are normalized internally
+    so that network outputs (near [-1, 1]) can match the target scale.
 
     Parameters
     ----------
@@ -236,7 +244,7 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
     """
 
     def __init__(self, population_size=150, n_generations=100, n_hidden=0,
-                 activation_default='sigmoid', random_state=None, verbose=0):
+                 activation_default='tanh', random_state=None, verbose=0):
         import neat as _neat  # noqa: F401
         self.population_size = population_size
         self.n_generations = n_generations
@@ -266,6 +274,7 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
 
         bias_init_mean          = 0.0
         bias_init_stdev         = 1.0
+        bias_init_type          = gaussian
         bias_max_value          = 30.0
         bias_min_value          = -30.0
         bias_mutate_power       = 0.5
@@ -278,12 +287,15 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
         conn_add_prob           = 0.5
         conn_delete_prob        = 0.2
 
-        enabled_default         = True
-        enabled_mutate_rate     = 0.01
+        enabled_default             = True
+        enabled_mutate_rate         = 0.01
+        enabled_rate_to_true_add    = 0.0
+        enabled_rate_to_false_add   = 0.0
 
         feed_forward            = True
         initial_connection      = full_direct
         single_structural_mutation = False
+        structural_mutation_surer = default
 
         node_add_prob           = 0.3
         node_delete_prob        = 0.1
@@ -294,6 +306,7 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
 
         response_init_mean      = 1.0
         response_init_stdev     = 0.0
+        response_init_type      = gaussian
         response_max_value      = 30.0
         response_min_value      = -30.0
         response_mutate_power   = 0.0
@@ -302,6 +315,7 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
 
         weight_init_mean        = 0.0
         weight_init_stdev       = 1.0
+        weight_init_type        = gaussian
         weight_max_value        = 30
         weight_min_value        = -30
         weight_mutate_power     = 0.5
@@ -319,6 +333,7 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
         [DefaultReproduction]
         elitism            = 2
         survival_threshold = 0.2
+        min_species_size   = 1
         """)
         return config_text
 
@@ -329,9 +344,14 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
         X = np.asarray(X, dtype=np.float64)
         y = np.asarray(y, dtype=np.float64)
 
+        # Normalize targets so network outputs (near [-1, 1]) can match
+        self._y_mean = float(y.mean())
+        self._y_std = float(y.std()) or 1.0
+        y_norm = (y - self._y_mean) / self._y_std
+
         n_inputs = X.shape[1]
         self._X_train = X
-        self._y_train = y
+        self._y_train = y_norm
 
         config_text = self._create_neat_config(n_inputs)
         with tempfile.NamedTemporaryFile(mode='w', suffix='.cfg', delete=False) as f:
@@ -363,7 +383,6 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
                     output = net.activate(xi.tolist())
                     mse += (output[0] - yi) ** 2
                 mse /= len(self._y_train)
-                # Fitness = negative MSE (higher is better)
                 genome.fitness = -mse
 
         pop = neat.Population(config)
@@ -384,4 +403,5 @@ class NEATRegressor(BaseEstimator, RegressorMixin):
     def predict(self, X):
         """Predict continuous values using the best evolved network."""
         X = np.asarray(X, dtype=np.float64)
-        return np.array([self.best_net_.activate(xi.tolist())[0] for xi in X])
+        raw = np.array([self.best_net_.activate(xi.tolist())[0] for xi in X])
+        return raw * self._y_std + self._y_mean

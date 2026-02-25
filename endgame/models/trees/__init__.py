@@ -28,9 +28,14 @@ try:
         ExtraObliqueRandomForestRegressor,
         HonestForestClassifier,
         ObliqueRandomForestClassifier,
-        ObliqueRandomForestRegressor,
         PatchObliqueRandomForestClassifier,
         PatchObliqueRandomForestRegressor,
+    )
+    # treeple's ObliqueRandomForestRegressor has a broken __sklearn_tags__
+    # on sklearn 1.7+ (sets multi_label on RegressorTags which no longer
+    # has that attribute).  Use our pure-Python regressor instead.
+    from endgame.models.trees.oblique_forest import (
+        ObliqueRandomForestRegressor,
     )
 
     _HAS_TREEPLE = True

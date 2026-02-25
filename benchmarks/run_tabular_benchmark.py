@@ -215,7 +215,7 @@ def _get_classification_models(quick=False):
     if m is not None: models["NAM"] = m
     m = _try_load(lambda: tabular.GRANDEClassifier(), "GRANDE")
     if m is not None: models["GRANDE"] = m
-    m = _try_load(lambda: _ovr(gam.GAMClassifier()), "GAM")
+    m = _try_load(lambda: _ovr(gam.GAMClassifier(lam=0.6, n_splines=10, max_iter=30)), "GAM")
     if m is not None: models["GAM"] = m
     m = _try_load(lambda: gami_net.GAMINetClassifier(), "GAMI-Net")
     if m is not None: models["GAMI-Net"] = m
@@ -230,10 +230,18 @@ def _get_classification_models(quick=False):
     m = _try_load(lambda: node_gam.NodeGAMClassifier(), "NodeGAM")
     if m is not None: models["NodeGAM"] = m
 
-    # ── 6. Linear / baselines ────────────────────────────────────────
-    models["LogisticRegression"] = LogisticRegression(max_iter=1000, random_state=42)
-    models["SGD"] = SGDClassifier(loss="log_loss", max_iter=1000, random_state=42)
-    models["KNN"] = KNeighborsClassifier(n_neighbors=5, n_jobs=-1)
+    # ── 6. Linear / baselines (scale-sensitive models get a pipeline) ──
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    models["LogisticRegression"] = make_pipeline(
+        StandardScaler(), LogisticRegression(max_iter=1000, random_state=42)
+    )
+    models["SGD"] = make_pipeline(
+        StandardScaler(), SGDClassifier(loss="log_loss", max_iter=1000, random_state=42)
+    )
+    models["KNN"] = make_pipeline(
+        StandardScaler(), KNeighborsClassifier(n_neighbors=5, n_jobs=-1)
+    )
     m = _try_load(lambda: eg.models.LinearClassifier(), "LinearClassifier")
     if m is not None: models["LinearClassifier"] = m
     m = _try_load(lambda: eg.models.NaiveBayesClassifier(), "NaiveBayes")
@@ -250,20 +258,23 @@ def _get_classification_models(quick=False):
     if m is not None: models["ELM"] = m
 
     # ── 7. Kernel methods ────────────────────────────────────────────
-    models["SVM_RBF"] = SVC(kernel="rbf", probability=True, random_state=42)
+    models["SVM_RBF"] = make_pipeline(
+        StandardScaler(), SVC(kernel="rbf", probability=True, random_state=42)
+    )
     m = _try_load(lambda: eg.models.SVMClassifier(), "SVM_eg")
     if m is not None: models["SVM_eg"] = m
 
     # ── 8. Bayesian classifiers ──────────────────────────────────────
-    m = _try_load(lambda: eg.models.TANClassifier(), "TAN")
+    _bayes_kw = dict(discretizer_strategy="equal_freq", discretizer_max_bins=15)
+    m = _try_load(lambda: eg.models.TANClassifier(**_bayes_kw), "TAN")
     if m is not None: models["TAN"] = m
-    m = _try_load(lambda: eg.models.KDBClassifier(), "KDB")
+    m = _try_load(lambda: eg.models.KDBClassifier(**_bayes_kw), "KDB")
     if m is not None: models["KDB"] = m
-    m = _try_load(lambda: eg.models.ESKDBClassifier(), "ESKDB")
+    m = _try_load(lambda: eg.models.ESKDBClassifier(**_bayes_kw), "ESKDB")
     if m is not None: models["ESKDB"] = m
-    m = _try_load(lambda: eg.models.EBMCClassifier(), "EBMC")
+    m = _try_load(lambda: eg.models.EBMCClassifier(**_bayes_kw), "EBMC")
     if m is not None: models["EBMC"] = m
-    m = _try_load(lambda: eg.models.bayesian.NeuralKDBClassifier(), "NeuralKDB")
+    m = _try_load(lambda: eg.models.bayesian.NeuralKDBClassifier(**_bayes_kw), "NeuralKDB")
     if m is not None: models["NeuralKDB"] = m
 
     # ── 9. Custom trees ──────────────────────────────────────────────
@@ -297,9 +308,9 @@ def _get_classification_models(quick=False):
     # ── 13. Subgroup / neuroevolution ────────────────────────────────
     m = _try_load(lambda: eg.models.PRIMClassifier(), "PRIM")
     if m is not None: models["PRIM"] = m
-    m = _try_load(lambda: eg.models.NEATClassifier(n_generations=20), "NEAT")
+    m = _try_load(lambda: eg.models.NEATClassifier(n_generations=5, population_size=50), "NEAT")
     if m is not None: models["NEAT"] = m
-    m = _try_load(lambda: eg.models.TensorNEATClassifier(n_generations=20), "TensorNEAT")
+    m = _try_load(lambda: eg.models.TensorNEATClassifier(n_generations=5), "TensorNEAT")
     if m is not None: models["TensorNEAT"] = m
 
     # ── 14. Deep tabular ─────────────────────────────────────────────
@@ -318,7 +329,7 @@ def _get_classification_models(quick=False):
     m = _try_load(lambda: neural.EmbeddingMLPClassifier(n_epochs=50), "EmbeddingMLP")
     if m is not None: models["EmbeddingMLP"] = m
     m = _try_load(lambda: neural.TabNetClassifier(
-        n_d=16, n_a=16, n_steps=3, batch_size=32, virtual_batch_size=16, n_epochs=100,
+        n_d=8, n_a=8, n_steps=3, batch_size=128, virtual_batch_size=64, n_epochs=30,
     ), "TabNet")
     if m is not None: models["TabNet"] = m
     m = _try_load(lambda: tabular.TabularResNetClassifier(n_epochs=50), "TabResNet")
@@ -399,18 +410,22 @@ def _get_regression_models(quick=False):
     if m is not None: models["NAM"] = m
     m = _try_load(lambda: tabular.GRANDERegressor(), "GRANDE")
     if m is not None: models["GRANDE"] = m
-    m = _try_load(lambda: gam.GAMRegressor(), "GAM")
+    m = _try_load(lambda: gam.GAMRegressor(lam=0.6, n_splines=10, max_iter=30), "GAM")
     if m is not None: models["GAM"] = m
     m = _try_load(lambda: gami_net.GAMINetRegressor(), "GAMI-Net")
     if m is not None: models["GAMI-Net"] = m
     m = _try_load(lambda: node_gam.NodeGAMRegressor(), "NodeGAM")
     if m is not None: models["NodeGAM"] = m
 
-    # ── 6. Linear / baselines ────────────────────────────────────────
-    models["Ridge"] = Ridge()
-    models["Lasso"] = Lasso(max_iter=1000)
-    models["SGD"] = SGDRegressor(max_iter=1000, random_state=42)
-    models["KNN"] = KNeighborsRegressor(n_neighbors=5, n_jobs=-1)
+    # ── 6. Linear / baselines (scale-sensitive models get a pipeline) ──
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    models["Ridge"] = make_pipeline(StandardScaler(), Ridge())
+    models["Lasso"] = make_pipeline(StandardScaler(), Lasso(max_iter=1000))
+    models["SGD"] = make_pipeline(StandardScaler(), SGDRegressor(
+        max_iter=1000, random_state=42, early_stopping=True, n_iter_no_change=10,
+    ))
+    models["KNN"] = make_pipeline(StandardScaler(), KNeighborsRegressor(n_neighbors=5, n_jobs=-1))
     m = _try_load(lambda: eg.models.LinearRegressor(), "LinearRegressor")
     if m is not None: models["LinearRegressor"] = m
     m = _try_load(lambda: eg.models.KNNRegressor(), "KNN_eg")
@@ -419,7 +434,7 @@ def _get_regression_models(quick=False):
     if m is not None: models["ELM"] = m
 
     # ── 7. Kernel methods ────────────────────────────────────────────
-    models["SVR_RBF"] = SVR(kernel="rbf")
+    models["SVR_RBF"] = make_pipeline(StandardScaler(), SVR(kernel="rbf"))
     m = _try_load(lambda: eg.models.SVMRegressor(), "SVM_eg")
     if m is not None: models["SVM_eg"] = m
 
@@ -439,12 +454,11 @@ def _get_regression_models(quick=False):
     m = _try_load(lambda: eg.models.NGBoostRegressor(), "NGBoost")
     if m is not None: models["NGBoost"] = m
 
-    # ── 10. Subgroup / neuroevolution ────────────────────────────────
-    m = _try_load(lambda: eg.models.PRIMRegressor(), "PRIM")
-    if m is not None: models["PRIM"] = m
-    m = _try_load(lambda: eg.models.NEATRegressor(n_generations=20), "NEAT")
+    # ── 10. Neuroevolution ─────────────────────────────────────────────
+    # PRIM is a subgroup discovery method, not suited for general regression
+    m = _try_load(lambda: eg.models.NEATRegressor(n_generations=5, population_size=50), "NEAT")
     if m is not None: models["NEAT"] = m
-    m = _try_load(lambda: eg.models.TensorNEATRegressor(n_generations=20), "TensorNEAT")
+    m = _try_load(lambda: eg.models.TensorNEATRegressor(n_generations=5), "TensorNEAT")
     if m is not None: models["TensorNEAT"] = m
 
     # ── 11. Deep tabular ─────────────────────────────────────────────
@@ -463,7 +477,7 @@ def _get_regression_models(quick=False):
     m = _try_load(lambda: neural.EmbeddingMLPRegressor(n_epochs=50), "EmbeddingMLP")
     if m is not None: models["EmbeddingMLP"] = m
     m = _try_load(lambda: neural.TabNetRegressor(
-        n_d=16, n_a=16, n_steps=3, batch_size=32, virtual_batch_size=16, n_epochs=100,
+        n_d=8, n_a=8, n_steps=3, batch_size=128, virtual_batch_size=64, n_epochs=30,
     ), "TabNet")
     if m is not None: models["TabNet"] = m
     m = _try_load(lambda: tabular.TabularResNetRegressor(n_epochs=50), "TabResNet")
@@ -527,7 +541,7 @@ def evaluate_model_classification(model, X, y, n_splits=5):
 
     all_y_true = []
     all_y_pred = []
-    all_y_proba = []
+    fold_probas = []
     fit_times = []
     predict_times = []
 
@@ -550,7 +564,8 @@ def evaluate_model_classification(model, X, y, n_splits=5):
 
             if hasattr(model_clone, "predict_proba"):
                 y_proba = model_clone.predict_proba(X_test)
-                all_y_proba.extend(y_proba)
+                model_classes = getattr(model_clone, "classes_", None)
+                fold_probas.append((y_proba, model_classes, len(y_test)))
         except Exception as e:
             return {"error": str(e)}
 
@@ -578,9 +593,9 @@ def evaluate_model_classification(model, X, y, n_splits=5):
         "n_classes": n_classes,
     }
 
-    if all_y_proba:
-        all_y_proba = np.array(all_y_proba)
+    if fold_probas:
         try:
+            all_y_proba = _assemble_fold_probas(fold_probas, n_classes)
             if is_binary:
                 proba_pos = all_y_proba[:, 1]
                 metrics["roc_auc"] = roc_auc_score(all_y_true, proba_pos)
@@ -596,6 +611,34 @@ def evaluate_model_classification(model, X, y, n_splits=5):
             pass
 
     return metrics
+
+
+def _assemble_fold_probas(fold_probas, n_classes):
+    """Assemble per-fold probability arrays into a single (N, n_classes) array.
+
+    Handles the case where different folds produce different numbers of
+    probability columns (e.g. when a rare class is absent from a fold's
+    training set).
+    """
+    total = sum(n for _, _, n in fold_probas)
+    result = np.zeros((total, n_classes))
+    offset = 0
+    for proba, model_classes, n in fold_probas:
+        if proba.shape[1] == n_classes:
+            result[offset:offset + n] = proba
+        elif model_classes is not None and len(model_classes) == proba.shape[1]:
+            for j, c in enumerate(model_classes):
+                c_int = int(c)
+                if 0 <= c_int < n_classes:
+                    result[offset:offset + n, c_int] = proba[:, j]
+        else:
+            cols = min(proba.shape[1], n_classes)
+            result[offset:offset + n, :cols] = proba[:, :cols]
+        offset += n
+    row_sums = result.sum(axis=1, keepdims=True)
+    row_sums = np.where(row_sums > 0, row_sums, 1.0)
+    result /= row_sums
+    return result
 
 
 def evaluate_model_regression(model, X, y, n_splits=5):
@@ -695,6 +738,43 @@ def preprocess_dataset(ds):
 # Main
 # ---------------------------------------------------------------------------
 
+def _load_previous_results(path):
+    """Load previous results from parquet, returning (df, lookup_dict).
+
+    The lookup maps (dataset, model) -> row dict for quick status checks.
+    """
+    if not path.exists():
+        return pd.DataFrame(), {}
+
+    try:
+        df = pd.read_parquet(path)
+    except Exception:
+        return pd.DataFrame(), {}
+
+    lookup = {}
+    for _, row in df.iterrows():
+        key = (row["dataset"], row["model"])
+        lookup[key] = row.to_dict()
+    return df, lookup
+
+
+def _print_cached_result(model_name, row, task):
+    """Print a cached result inline (same format as a live result)."""
+    if task == "classification":
+        acc = row.get("accuracy", 0)
+        auc = row.get("roc_auc")
+        mcc = row.get("mcc", 0)
+        auc_str = f"  auc={auc:.4f}" if auc is not None and pd.notna(auc) else ""
+        mcc_str = f"  mcc={mcc:.4f}" if pd.notna(mcc) else ""
+        t = row.get("fit_time_mean_s", 0)
+        print(f"acc={acc:.4f}{auc_str}{mcc_str}  ({t:.1f}s) [cached]")
+    else:
+        r2 = row.get("r2", 0)
+        rmse = row.get("rmse", 0)
+        t = row.get("fit_time_mean_s", 0)
+        print(f"R²={r2:.4f}  rmse={rmse:.4f}  ({t:.1f}s) [cached]")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Endgame Tabular Benchmark")
     parser.add_argument("--quick", action="store_true", help="Quick test (3 datasets)")
@@ -708,6 +788,8 @@ def main():
     parser.add_argument("--cv-folds", type=int, default=5)
     parser.add_argument("--timeout", type=int, default=300,
                         help="Per-model timeout in seconds (default: 300)")
+    parser.add_argument("--fresh", action="store_true",
+                        help="Ignore previous results and start from scratch")
     args = parser.parse_args()
 
     print("=" * 70)
@@ -721,11 +803,26 @@ def main():
     )
     print(f"Loaded {len(datasets)} datasets")
 
-    # Run benchmark
+    # Resume support: load previous results
     output_path = RESULTS_DIR / "tabular_benchmark.parquet"
-    results = []
-    completed = 0
+    if args.fresh:
+        prev_lookup = {}
+        results = []
+    else:
+        prev_df, prev_lookup = _load_previous_results(output_path)
+        # Carry forward successful results; drop failed/error/timeout for retry
+        results = []
+        if len(prev_df) > 0:
+            keep = prev_df[prev_df["status"] == "success"]
+            results = keep.to_dict("records")
+            n_success = len(keep)
+            n_retry = len(prev_df) - n_success
+            print(f"\nResuming: {n_success} cached successes, "
+                  f"{n_retry} failed/error/timeout to retry")
+
     n_datasets = len(datasets)
+    n_skipped = 0
+    n_ran = 0
 
     def _save_incremental():
         """Flush current results to parquet so nothing is lost on crash."""
@@ -750,9 +847,33 @@ def main():
         )
 
         for model_name, model in models.items():
-            completed += 1
+            key = (ds_name, model_name)
+            prev = prev_lookup.get(key)
             print(f"  {model_name:25s}", end=" ", flush=True)
 
+            # Skip if previous run succeeded
+            if prev is not None and prev.get("status") == "success":
+                _print_cached_result(model_name, prev, task)
+                n_skipped += 1
+                continue
+
+            # Note previous timeout without retrying
+            if prev is not None and prev.get("status") == "timeout":
+                print(f"SKIP    (timed out last run: {prev.get('error', '')})")
+                results.append({
+                    "dataset": ds_name, "model": model_name, "task": task,
+                    "n_samples": X.shape[0], "n_features": X.shape[1],
+                    "status": "timeout", "error": prev.get("error", ""),
+                })
+                n_skipped += 1
+                _save_incremental()
+                continue
+
+            # Retry failed/error, or run for first time
+            if prev is not None:
+                print(f"[retry] ", end="", flush=True)
+
+            n_ran += 1
             t0 = time.time()
             try:
                 metrics = run_with_timeout(
@@ -806,11 +927,12 @@ def main():
     df = pd.DataFrame(results)
     df.to_parquet(output_path, index=False)
     print(f"\nResults saved to {output_path}")
+    print(f"{n_skipped} cached, {n_ran} evaluated this run")
 
     # Print summary
     successful = df[df["status"] == "success"]
     failed = df[df["status"].isin(["failed", "error", "timeout"])]
-    print(f"\n{len(successful)} successful, {len(failed)} failed/timeout")
+    print(f"{len(successful)} successful, {len(failed)} failed/timeout")
 
     if len(successful) > 0:
         # Classification summary

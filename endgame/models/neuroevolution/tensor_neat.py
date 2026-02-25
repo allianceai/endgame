@@ -9,6 +9,8 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 
 try:
+    import os
+    os.environ.setdefault("JAX_PLATFORMS", "cpu")
     import jax
     import jax.numpy as jnp
     from tensorneat.problem import BaseProblem
@@ -31,9 +33,9 @@ try:
         def output_shape(self):
             return (self._n_outputs,)
 
-        def evaluate(self, state, network, params):
+        def evaluate(self, state, randkey, act_func, params):
             outputs = jax.vmap(
-                lambda xi: network(state, params, xi)
+                lambda xi: act_func(state, params, xi)
             )(self._X_jax)
             preds = jnp.argmax(outputs, axis=-1)
             correct = jnp.sum(preds == self._y_jax)
@@ -56,9 +58,9 @@ try:
         def output_shape(self):
             return (1,)
 
-        def evaluate(self, state, network, params):
+        def evaluate(self, state, randkey, act_func, params):
             outputs = jax.vmap(
-                lambda xi: network(state, params, xi)
+                lambda xi: act_func(state, params, xi)
             )(self._X_jax)
             mse = jnp.mean((outputs[:, 0] - self._y_jax) ** 2)
             return -mse
@@ -121,9 +123,16 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
             n_samples=n_samples, X_jax=X_jax, y_jax=y_jax,
         )
 
+        min_nodes = n_inputs + n_outputs
+        max_nodes = max(100, min_nodes * 3)
+        initial_conns = n_inputs * n_outputs
+        max_conns = max(initial_conns * 5, max_nodes * 4, 500)
+
         genome = DefaultGenome(
             num_inputs=n_inputs,
             num_outputs=n_outputs,
+            max_nodes=max_nodes,
+            max_conns=max_conns,
         )
 
         algorithm = NEAT(
@@ -153,19 +162,17 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
         from scipy.special import softmax
 
         X = np.asarray(X, dtype=np.float32)
-        pipeline = self.pipeline_
         state = self.best_state_
-        params = self.best_genome_params_
+        algo = self.pipeline_.algorithm
+        best_genome = self.best_genome_params_
 
-        raw_outputs = []
-        for xi in X:
-            output = pipeline.algorithm.genome.network(
-                state, params, jnp.array(xi)
-            )
-            raw_outputs.append(np.array(output))
+        transformed = algo.transform(state, best_genome)
+        X_jax = jnp.array(X)
+        raw_outputs = jax.vmap(
+            lambda xi: algo.forward(state, transformed, xi)
+        )(X_jax)
 
-        raw_outputs = np.array(raw_outputs)
-        return softmax(raw_outputs, axis=1)
+        return softmax(np.array(raw_outputs), axis=1)
 
     def predict(self, X):
         """Predict class labels."""
@@ -206,15 +213,22 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
         from tensorneat.pipeline import Pipeline
         from tensorneat.algorithm.neat import NEAT
         from tensorneat.genome import DefaultGenome
+        from tensorneat.genome.gene import DefaultNode
+        from tensorneat.common.functions import act_jnp
 
         X = np.asarray(X, dtype=np.float32)
         y = np.asarray(y, dtype=np.float32)
         n_inputs = X.shape[1]
 
+        # Normalize targets for stable evolution
+        self._y_mean = float(y.mean())
+        self._y_std = float(y.std()) or 1.0
+        y_norm = (y - self._y_mean) / self._y_std
+
         seed = self.random_state if self.random_state is not None else 0
 
         X_jax = jnp.array(X)
-        y_jax = jnp.array(y)
+        y_jax = jnp.array(y_norm)
         n_samples = X_jax.shape[0]
         n_feats = X_jax.shape[1]
 
@@ -223,9 +237,23 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
             X_jax=X_jax, y_jax=y_jax,
         )
 
+        min_nodes = n_inputs + 1
+        max_nodes = max(100, min_nodes * 3)
+        initial_conns = n_inputs * 1
+        max_conns = max(initial_conns * 5, max_nodes * 4, 500)
+
+        # Use tanh (unbounded, symmetric) instead of sigmoid-only for regression
+        node_gene = DefaultNode(
+            activation_options=[act_jnp.tanh_, act_jnp.relu_, act_jnp.sigmoid_],
+            activation_default=0,  # tanh
+        )
+
         genome = DefaultGenome(
             num_inputs=n_inputs,
             num_outputs=1,
+            max_nodes=max_nodes,
+            max_conns=max_conns,
+            node_gene=node_gene,
         )
 
         algorithm = NEAT(
@@ -253,15 +281,16 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
     def predict(self, X):
         """Predict continuous values using the best evolved genome."""
         X = np.asarray(X, dtype=np.float32)
-        pipeline = self.pipeline_
         state = self.best_state_
-        params = self.best_genome_params_
+        algo = self.pipeline_.algorithm
+        best_genome = self.best_genome_params_
 
-        predictions = []
-        for xi in X:
-            output = pipeline.algorithm.genome.network(
-                state, params, jnp.array(xi)
-            )
-            predictions.append(float(output[0]))
+        transformed = algo.transform(state, best_genome)
+        X_jax = jnp.array(X)
+        raw_outputs = jax.vmap(
+            lambda xi: algo.forward(state, transformed, xi)
+        )(X_jax)
 
-        return np.array(predictions)
+        # Denormalize predictions
+        preds = np.array(raw_outputs[:, 0])
+        return preds * self._y_std + self._y_mean

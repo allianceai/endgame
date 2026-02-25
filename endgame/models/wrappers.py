@@ -357,9 +357,14 @@ class GBDTWrapper(EndgameEstimator):
 
         # Infer task
         self._task_type = self._infer_task(y_arr)
+        self._label_remap = None
         if self._task_type == "classification":
-            self._n_classes = len(np.unique(y_arr))
             self.classes_ = np.unique(y_arr)
+            self._n_classes = len(self.classes_)
+            # Remap labels to contiguous 0..n-1 (required by XGBoost)
+            if not np.array_equal(self.classes_, np.arange(self._n_classes)):
+                self._label_remap = {c: i for i, c in enumerate(self.classes_)}
+                y_arr = np.array([self._label_remap[v] for v in y_arr])
 
         # Create model
         self.model_ = self._create_model(self._task_type)
@@ -372,11 +377,13 @@ class GBDTWrapper(EndgameEstimator):
 
         # Handle early stopping
         if eval_set is not None:
-            # Keep eval_set format consistent with training data
-            prepared_eval_set = [
-                (self._match_format(X_e, X_fit), np.asarray(y_e))
-                for X_e, y_e in eval_set
-            ]
+            eval_pairs = []
+            for X_e, y_e in eval_set:
+                y_e_arr = np.asarray(y_e)
+                if self._label_remap is not None:
+                    y_e_arr = np.array([self._label_remap.get(v, v) for v in y_e_arr])
+                eval_pairs.append((self._match_format(X_e, X_fit), y_e_arr))
+            prepared_eval_set = eval_pairs
             if self.backend == "lightgbm":
                 fit_args["eval_set"] = prepared_eval_set
                 fit_args["callbacks"] = [
@@ -463,7 +470,10 @@ class GBDTWrapper(EndgameEstimator):
         """
         self._check_is_fitted()
         X_in = self._to_model_input(X)
-        return self.model_.predict(X_in)
+        preds = self.model_.predict(X_in)
+        if self._label_remap is not None and self._task_type == "classification":
+            preds = self.classes_[preds.astype(int)]
+        return preds
 
     def predict_proba(self, X) -> np.ndarray:
         """Predict class probabilities.
@@ -548,6 +558,8 @@ class LGBMWrapper(GBDTWrapper):
     ----------
     preset : str, default='endgame'
         Hyperparameter preset.
+    task : str, default='auto'
+        Task type: 'auto', 'classification', 'regression'.
     use_goss : bool, default=False
         Use Gradient-based One-Side Sampling.
     **kwargs
@@ -562,6 +574,7 @@ class LGBMWrapper(GBDTWrapper):
     def __init__(
         self,
         preset: PresetName = "endgame",
+        task: str = "auto",
         use_goss: bool = False,
         use_gpu: bool | str = "auto",
         categorical_features: list[str] | None = None,
@@ -575,6 +588,7 @@ class LGBMWrapper(GBDTWrapper):
 
         super().__init__(
             backend="lightgbm",
+            task=task,
             preset=preset,
             use_gpu=use_gpu,
             categorical_features=categorical_features,
@@ -593,6 +607,8 @@ class XGBWrapper(GBDTWrapper):
     ----------
     preset : str, default='endgame'
         Hyperparameter preset.
+    task : str, default='auto'
+        Task type: 'auto', 'classification', 'regression'.
     use_dart : bool, default=False
         Use DART boosting.
     **kwargs
@@ -607,6 +623,7 @@ class XGBWrapper(GBDTWrapper):
     def __init__(
         self,
         preset: PresetName = "endgame",
+        task: str = "auto",
         use_dart: bool = False,
         use_gpu: bool | str = "auto",
         categorical_features: list[str] | None = None,
@@ -620,6 +637,7 @@ class XGBWrapper(GBDTWrapper):
 
         super().__init__(
             backend="xgboost",
+            task=task,
             preset=preset,
             use_gpu=use_gpu,
             categorical_features=categorical_features,
@@ -638,6 +656,8 @@ class CatBoostWrapper(GBDTWrapper):
     ----------
     preset : str, default='endgame'
         Hyperparameter preset.
+    task : str, default='auto'
+        Task type: 'auto', 'classification', 'regression'.
     auto_class_weights : str, optional
         Auto class weighting: 'Balanced', 'SqrtBalanced'.
     **kwargs
@@ -652,6 +672,7 @@ class CatBoostWrapper(GBDTWrapper):
     def __init__(
         self,
         preset: PresetName = "endgame",
+        task: str = "auto",
         auto_class_weights: str | None = None,
         use_gpu: bool | str = "auto",
         categorical_features: list[str] | None = None,
@@ -665,6 +686,7 @@ class CatBoostWrapper(GBDTWrapper):
 
         super().__init__(
             backend="catboost",
+            task=task,
             preset=preset,
             use_gpu=use_gpu,
             categorical_features=categorical_features,

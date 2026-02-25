@@ -481,22 +481,27 @@ class ESKDBClassifier(BaseBayesianClassifier):
         # Store original n_features before any transformations
         self.n_features_in_ = X.shape[1]
 
-        # Check if discretization is needed
-        if self._needs_discretization(X):
-            if self.auto_discretize:
-                X = self._discretize_input(X, y, fit=True)
-            else:
-                raise ValueError(
-                    "BayesianClassifiers require discrete (integer) input. "
-                    "Set auto_discretize=True or use BayesianDiscretizer to convert continuous features."
-                )
+        if self.auto_discretize:
+            X = self._discretize_input(X, y, fit=True)
+        elif self._needs_discretization(X):
+            raise ValueError(
+                "BayesianClassifiers require discrete (integer) input. "
+                "Set auto_discretize=True or use BayesianDiscretizer to convert continuous features."
+            )
         else:
             self.discretizer_ = None
+
+        # Shift any negative integer features to start at 0
+        X = self._remap_to_nonnegative(X, fit=True)
 
         X, y = self._validate_discrete_input(X, y, self.max_cardinality)
 
         self.classes_ = np.unique(y)
         self.n_classes_ = len(self.classes_)
+
+        self._class_to_idx = {c: i for i, c in enumerate(self.classes_)}
+        y = np.array([self._class_to_idx[v] for v in y])
+
         self.cardinalities_ = self._compute_cardinalities(X, y)
 
         # Compute MI scores for SAO

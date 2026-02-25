@@ -253,7 +253,7 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
         for col in self._cat_cols:
             df[col] = df[col].astype(str)
 
-        # Handle validation set
+        # Handle validation set with stratified split to avoid unseen labels
         if eval_set is not None:
             X_val, y_val = eval_set
             if not isinstance(X_val, pd.DataFrame):
@@ -265,7 +265,20 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
             for col in self._cat_cols:
                 df_val[col] = df_val[col].astype(str)
         else:
-            df_val = None
+            from sklearn.model_selection import StratifiedShuffleSplit
+            sss = StratifiedShuffleSplit(
+                n_splits=1, test_size=0.2,
+                random_state=self.random_state or 42,
+            )
+            train_idx, val_idx = next(sss.split(df, y_encoded))
+            df_val = df.iloc[val_idx].reset_index(drop=True)
+            df = df.iloc[train_idx].reset_index(drop=True)
+
+        if not self.verbose:
+            import logging
+            logging.getLogger("pytorch_tabular").setLevel(logging.ERROR)
+            logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
+            logging.getLogger("lightning").setLevel(logging.ERROR)
 
         # Build configs
         data_config = DataConfig(
@@ -290,20 +303,20 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
             max_epochs=self.max_epochs,
             early_stopping_patience=self.early_stopping_patience,
             accelerator="gpu" if self.gpu is not None else "cpu",
-            devices=[self.gpu] if self.gpu is not None else None,
-            enable_progress_bar=self.verbose,
-            enable_model_summary=self.verbose,
-            seed=self.random_state,
+            devices=1,
+            progress_bar="rich" if self.verbose else "none",
+            load_best=True,
+            seed=self.random_state or 42,
         )
 
         optimizer_config = OptimizerConfig()
 
-        # Create and train model
         self._model = TabularModel(
             data_config=data_config,
             model_config=model_config,
             trainer_config=trainer_config,
             optimizer_config=optimizer_config,
+            verbose=self.verbose,
         )
 
         self._model.fit(train=df, validation=df_val)
@@ -474,10 +487,16 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
         self.n_features_in_ = X.shape[1]
         self.feature_names_in_ = np.array(X.columns.tolist())
 
+        # Normalize regression targets for stable training
+        y_arr = np.asarray(y, dtype=np.float32)
+        self._y_mean = float(y_arr.mean())
+        self._y_std = float(y_arr.std()) or 1.0
+        y_norm = (y_arr - self._y_mean) / self._y_std
+
         # Create target column
         target_col = "__target__"
         df = X.copy()
-        df[target_col] = np.asarray(y, dtype=np.float32)
+        df[target_col] = y_norm
 
         # Detect categorical columns
         if cat_cols is not None:
@@ -505,11 +524,18 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
                 X_val = pd.DataFrame(X_val)
                 X_val.columns = [f"f{i}" for i in range(X_val.shape[1])]
             df_val = X_val.copy()
-            df_val[target_col] = np.asarray(y_val, dtype=np.float32)
+            y_val_arr = np.asarray(y_val, dtype=np.float32)
+            df_val[target_col] = (y_val_arr - self._y_mean) / self._y_std
             for col in self._cat_cols:
                 df_val[col] = df_val[col].astype(str)
         else:
             df_val = None
+
+        if not self.verbose:
+            import logging
+            logging.getLogger("pytorch_tabular").setLevel(logging.ERROR)
+            logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
+            logging.getLogger("lightning").setLevel(logging.ERROR)
 
         # Build configs
         data_config = DataConfig(
@@ -534,20 +560,20 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
             max_epochs=self.max_epochs,
             early_stopping_patience=self.early_stopping_patience,
             accelerator="gpu" if self.gpu is not None else "cpu",
-            devices=[self.gpu] if self.gpu is not None else None,
-            enable_progress_bar=self.verbose,
-            enable_model_summary=self.verbose,
-            seed=self.random_state,
+            devices=1,
+            progress_bar="rich" if self.verbose else "none",
+            load_best=True,
+            seed=self.random_state or 42,
         )
 
         optimizer_config = OptimizerConfig()
 
-        # Create and train model
         self._model = TabularModel(
             data_config=data_config,
             model_config=model_config,
             trainer_config=trainer_config,
             optimizer_config=optimizer_config,
+            verbose=self.verbose,
         )
 
         self._model.fit(train=df, validation=df_val)
@@ -570,4 +596,6 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
 
         preds = self._model.predict(X)
         pred_col = preds.columns[0]
-        return preds[pred_col].values
+        raw = preds[pred_col].values
+        # Denormalize predictions
+        return raw * self._y_std + self._y_mean

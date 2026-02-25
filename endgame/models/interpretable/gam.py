@@ -193,8 +193,9 @@ class GAMClassifier(ClassifierMixin, BaseEstimator):
         else:
             self.gam_.fit(X, y_encoded, weights=sample_weight)
 
-        # Compute feature importances
-        self._compute_feature_importances(X, y_encoded)
+        self._X_train = X
+        self._y_train = y_encoded
+        self._importances_computed = False
 
         return self
 
@@ -220,45 +221,24 @@ class GAMClassifier(ClassifierMixin, BaseEstimator):
 
         return result
 
-    def _compute_feature_importances(self, X, y):
-        """Compute feature importances based on partial deviance."""
-        importances = np.zeros(self.n_features_in_)
-
-        # Full model deviance
-        full_deviance = self.gam_.statistics_["deviance"]
-
-        # Importance = drop in deviance when removing feature
-        for i in range(self.n_features_in_):
-            # Create subset model without feature i
-            X_subset = np.delete(X, i, axis=1)
-
-            try:
-                # Fit reduced model
-                terms_subset = []
-                for j in range(self.n_features_in_ - 1):
-                    terms_subset.append(s(j, n_splines=self.n_splines))
-
-                if len(terms_subset) > 0:
-                    term_list = terms_subset[0]
-                    for t in terms_subset[1:]:
-                        term_list = term_list + t
-
-                    gam_subset = LogisticGAM(term_list, max_iter=self.max_iter, tol=self.tol)
-                    gam_subset.fit(X_subset, y)
-                    subset_deviance = gam_subset.statistics_["deviance"]
-                else:
-                    subset_deviance = np.inf
-
-                importances[i] = max(0, subset_deviance - full_deviance)
-            except Exception:
-                # If fitting fails, use partial effect size as fallback
-                importances[i] = np.abs(self.gam_.partial_dependence(i, X)).std()
-
-        # Normalize
-        if importances.sum() > 0:
-            importances = importances / importances.sum()
-
-        self.feature_importances_ = importances
+    @property
+    def feature_importances_(self) -> np.ndarray:
+        """Feature importances based on partial effect variance (lazy)."""
+        check_is_fitted(self, "gam_")
+        if not self._importances_computed:
+            importances = np.zeros(self.n_features_in_)
+            for i in range(self.n_features_in_):
+                try:
+                    effects = self.gam_.partial_dependence(i, self._X_train)
+                    importances[i] = np.std(effects)
+                except Exception:
+                    importances[i] = 0.0
+            total = importances.sum()
+            if total > 0:
+                importances /= total
+            self._feature_importances = importances
+            self._importances_computed = True
+        return self._feature_importances
 
     def predict_proba(self, X) -> np.ndarray:
         """Predict class probabilities.
@@ -529,8 +509,8 @@ class GAMRegressor(RegressorMixin, BaseEstimator):
         else:
             self.gam_.fit(X, y, weights=sample_weight)
 
-        # Compute feature importances
-        self._compute_feature_importances(X, y)
+        self._X_train = X
+        self._importances_computed = False
 
         return self
 
@@ -556,19 +536,24 @@ class GAMRegressor(RegressorMixin, BaseEstimator):
 
         return result
 
-    def _compute_feature_importances(self, X, y):
-        """Compute feature importances."""
-        importances = np.zeros(self.n_features_in_)
-
-        for i in range(self.n_features_in_):
-            # Use effect variance as importance proxy
-            effects = self.gam_.partial_dependence(i, X)
-            importances[i] = np.std(effects)
-
-        if importances.sum() > 0:
-            importances = importances / importances.sum()
-
-        self.feature_importances_ = importances
+    @property
+    def feature_importances_(self) -> np.ndarray:
+        """Feature importances based on partial effect variance (lazy)."""
+        check_is_fitted(self, "gam_")
+        if not self._importances_computed:
+            importances = np.zeros(self.n_features_in_)
+            for i in range(self.n_features_in_):
+                try:
+                    effects = self.gam_.partial_dependence(i, self._X_train)
+                    importances[i] = np.std(effects)
+                except Exception:
+                    importances[i] = 0.0
+            total = importances.sum()
+            if total > 0:
+                importances /= total
+            self._feature_importances = importances
+            self._importances_computed = True
+        return self._feature_importances
 
     def predict(self, X) -> np.ndarray:
         """Predict target values."""

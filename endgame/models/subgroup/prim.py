@@ -247,6 +247,9 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
             min_support = int(self.min_support)
         min_support = max(min_support, 2)
 
+        # Store global mean for predict() fallback
+        self._y_global_mean = float(y.mean())
+
         # Find boxes sequentially
         self.boxes_ = []
         remaining_mask = np.ones(n_samples, dtype=bool)
@@ -515,6 +518,35 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
         return best_idx
 
     def predict(self, X) -> np.ndarray:
+        """Predict target values based on box membership.
+
+        Points inside a box get that box's mean target density.
+        Points outside all boxes get the global training mean.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Data points.
+
+        Returns
+        -------
+        predictions : ndarray of shape (n_samples,)
+            Predicted target values.
+        """
+        if not self._is_fitted:
+            raise RuntimeError("PRIMRegressor has not been fitted.")
+
+        X = np.asarray(X)
+        predictions = np.full(len(X), self._y_global_mean)
+
+        # Assign box density to points inside boxes (last box wins)
+        for box in self.boxes_:
+            mask = box.contains(X)
+            predictions[mask] = box.density
+
+        return predictions
+
+    def predict_membership(self, X) -> np.ndarray:
         """Predict whether points fall in the found box(es).
 
         Parameters

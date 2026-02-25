@@ -296,10 +296,11 @@ class ELMRegressor(RegressorMixin, BaseEstimator):
     ----------
     n_hidden : int, default=500
         Number of hidden neurons.
-    activation : str or callable, default='sigmoid'
-        Activation function.
-    alpha : float, default=1e-6
-        Regularization parameter.
+    activation : str or callable, default='tanh'
+        Activation function. 'tanh' is preferred for regression
+        (unbounded, symmetric). 'sigmoid' compresses to [0,1].
+    alpha : float, default=0.01
+        Regularization parameter for ridge regression on output weights.
     auto_scale : bool, default=True
         Automatically scale features before fitting.
     random_state : int, optional
@@ -327,8 +328,8 @@ class ELMRegressor(RegressorMixin, BaseEstimator):
     def __init__(
         self,
         n_hidden: int = 500,
-        activation: str | Callable = "sigmoid",
-        alpha: float = 1e-6,
+        activation: str | Callable = "tanh",
+        alpha: float = 0.01,
         auto_scale: bool = True,
         random_state: int | None = None,
     ):
