@@ -70,6 +70,43 @@ except ImportError:
     _HAS_TENSORNEAT = False
 
 
+_MAX_NODES = 150
+_MAX_CONNS = 1500
+_MAX_EVAL_SAMPLES = 2000
+
+
+def _safe_genome_params(n_inputs, n_outputs, requested_pop, n_samples=None):
+    """Compute max_nodes, max_conns, pop_size with memory-safe caps.
+
+    JAX pre-allocates arrays of shape (pop_size, max_nodes/max_conns, ...)
+    so large input/output spaces can cause OOM.  The node/conn caps are
+    the primary defence; pop_size is auto-reduced so that each generation
+    takes roughly ≤5 seconds on CPU.
+    """
+    n_io = n_inputs + n_outputs
+    initial_conns = n_inputs * n_outputs
+
+    max_nodes = min(n_io + 20, _MAX_NODES)
+    max_conns = min(initial_conns + max_nodes * 2, _MAX_CONNS)
+
+    max_conns = max(max_conns, initial_conns + 1)
+    max_nodes = max(max_nodes, n_io + 1)
+
+    n_eval = min(n_samples or _MAX_EVAL_SAMPLES, _MAX_EVAL_SAMPLES)
+
+    # Empirical: gen_time ≈ pop * n_eval * max_conns * 1.6e-8 s (CPU, JAX)
+    target_gen_secs = 4.0
+    cost_per_unit = n_eval * max_conns * 1.6e-8
+    if cost_per_unit > 0:
+        time_pop = int(target_gen_secs / cost_per_unit)
+    else:
+        time_pop = requested_pop
+
+    pop_size = min(requested_pop, max(50, time_pop))
+
+    return max_nodes, max_conns, pop_size
+
+
 class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
     """
     TensorNEAT classifier — GPU-accelerated neuroevolution via JAX.
@@ -113,20 +150,27 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
 
         seed = self.random_state if self.random_state is not None else 0
 
-        X_jax = jnp.array(X)
-        y_jax = jnp.array(y, dtype=jnp.int32)
-        n_samples = X_jax.shape[0]
-        n_feats = X_jax.shape[1]
-
-        problem = _TabularClassificationProblem(
-            n_feats=n_feats, n_outputs=n_outputs,
-            n_samples=n_samples, X_jax=X_jax, y_jax=y_jax,
+        n_samples_raw = X.shape[0]
+        max_nodes, max_conns, pop_size = _safe_genome_params(
+            n_inputs, n_outputs, self.population_size, n_samples_raw,
         )
 
-        min_nodes = n_inputs + n_outputs
-        max_nodes = max(100, min_nodes * 3)
-        initial_conns = n_inputs * n_outputs
-        max_conns = max(initial_conns * 5, max_nodes * 4, 500)
+        X_jax = jnp.array(X)
+        y_jax = jnp.array(y, dtype=jnp.int32)
+        n_samples = n_samples_raw
+
+        if n_samples > _MAX_EVAL_SAMPLES:
+            rng = np.random.RandomState(seed)
+            idx = rng.choice(n_samples, _MAX_EVAL_SAMPLES, replace=False)
+            X_eval, y_eval = X_jax[idx], y_jax[idx]
+            n_samples = _MAX_EVAL_SAMPLES
+        else:
+            X_eval, y_eval = X_jax, y_jax
+
+        problem = _TabularClassificationProblem(
+            n_feats=n_inputs, n_outputs=n_outputs,
+            n_samples=n_samples, X_jax=X_eval, y_jax=y_eval,
+        )
 
         genome = DefaultGenome(
             num_inputs=n_inputs,
@@ -137,7 +181,7 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
 
         algorithm = NEAT(
             genome=genome,
-            pop_size=self.population_size,
+            pop_size=pop_size,
             species_size=self.species_size,
         )
 
@@ -220,32 +264,37 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
         y = np.asarray(y, dtype=np.float32)
         n_inputs = X.shape[1]
 
-        # Normalize targets for stable evolution
         self._y_mean = float(y.mean())
         self._y_std = float(y.std()) or 1.0
         y_norm = (y - self._y_mean) / self._y_std
 
         seed = self.random_state if self.random_state is not None else 0
 
-        X_jax = jnp.array(X)
-        y_jax = jnp.array(y_norm)
-        n_samples = X_jax.shape[0]
-        n_feats = X_jax.shape[1]
-
-        problem = _TabularRegressionProblem(
-            n_feats=n_feats, n_samples=n_samples,
-            X_jax=X_jax, y_jax=y_jax,
+        n_samples_raw = X.shape[0]
+        max_nodes, max_conns, pop_size = _safe_genome_params(
+            n_inputs, 1, self.population_size, n_samples_raw,
         )
 
-        min_nodes = n_inputs + 1
-        max_nodes = max(100, min_nodes * 3)
-        initial_conns = n_inputs * 1
-        max_conns = max(initial_conns * 5, max_nodes * 4, 500)
+        X_jax = jnp.array(X)
+        y_jax = jnp.array(y_norm)
+        n_samples = n_samples_raw
 
-        # Use tanh (unbounded, symmetric) instead of sigmoid-only for regression
+        if n_samples > _MAX_EVAL_SAMPLES:
+            rng = np.random.RandomState(seed)
+            idx = rng.choice(n_samples, _MAX_EVAL_SAMPLES, replace=False)
+            X_eval, y_eval = X_jax[idx], y_jax[idx]
+            n_samples = _MAX_EVAL_SAMPLES
+        else:
+            X_eval, y_eval = X_jax, y_jax
+
+        problem = _TabularRegressionProblem(
+            n_feats=n_inputs, n_samples=n_samples,
+            X_jax=X_eval, y_jax=y_eval,
+        )
+
         node_gene = DefaultNode(
             activation_options=[act_jnp.tanh_, act_jnp.relu_, act_jnp.sigmoid_],
-            activation_default=0,  # tanh
+            activation_default=act_jnp.tanh_,
         )
 
         genome = DefaultGenome(
@@ -258,7 +307,7 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
 
         algorithm = NEAT(
             genome=genome,
-            pop_size=self.population_size,
+            pop_size=pop_size,
             species_size=self.species_size,
         )
 

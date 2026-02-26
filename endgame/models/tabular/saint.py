@@ -475,12 +475,19 @@ class SAINTClassifier(ClassifierMixin, BaseEstimator):
             n_val = int(n_samples * self.validation_fraction)
             if n_val >= 1:
                 indices = np.arange(n_samples)
-                train_idx, val_idx = train_test_split(
-                    indices,
-                    test_size=self.validation_fraction,
-                    stratify=y_encoded,
-                    random_state=self.random_state,
-                )
+                try:
+                    train_idx, val_idx = train_test_split(
+                        indices,
+                        test_size=self.validation_fraction,
+                        stratify=y_encoded,
+                        random_state=self.random_state,
+                    )
+                except ValueError:
+                    train_idx, val_idx = train_test_split(
+                        indices,
+                        test_size=self.validation_fraction,
+                        random_state=self.random_state,
+                    )
 
                 # Split tensors
                 x_num_train = x_num[train_idx] if x_num is not None else None

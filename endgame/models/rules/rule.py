@@ -223,9 +223,53 @@ class RuleEnsemble:
     def __len__(self) -> int:
         return len(self.rules)
 
+    def _compile(self):
+        """Precompile rules into numpy arrays for fast vectorized evaluation.
+
+        Only rules using LE/GT operators (i.e. all tree-extracted rules) are
+        handled by the fast path.  Rules with other operators (EQ, IN, etc.)
+        fall back to per-rule Python evaluation.
+        """
+        n_rules = len(self.rules)
+        if n_rules == 0:
+            self._compiled = True
+            self._max_conds = 0
+            self._fast_mask = np.zeros(0, dtype=bool)
+            return
+
+        max_conds = max(len(r.conditions) for r in self.rules)
+
+        feat_idx = np.zeros((n_rules, max_conds), dtype=np.intp)
+        thresholds = np.zeros((n_rules, max_conds), dtype=np.float64)
+        is_le = np.zeros((n_rules, max_conds), dtype=bool)
+        n_conds = np.zeros(n_rules, dtype=np.int32)
+        fast_mask = np.ones(n_rules, dtype=bool)
+
+        for j, rule in enumerate(self.rules):
+            nc = len(rule.conditions)
+            n_conds[j] = nc
+            for k, c in enumerate(rule.conditions):
+                if c.operator not in (Operator.LE, Operator.GT):
+                    fast_mask[j] = False
+                    break
+                feat_idx[j, k] = c.feature_idx
+                thresholds[j, k] = c.threshold
+                is_le[j, k] = c.operator == Operator.LE
+
+        self._c_feat_idx = feat_idx
+        self._c_thresholds = thresholds
+        self._c_is_le = is_le
+        self._c_n_conds = n_conds
+        self._max_conds = max_conds
+        self._fast_mask = fast_mask
+        self._compiled = True
+
     def transform(self, X: np.ndarray) -> np.ndarray:
         """
         Transform X into binary rule features.
+
+        Uses a vectorized fast path for tree-extracted rules (LE/GT only),
+        falling back to per-rule evaluation for rules with other operators.
 
         Parameters
         ----------
@@ -244,12 +288,30 @@ class RuleEnsemble:
         if n_rules == 0:
             return np.zeros((n_samples, 0), dtype=np.float32)
 
-        X_rules = np.zeros((n_samples, n_rules), dtype=np.float32)
+        if not getattr(self, "_compiled", False):
+            self._compile()
 
-        for j, rule in enumerate(self.rules):
-            X_rules[:, j] = rule.evaluate(X).astype(np.float32)
+        result = np.ones((n_samples, n_rules), dtype=np.float32)
 
-        return X_rules
+        fast = self._fast_mask
+        if fast.any():
+            fast_idx = np.where(fast)[0]
+            for k in range(self._max_conds):
+                active = fast_idx[self._c_n_conds[fast_idx] > k]
+                if len(active) == 0:
+                    break
+                fi = self._c_feat_idx[active, k]
+                th = self._c_thresholds[active, k]
+                le = self._c_is_le[active, k]
+                vals = X[:, fi]
+                cond = np.where(le, vals <= th, vals > th)
+                result[:, active] *= cond.astype(np.float32)
+
+        slow_idx = np.where(~fast)[0]
+        for j in slow_idx:
+            result[:, j] = self.rules[j].evaluate(X).astype(np.float32)
+
+        return result
 
     def filter_by_support(
         self, min_support: float = 0.01, max_support: float = 0.99

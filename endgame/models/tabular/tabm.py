@@ -477,12 +477,19 @@ class TabMClassifier(ClassifierMixin, BaseEstimator):
             X_val_scaled = np.nan_to_num(X_val_scaled, nan=0.0).astype(np.float32)
             X_train, y_train = X_scaled, y_encoded
         else:
-            X_train, X_val_scaled, y_train, y_val_encoded = train_test_split(
-                X_scaled, y_encoded,
-                test_size=self.val_size,
-                random_state=self.random_state,
-                stratify=y_encoded,
-            )
+            try:
+                X_train, X_val_scaled, y_train, y_val_encoded = train_test_split(
+                    X_scaled, y_encoded,
+                    test_size=self.val_size,
+                    random_state=self.random_state,
+                    stratify=y_encoded,
+                )
+            except ValueError:
+                X_train, X_val_scaled, y_train, y_val_encoded = train_test_split(
+                    X_scaled, y_encoded,
+                    test_size=self.val_size,
+                    random_state=self.random_state,
+                )
 
         # Create tensors
         X_train_t = torch.tensor(X_train, dtype=torch.float32)

@@ -211,6 +211,8 @@ def _get_classification_models(quick=False):
     if m is not None: models["MARS"] = m
     m = _try_load(lambda: eg.models.RuleFitClassifier(), "RuleFit")
     if m is not None: models["RuleFit"] = m
+    m = _try_load(lambda: eg.models.RuleFitPlusClassifier(), "RuleFit++")
+    if m is not None: models["RuleFit++"] = m
     m = _try_load(lambda: eg.models.NAMClassifier(n_epochs=50), "NAM")
     if m is not None: models["NAM"] = m
     m = _try_load(lambda: tabular.GRANDEClassifier(), "GRANDE")
@@ -282,7 +284,10 @@ def _get_classification_models(quick=False):
     if m is not None: models["RotationForest"] = m
     m = _try_load(lambda: eg.models.C50Classifier(), "C5.0")
     if m is not None: models["C5.0"] = m
-    m = _try_load(lambda: eg.models.ObliqueRandomForestClassifier(random_state=42), "ObliqueRF")
+    m = _try_load(lambda: eg.models.ObliqueRandomForestClassifier(
+        n_estimators=50, max_depth=10, min_samples_split=30, min_samples_leaf=10,
+        random_state=42,
+    ), "ObliqueRF")
     if m is not None: models["ObliqueRF"] = m
     m = _try_load(lambda: eg.models.HonestForestClassifier(random_state=42), "HonestForest")
     if m is not None: models["HonestForest"] = m
@@ -406,6 +411,8 @@ def _get_regression_models(quick=False):
     if m is not None: models["MARS"] = m
     m = _try_load(lambda: eg.models.RuleFitRegressor(), "RuleFit")
     if m is not None: models["RuleFit"] = m
+    m = _try_load(lambda: eg.models.RuleFitPlusRegressor(), "RuleFit++")
+    if m is not None: models["RuleFit++"] = m
     m = _try_load(lambda: eg.models.NAMRegressor(n_epochs=50), "NAM")
     if m is not None: models["NAM"] = m
     m = _try_load(lambda: tabular.GRANDERegressor(), "GRANDE")
@@ -424,6 +431,8 @@ def _get_regression_models(quick=False):
     models["Lasso"] = make_pipeline(StandardScaler(), Lasso(max_iter=1000))
     models["SGD"] = make_pipeline(StandardScaler(), SGDRegressor(
         max_iter=1000, random_state=42, early_stopping=True, n_iter_no_change=10,
+        eta0=0.001, learning_rate='invscaling', power_t=0.25,
+        penalty='l2', alpha=1e-4,
     ))
     models["KNN"] = make_pipeline(StandardScaler(), KNeighborsRegressor(n_neighbors=5, n_jobs=-1))
     m = _try_load(lambda: eg.models.LinearRegressor(), "LinearRegressor")
@@ -443,7 +452,10 @@ def _get_regression_models(quick=False):
     if m is not None: models["RotationForest"] = m
     m = _try_load(lambda: eg.models.CubistRegressor(), "Cubist")
     if m is not None: models["Cubist"] = m
-    m = _try_load(lambda: eg.models.ObliqueRandomForestRegressor(random_state=42), "ObliqueRF")
+    m = _try_load(lambda: eg.models.ObliqueRandomForestRegressor(
+        n_estimators=50, max_depth=10, min_samples_split=30, min_samples_leaf=10,
+        random_state=42,
+    ), "ObliqueRF")
     if m is not None: models["ObliqueRF"] = m
     m = _try_load(lambda: eg.models.EvolutionaryTreeRegressor(random_state=42), "EvolutionaryTree")
     if m is not None: models["EvolutionaryTree"] = m
@@ -544,6 +556,7 @@ def evaluate_model_classification(model, X, y, n_splits=5):
     fold_probas = []
     fit_times = []
     predict_times = []
+    fold_errors = []
 
     for train_idx, test_idx in skf.split(X, y_enc):
         X_train, X_test = X[train_idx], X[test_idx]
@@ -567,7 +580,11 @@ def evaluate_model_classification(model, X, y, n_splits=5):
                 model_classes = getattr(model_clone, "classes_", None)
                 fold_probas.append((y_proba, model_classes, len(y_test)))
         except Exception as e:
-            return {"error": str(e)}
+            fold_errors.append(str(e))
+            continue
+
+    if not all_y_true:
+        return {"error": fold_errors[0] if fold_errors else "All folds failed"}
 
     all_y_true = np.array(all_y_true)
     all_y_pred = np.array(all_y_pred)

@@ -544,18 +544,31 @@ class RealMLPClassifier(ClassifierMixin, BaseEstimator):
 
             n_val = max(1, int(0.1 * len(X_processed)))
             if n_val < len(X_processed):
-                (
-                    X_train,
-                    X_val,
-                    y_train,
-                    y_val,
-                ) = train_test_split(
-                    X_processed,
-                    y_encoded,
-                    test_size=n_val,
-                    random_state=self.random_state,
-                    stratify=y_encoded,
-                )
+                try:
+                    (
+                        X_train,
+                        X_val,
+                        y_train,
+                        y_val,
+                    ) = train_test_split(
+                        X_processed,
+                        y_encoded,
+                        test_size=n_val,
+                        random_state=self.random_state,
+                        stratify=y_encoded,
+                    )
+                except ValueError:
+                    (
+                        X_train,
+                        X_val,
+                        y_train,
+                        y_val,
+                    ) = train_test_split(
+                        X_processed,
+                        y_encoded,
+                        test_size=n_val,
+                        random_state=self.random_state,
+                    )
             else:
                 X_train, y_train = X_processed, y_encoded
                 X_val, y_val = X_processed, y_encoded

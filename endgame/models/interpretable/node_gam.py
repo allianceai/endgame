@@ -155,11 +155,38 @@ class _BatchedObliviousTreeEnsemble(nn.Module):
         return tree_outputs.sum(dim=-1)  # (batch,)
 
 
+_FEATURE_CHUNK = 200
+
+_MAX_LEAF_COMPLEXITY = 20_000
+
+
+def _adapt_complexity(n_features, n_trees, depth):
+    """Scale down tree count / depth for high-dimensional inputs.
+
+    Keeps ``n_features * n_trees * 2**depth`` below ``_MAX_LEAF_COMPLEXITY``
+    to bound per-forward-pass memory.  Depth is reduced first (cheapest
+    quality loss), then tree count.
+    """
+    eff_trees = n_trees
+    eff_depth = depth
+    while n_features * eff_trees * (2 ** eff_depth) > _MAX_LEAF_COMPLEXITY:
+        if eff_depth > 2:
+            eff_depth -= 1
+        elif eff_trees > 4:
+            eff_trees = max(4, eff_trees // 2)
+        else:
+            break
+    return eff_trees, eff_depth
+
+
 class _NodeGAMModule(nn.Module):
     """NODE-GAM PyTorch module (vectorized).
 
     Uses batched tree ensembles per feature with all features
-    processed via a single stacked operation.
+    processed via a single stacked operation.  For high-feature-count
+    inputs (>_FEATURE_CHUNK) the forward pass processes features in
+    chunks to keep intermediate tensors cache-friendly and avoids
+    allocating a massive 5-D tensor.
     """
 
     def __init__(
@@ -188,6 +215,12 @@ class _NodeGAMModule(nn.Module):
             torch.zeros(n_features, n_trees_per_feature, self.n_leaves)
         )
 
+        leaf_indices = torch.arange(self.n_leaves)
+        goes_right = torch.stack([
+            ((leaf_indices >> d) & 1).float() for d in range(depth)
+        ])  # (depth, n_leaves)
+        self.register_buffer("_goes_right", goes_right)
+
         output_dim = 1 if is_regression or n_classes <= 2 else n_classes
         self.bias = nn.Parameter(torch.zeros(output_dim))
 
@@ -196,53 +229,62 @@ class _NodeGAMModule(nn.Module):
         else:
             self.output_layer = None
 
+    def _leaf_probs_chunk(
+        self,
+        x_chunk: torch.Tensor,
+        thresh_chunk: torch.Tensor,
+    ) -> torch.Tensor:
+        """Compute leaf probabilities for a contiguous chunk of features.
+
+        Iterates over depth levels instead of materialising a 5-D tensor,
+        reducing peak memory from O(B*F*T*L*D) to O(B*F*T*L).
+        """
+        x_exp = x_chunk.unsqueeze(2).unsqueeze(3)  # (B, Fc, 1, 1) — view
+        split_decisions = torch.sigmoid(
+            (x_exp - thresh_chunk.unsqueeze(0)) / self.temperature
+        )  # (B, Fc, T, D)
+
+        leaf_probs = torch.ones(
+            x_chunk.shape[0], x_chunk.shape[1], self.n_trees, self.n_leaves,
+            device=x_chunk.device,
+        )
+        for d in range(self.depth):
+            p_d = split_decisions[:, :, :, d].unsqueeze(-1)  # (B,Fc,T,1)
+            gr_d = self._goes_right[d]  # (n_leaves,)
+            leaf_probs = leaf_probs * (gr_d * p_d + (1.0 - gr_d) * (1.0 - p_d))
+        return leaf_probs  # (B, Fc, T, n_leaves)
+
     def forward(
         self,
         x: torch.Tensor,
         return_contributions: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
-        """Fully vectorized forward pass.
+        """Forward pass.
 
-        Parameters
-        ----------
-        x : Tensor of shape (batch, n_features)
-        return_contributions : bool
-            If True, also return per-feature contributions.
-
-        Returns
-        -------
-        output : Tensor
-        contributions : Tensor, optional
+        For feature counts above ``_FEATURE_CHUNK`` the computation is
+        split into chunks so that intermediate tensors stay cache-friendly.
         """
-        batch_size = x.shape[0]
+        F = self.n_features
+        chunk = _FEATURE_CHUNK
 
-        # x: (batch, n_features) -> (batch, n_features, 1, 1)
-        x_exp = x.unsqueeze(2).unsqueeze(3).expand(
-            -1, -1, self.n_trees, self.depth
-        )  # (batch, n_features, n_trees, depth)
-
-        # thresholds: (n_features, n_trees, depth) -> (1, n_features, n_trees, depth)
-        split_decisions = torch.sigmoid(
-            (x_exp - self.thresholds.unsqueeze(0)) / self.temperature
-        )  # (batch, n_features, n_trees, depth)
-
-        # Leaf path masks: (n_leaves, depth) - pre-compute once
-        leaf_indices = torch.arange(self.n_leaves, device=x.device)
-        goes_right = torch.stack([
-            ((leaf_indices >> d) & 1).float() for d in range(self.depth)
-        ], dim=1)  # (n_leaves, depth)
-
-        # Broadcast: (batch, n_features, n_trees, 1, depth)
-        p_right = split_decisions.unsqueeze(3)
-        # goes_right: (1, 1, 1, n_leaves, depth)
-        gr = goes_right.reshape(1, 1, 1, self.n_leaves, self.depth)
-        p_path = gr * p_right + (1 - gr) * (1 - p_right)
-        leaf_probs = p_path.prod(dim=-1)  # (batch, n_features, n_trees, n_leaves)
-
-        # responses: (n_features, n_trees, n_leaves) -> (1, n_features, n_trees, n_leaves)
-        tree_out = (leaf_probs * self.responses.unsqueeze(0)).sum(dim=-1)
-        # tree_out: (batch, n_features, n_trees)
-        contributions = tree_out.sum(dim=-1)  # (batch, n_features)
+        if F <= chunk or return_contributions or self.output_layer is not None:
+            leaf_probs = self._leaf_probs_chunk(x, self.thresholds)
+            contributions = torch.einsum(
+                "bftl,ftl->bf", leaf_probs, self.responses,
+            )
+        else:
+            contrib_sums: list[torch.Tensor] = []
+            for start in range(0, F, chunk):
+                end = min(start + chunk, F)
+                lp = self._leaf_probs_chunk(
+                    x[:, start:end], self.thresholds[start:end],
+                )
+                cs = torch.einsum(
+                    "bftl,ftl->b", lp, self.responses[start:end],
+                )
+                contrib_sums.append(cs)
+            output = torch.stack(contrib_sums).sum(dim=0).unsqueeze(1) + self.bias
+            return output
 
         if self.output_layer is not None:
             output = self.output_layer(contributions) + self.bias
@@ -418,12 +460,15 @@ class NodeGAMClassifier(ClassifierMixin, BaseEstimator):
         X_scaled = self._scaler.fit_transform(X)
         X_scaled = np.nan_to_num(X_scaled, nan=0.0)
 
-        # Create model
+        eff_trees, eff_depth = _adapt_complexity(
+            self.n_features_in_, self.n_trees_per_feature, self.depth,
+        )
+
         self.model_ = _NodeGAMModule(
             n_features=self.n_features_in_,
             n_classes=self.n_classes_,
-            n_trees_per_feature=self.n_trees_per_feature,
-            depth=self.depth,
+            n_trees_per_feature=eff_trees,
+            depth=eff_depth,
             temperature=self.temperature,
             is_regression=False,
         ).to(self._device)
@@ -437,12 +482,19 @@ class NodeGAMClassifier(ClassifierMixin, BaseEstimator):
             from sklearn.model_selection import train_test_split
             n_val = int(len(X_scaled) * self.validation_fraction)
             if n_val >= 1:
-                X_train, X_val, y_train, y_val = train_test_split(
-                    X_scaled, y_encoded,
-                    test_size=self.validation_fraction,
-                    stratify=y_encoded,
-                    random_state=self.random_state,
-                )
+                try:
+                    X_train, X_val, y_train, y_val = train_test_split(
+                        X_scaled, y_encoded,
+                        test_size=self.validation_fraction,
+                        stratify=y_encoded,
+                        random_state=self.random_state,
+                    )
+                except ValueError:
+                    X_train, X_val, y_train, y_val = train_test_split(
+                        X_scaled, y_encoded,
+                        test_size=self.validation_fraction,
+                        random_state=self.random_state,
+                    )
                 x_tensor = torch.tensor(X_train, dtype=torch.float32)
                 y_tensor = torch.tensor(y_train, dtype=torch.long)
                 eval_set = (X_val, y_val)
@@ -730,12 +782,15 @@ class NodeGAMRegressor(RegressorMixin, BaseEstimator):
         self._target_scaler = StandardScaler()
         y_scaled = self._target_scaler.fit_transform(y).ravel()
 
-        # Model
+        eff_trees, eff_depth = _adapt_complexity(
+            self.n_features_in_, self.n_trees_per_feature, self.depth,
+        )
+
         self.model_ = _NodeGAMModule(
             n_features=self.n_features_in_,
             n_classes=1,
-            n_trees_per_feature=self.n_trees_per_feature,
-            depth=self.depth,
+            n_trees_per_feature=eff_trees,
+            depth=eff_depth,
             temperature=self.temperature,
             is_regression=True,
         ).to(self._device)

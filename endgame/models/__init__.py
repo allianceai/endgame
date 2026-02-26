@@ -37,6 +37,8 @@ from endgame.models.rules import (
     FuzzyCondition,
     FuzzyRule,
     RuleFitClassifier,
+    RuleFitPlusClassifier,
+    RuleFitPlusRegressor,
     RuleFitRegressor,
 )
 from endgame.models.trees import _HAS_TREEPLE as _HAS_TREEPLE_TREES
@@ -96,9 +98,11 @@ __all__ = [
     # Linear models (MARS)
     "MARSRegressor",
     "MARSClassifier",
-    # Rule-based models (RuleFit, FURIA)
+    # Rule-based models (RuleFit, RuleFit++, FURIA)
     "RuleFitRegressor",
     "RuleFitClassifier",
+    "RuleFitPlusRegressor",
+    "RuleFitPlusClassifier",
     "FURIAClassifier",
     "FuzzyRule",
     "FuzzyCondition",

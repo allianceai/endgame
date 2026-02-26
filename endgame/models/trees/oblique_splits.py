@@ -17,7 +17,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
-from sklearn.linear_model import Ridge
 from sklearn.preprocessing import StandardScaler
 
 
@@ -107,10 +106,10 @@ def get_ridge_directions(
     ridge_alpha: float = 1.0,
     n_directions: int = 1,
 ) -> np.ndarray:
-    """Get split directions using Ridge regression.
+    """Get split directions using Ridge regression (closed-form).
 
-    For classification: treats class labels as numeric and fits Ridge regression.
-    The coefficient vector points in the direction of maximum class separation.
+    Uses the normal equation ``(X^T W X + alpha I)^{-1} X^T W y`` directly,
+    avoiding sklearn object overhead that dominates at small node sizes.
 
     Parameters
     ----------
@@ -130,26 +129,35 @@ def get_ridge_directions(
     directions : ndarray of shape (n_directions, n_features)
         Normalized direction vectors.
     """
-    # Convert labels to numeric if needed
-    if not np.issubdtype(y.dtype, np.floating):
-        y_numeric = y.astype(np.float64)
+    y_numeric = y if np.issubdtype(y.dtype, np.floating) else y.astype(np.float64)
+
+    X_c = X - X.mean(axis=0)
+    y_c = y_numeric - y_numeric.mean()
+
+    if sample_weight is not None:
+        sw = sample_weight / sample_weight.sum() * len(sample_weight)
+        sqrt_w = np.sqrt(sw)
+        Xw = X_c * sqrt_w[:, None]
+        yw = y_c * sqrt_w
     else:
-        y_numeric = y
+        Xw = X_c
+        yw = y_c
 
-    # Fit Ridge regression
-    ridge = Ridge(alpha=ridge_alpha, fit_intercept=True)
-    ridge.fit(X, y_numeric, sample_weight=sample_weight)
+    n_features = X.shape[1]
+    A = Xw.T @ Xw
+    A[np.diag_indices(n_features)] += ridge_alpha
+    b = Xw.T @ yw
 
-    # Get coefficient vector
-    direction = ridge.coef_.flatten()
+    try:
+        direction = np.linalg.solve(A, b)
+    except np.linalg.LinAlgError:
+        direction = np.linalg.lstsq(A, b, rcond=None)[0]
 
-    # Normalize
     norm = np.linalg.norm(direction)
     if norm > 1e-10:
         direction = direction / norm
     else:
-        # Fallback to first axis if coefficients are zero
-        direction = np.zeros(X.shape[1])
+        direction = np.zeros(n_features)
         direction[0] = 1.0
 
     return direction.reshape(1, -1)
@@ -707,6 +715,146 @@ def compute_mae(y: np.ndarray, sample_weight: np.ndarray | None = None) -> float
 # ---------------------------------------------------------------------------
 
 
+def _find_best_threshold_mse(
+    projection_sorted: np.ndarray,
+    y_sorted: np.ndarray,
+    weight_sorted: np.ndarray,
+    n_samples: int,
+    min_samples_leaf: int,
+    parent_impurity: float,
+    split_positions: np.ndarray,
+) -> tuple[float | None, float, tuple | None]:
+    """Vectorized MSE threshold search using cumulative sums — O(n)."""
+    cumsum_w = np.cumsum(weight_sorted)
+    cumsum_wy = np.cumsum(weight_sorted * y_sorted)
+    cumsum_wy2 = np.cumsum(weight_sorted * y_sorted ** 2)
+
+    total_w = cumsum_w[-1]
+    total_wy = cumsum_wy[-1]
+    total_wy2 = cumsum_wy2[-1]
+
+    idx = split_positions - 1
+
+    left_w = cumsum_w[idx]
+    left_wy = cumsum_wy[idx]
+    left_wy2 = cumsum_wy2[idx]
+
+    right_w = total_w - left_w
+    right_wy = total_wy - left_wy
+    right_wy2 = total_wy2 - left_wy2
+
+    valid = (split_positions >= min_samples_leaf) & (
+        (n_samples - split_positions) >= min_samples_leaf
+    )
+    valid &= (left_w > 0) & (right_w > 0)
+
+    if not np.any(valid):
+        return None, 0.0, None
+
+    left_mean = np.where(valid, left_wy / np.maximum(left_w, 1e-30), 0.0)
+    left_mse = np.where(
+        valid,
+        left_wy2 / np.maximum(left_w, 1e-30) - left_mean ** 2,
+        0.0,
+    )
+    left_mse = np.maximum(left_mse, 0.0)
+
+    right_mean = np.where(valid, right_wy / np.maximum(right_w, 1e-30), 0.0)
+    right_mse = np.where(
+        valid,
+        right_wy2 / np.maximum(right_w, 1e-30) - right_mean ** 2,
+        0.0,
+    )
+    right_mse = np.maximum(right_mse, 0.0)
+
+    weighted_impurity = np.where(
+        valid,
+        (left_w * left_mse + right_w * right_mse) / total_w,
+        np.inf,
+    )
+    impurity_decrease = parent_impurity - weighted_impurity
+
+    best_idx = np.argmax(impurity_decrease)
+    if impurity_decrease[best_idx] <= 0:
+        return None, 0.0, None
+
+    pos = split_positions[best_idx]
+    threshold = (projection_sorted[pos - 1] + projection_sorted[pos]) / 2
+    return (
+        threshold,
+        impurity_decrease[best_idx],
+        (float(left_mse[best_idx]), float(right_mse[best_idx]), int(pos), int(n_samples - pos)),
+    )
+
+
+def _find_best_threshold_gini(
+    projection_sorted: np.ndarray,
+    y_sorted: np.ndarray,
+    weight_sorted: np.ndarray,
+    n_samples: int,
+    min_samples_leaf: int,
+    parent_impurity: float,
+    split_positions: np.ndarray,
+    n_classes: int,
+) -> tuple[float | None, float, tuple | None]:
+    """Vectorized Gini threshold search using cumulative class counts — O(n * C)."""
+    class_matrix = np.zeros((n_samples, n_classes))
+    class_matrix[np.arange(n_samples), y_sorted.astype(int)] = weight_sorted
+
+    cumsum_class = np.cumsum(class_matrix, axis=0)
+    cumsum_w = np.cumsum(weight_sorted)
+
+    total_w = cumsum_w[-1]
+    total_class = cumsum_class[-1]
+
+    idx = split_positions - 1
+
+    left_w = cumsum_w[idx]
+    left_class = cumsum_class[idx]
+
+    right_w = total_w - left_w
+    right_class = total_class - left_class
+
+    valid = (split_positions >= min_samples_leaf) & (
+        (n_samples - split_positions) >= min_samples_leaf
+    )
+    valid &= (left_w > 0) & (right_w > 0)
+
+    if not np.any(valid):
+        return None, 0.0, None
+
+    left_w_safe = np.maximum(left_w, 1e-30)[:, None]
+    right_w_safe = np.maximum(right_w, 1e-30)[:, None]
+
+    left_probs = left_class / left_w_safe
+    right_probs = right_class / right_w_safe
+
+    left_gini = 1.0 - np.sum(left_probs ** 2, axis=1)
+    right_gini = 1.0 - np.sum(right_probs ** 2, axis=1)
+
+    weighted_impurity = np.where(
+        valid,
+        (left_w * left_gini + right_w * right_gini) / total_w,
+        np.inf,
+    )
+    impurity_decrease = parent_impurity - weighted_impurity
+
+    best_idx = np.argmax(impurity_decrease)
+    if impurity_decrease[best_idx] <= 0:
+        return None, 0.0, None
+
+    pos = split_positions[best_idx]
+    threshold = (projection_sorted[pos - 1] + projection_sorted[pos]) / 2
+    return (
+        threshold,
+        impurity_decrease[best_idx],
+        (float(left_gini[best_idx]), float(right_gini[best_idx]), int(pos), int(n_samples - pos)),
+    )
+
+
+_MAX_THRESHOLD_CANDIDATES = 256
+
+
 def find_best_threshold(
     projection: np.ndarray,
     y: np.ndarray,
@@ -718,7 +866,8 @@ def find_best_threshold(
 ) -> ObliqueSplit | None:
     """Find the best threshold for a given projection.
 
-    Uses the standard CART approach applied to the projected (1D) data.
+    Uses vectorized cumulative-sum approach for O(n) threshold evaluation
+    instead of O(n²) brute-force.
 
     Parameters
     ----------
@@ -750,79 +899,105 @@ def find_best_threshold(
     if sample_weight is None:
         sample_weight = np.ones(n_samples)
 
-    # Sort by projection value
     sorted_indices = np.argsort(projection)
     projection_sorted = projection[sorted_indices]
     y_sorted = y[sorted_indices]
     weight_sorted = sample_weight[sorted_indices]
 
-    # Parent impurity
     parent_impurity = impurity_func(y, sample_weight)
 
     if parent_impurity <= 0:
         return None
 
-    best_threshold = None
-    best_impurity_decrease = 0.0
-    best_split_info = None
-
-    # Find unique values and candidate thresholds
     unique_values, unique_indices = np.unique(projection_sorted, return_index=True)
 
     if len(unique_values) < 2:
         return None
 
-    # Midpoint thresholds
-    thresholds = (unique_values[:-1] + unique_values[1:]) / 2
+    split_positions = unique_indices[1:]
 
-    # For efficiency, we can use cumulative sums to compute impurities
-    # But for correctness, let's do it directly for now
-    for i, threshold in enumerate(thresholds):
-        # Samples going left: projection <= threshold
-        n_left = unique_indices[i + 1]
-        n_right = n_samples - n_left
+    if len(split_positions) > _MAX_THRESHOLD_CANDIDATES:
+        step = len(split_positions) / _MAX_THRESHOLD_CANDIDATES
+        keep = np.unique(np.round(np.arange(0, len(split_positions), step)).astype(int))
+        keep = keep[keep < len(split_positions)]
+        if len(keep) == 0:
+            keep = np.array([0, len(split_positions) - 1])
+        split_positions = split_positions[keep]
 
-        if n_left < min_samples_leaf or n_right < min_samples_leaf:
-            continue
+    is_mse = impurity_func is compute_mse
+    is_gini = impurity_func is compute_gini
 
-        y_left = y_sorted[:n_left]
-        y_right = y_sorted[n_left:]
-        weight_left = weight_sorted[:n_left]
-        weight_right = weight_sorted[n_left:]
-
-        impurity_left = impurity_func(y_left, weight_left)
-        impurity_right = impurity_func(y_right, weight_right)
-
-        # Weighted impurity
-        total_weight = np.sum(weight_sorted)
-        weight_left_sum = np.sum(weight_left)
-        weight_right_sum = np.sum(weight_right)
-
-        weighted_impurity = (
-            (weight_left_sum / total_weight) * impurity_left +
-            (weight_right_sum / total_weight) * impurity_right
+    if is_mse:
+        threshold, dec, info = _find_best_threshold_mse(
+            projection_sorted, y_sorted, weight_sorted, n_samples,
+            min_samples_leaf, parent_impurity, split_positions,
+        )
+    elif is_gini:
+        n_classes = int(y.max()) + 1
+        threshold, dec, info = _find_best_threshold_gini(
+            projection_sorted, y_sorted, weight_sorted, n_samples,
+            min_samples_leaf, parent_impurity, split_positions,
+            n_classes,
+        )
+    else:
+        threshold, dec, info = _find_best_threshold_loop(
+            projection_sorted, y_sorted, weight_sorted, n_samples,
+            min_samples_leaf, parent_impurity, split_positions,
+            impurity_func,
         )
 
-        impurity_decrease = parent_impurity - weighted_impurity
-
-        if impurity_decrease > best_impurity_decrease:
-            best_impurity_decrease = impurity_decrease
-            best_threshold = threshold
-            best_split_info = (impurity_left, impurity_right, n_left, n_right)
-
-    if best_threshold is None:
+    if threshold is None:
         return None
 
     return ObliqueSplit(
         feature_indices=feature_indices.copy(),
         coefficients=direction.copy(),
-        threshold=best_threshold,
+        threshold=threshold,
         impurity=parent_impurity,
-        impurity_left=best_split_info[0],
-        impurity_right=best_split_info[1],
-        n_samples_left=best_split_info[2],
-        n_samples_right=best_split_info[3],
+        impurity_left=info[0],
+        impurity_right=info[1],
+        n_samples_left=info[2],
+        n_samples_right=info[3],
     )
+
+
+def _find_best_threshold_loop(
+    projection_sorted: np.ndarray,
+    y_sorted: np.ndarray,
+    weight_sorted: np.ndarray,
+    n_samples: int,
+    min_samples_leaf: int,
+    parent_impurity: float,
+    split_positions: np.ndarray,
+    impurity_func: Callable,
+) -> tuple[float | None, float, tuple | None]:
+    """Fallback loop-based threshold search for non-standard impurity functions."""
+    best_threshold = None
+    best_impurity_decrease = 0.0
+    best_split_info = None
+    total_weight = np.sum(weight_sorted)
+
+    for pos in split_positions:
+        n_left = int(pos)
+        n_right = n_samples - n_left
+
+        if n_left < min_samples_leaf or n_right < min_samples_leaf:
+            continue
+
+        imp_left = impurity_func(y_sorted[:n_left], weight_sorted[:n_left])
+        imp_right = impurity_func(y_sorted[n_left:], weight_sorted[n_left:])
+
+        wl = np.sum(weight_sorted[:n_left])
+        wr = total_weight - wl
+        weighted = (wl * imp_left + wr * imp_right) / total_weight
+        dec = parent_impurity - weighted
+
+        if dec > best_impurity_decrease:
+            best_impurity_decrease = dec
+            best_threshold = (projection_sorted[pos - 1] + projection_sorted[pos]) / 2
+            best_split_info = (imp_left, imp_right, n_left, n_right)
+
+    return best_threshold, best_impurity_decrease, best_split_info
 
 
 def find_best_oblique_split(

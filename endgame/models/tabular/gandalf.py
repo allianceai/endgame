@@ -356,20 +356,29 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
         self._log(f"Categorical features: {len(self._cat_features)}")
         self._log(f"Continuous features: {len(self._cont_features)}")
 
-        # Prepare validation data with stratified split to avoid unseen labels
+        # Prepare validation data with stratified split to avoid unseen labels.
+        # Falls back to random split when classes have too few samples for
+        # stratification (e.g. a class with only 1 sample).
         val_df = None
         if eval_set is not None:
             X_val, y_val = eval_set
             y_val_encoded = self._label_encoder.transform(np.asarray(y_val))
             val_df = self._prepare_data(X_val, y_val_encoded, fit=False)
         elif self.validation_fraction and self.validation_fraction > 0:
-            from sklearn.model_selection import StratifiedShuffleSplit
-            sss = StratifiedShuffleSplit(
-                n_splits=1,
-                test_size=self.validation_fraction,
-                random_state=self.random_state or 42,
-            )
-            train_idx, val_idx = next(sss.split(train_df, y_encoded))
+            from sklearn.model_selection import ShuffleSplit, StratifiedShuffleSplit
+            rng_seed = self.random_state or 42
+            try:
+                sss = StratifiedShuffleSplit(
+                    n_splits=1, test_size=self.validation_fraction,
+                    random_state=rng_seed,
+                )
+                train_idx, val_idx = next(sss.split(train_df, y_encoded))
+            except ValueError:
+                ss = ShuffleSplit(
+                    n_splits=1, test_size=self.validation_fraction,
+                    random_state=rng_seed,
+                )
+                train_idx, val_idx = next(ss.split(train_df))
             val_df = train_df.iloc[val_idx].reset_index(drop=True)
             train_df = train_df.iloc[train_idx].reset_index(drop=True)
 

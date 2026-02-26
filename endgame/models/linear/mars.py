@@ -41,7 +41,7 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
     ----------
     max_terms : int, default=None
         Maximum number of basis functions (including intercept).
-        If None, defaults to min(200, max(20, 2 * n_features)) + 1.
+        If None, defaults to min(100, max(20, 2 * n_features)) + 1.
 
     max_degree : int, default=1
         Maximum degree of interactions.
@@ -208,7 +208,7 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
         # Calculate default parameters
         self._max_terms = self.max_terms
         if self._max_terms is None:
-            self._max_terms = min(200, max(20, 2 * n_features)) + 1
+            self._max_terms = min(100, max(20, 2 * n_features)) + 1
 
         self._min_span = self.min_span
         if self._min_span is None:
@@ -455,6 +455,8 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
 
         return named_importances
 
+    _MAX_FORWARD_SAMPLES = 2000
+
     def _forward_pass(
         self,
         X: NDArray[np.floating],
@@ -478,6 +480,15 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
             List of basis functions added during forward pass.
         """
         n_samples, n_features = X.shape
+
+        if n_samples > int(self._MAX_FORWARD_SAMPLES * 1.5):
+            rng = np.random.RandomState(42)
+            _idx = rng.choice(n_samples, self._MAX_FORWARD_SAMPLES, replace=False)
+            X = X[_idx]
+            y = y[_idx]
+            sample_weight = sample_weight[_idx]
+            sample_weight = sample_weight * (self._MAX_FORWARD_SAMPLES / np.sum(sample_weight))
+            n_samples = self._MAX_FORWARD_SAMPLES
 
         # Start with intercept only
         basis_functions: list[BasisFunction | LinearBasisFunction] = [
@@ -708,45 +719,57 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
     ) -> list[BasisFunction | LinearBasisFunction]:
         """Backward pass to prune basis functions using GCV.
 
-        Optimized: precomputes the full basis matrix once and removes
-        columns by index rather than re-evaluating all basis functions.
+        Uses Gram matrix (normal equations) to avoid O(n) lstsq per
+        candidate removal.  Pre-computes G = B_w^T B_w and h = B_w^T y_w
+        once, then each candidate evaluation is O(k^3) instead of
+        O(n * k^2).
         """
         n = len(y)
         sqrt_w = np.sqrt(sample_weight)
         y_weighted = y * sqrt_w
 
         current = list(basis_functions)
-        active_cols = list(range(len(current)))
+        active = list(range(len(current)))
 
-        # Precompute full basis matrix once (n_samples × n_basis)
         B_full = np.column_stack([bf.evaluate(X) for bf in current])
         B_full_w = B_full * sqrt_w[:, np.newaxis]
 
-        best_gcv = self._compute_gcv_from_matrix(
-            B_full_w[:, active_cols], y_weighted, y, sample_weight,
-            current, n,
-        )
-        best_model_indices = list(active_cols)
-        best_model = list(current)
+        G = B_full_w.T @ B_full_w
+        h = B_full_w.T @ y_weighted
+        yWy = float(y_weighted @ y_weighted)
 
-        while len(active_cols) > 1:
+        def _gcv_subset(idx_list):
+            idx = np.array(idx_list)
+            G_sub = G[np.ix_(idx, idx)].copy()
+            h_sub = h[idx]
+            reg = 1e-12 * max(np.mean(np.diag(G_sub)), 1e-30)
+            G_sub[np.diag_indices_from(G_sub)] += reg
+            try:
+                coef = np.linalg.solve(G_sub, h_sub)
+            except np.linalg.LinAlgError:
+                return np.inf
+            rss = max(0.0, yWy - float(h_sub @ coef))
+            n_coef = len(idx_list)
+            n_knots = sum(current[i].degree for i in idx_list)
+            eff = n_coef + self.penalty * n_knots
+            denom = n * (1.0 - eff / n) ** 2
+            return rss / denom if denom > 0 else np.inf
+
+        best_gcv = _gcv_subset(active)
+        best_model_indices = list(active)
+
+        while len(active) > 1:
             best_removal_gcv = np.inf
             col_to_remove = None
 
-            for idx in active_cols:
-                if current[idx].is_intercept:
+            for i, a in enumerate(active):
+                if current[a].is_intercept:
                     continue
-
-                subset_cols = [c for c in active_cols if c != idx]
-                Bw_sub = B_full_w[:, subset_cols]
-                subset_bfs = [current[c] for c in subset_cols]
-                gcv = self._compute_gcv_from_matrix(
-                    Bw_sub, y_weighted, y, sample_weight, subset_bfs, n,
-                )
-
+                subset = active[:i] + active[i + 1:]
+                gcv = _gcv_subset(subset)
                 if gcv < best_removal_gcv:
                     best_removal_gcv = gcv
-                    col_to_remove = idx
+                    col_to_remove = a
 
             if col_to_remove is None:
                 break
@@ -754,42 +777,16 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
             self.pruning_record_.append({
                 "removed": str(current[col_to_remove]),
                 "gcv_after": best_removal_gcv,
-                "n_terms_after": len(active_cols) - 1,
+                "n_terms_after": len(active) - 1,
             })
 
-            active_cols.remove(col_to_remove)
+            active.remove(col_to_remove)
 
             if best_removal_gcv < best_gcv:
                 best_gcv = best_removal_gcv
-                best_model_indices = list(active_cols)
-                best_model = [current[c] for c in active_cols]
+                best_model_indices = list(active)
 
-        return best_model
-
-    def _compute_gcv_from_matrix(
-        self,
-        B_weighted: NDArray[np.floating],
-        y_weighted: NDArray[np.floating],
-        y: NDArray[np.floating],
-        sample_weight: NDArray[np.floating],
-        basis_functions: list,
-        n: int,
-    ) -> float:
-        """GCV from a pre-sliced weighted basis matrix (avoids re-evaluate)."""
-        try:
-            coef, _, _, _ = np.linalg.lstsq(B_weighted, y_weighted, rcond=None)
-        except np.linalg.LinAlgError:
-            return np.inf
-
-        y_pred = (B_weighted / np.sqrt(sample_weight)[:, np.newaxis]) @ coef
-        rss = np.dot(sample_weight, (y - y_pred) ** 2)
-
-        n_coefficients = B_weighted.shape[1]
-        n_knots = sum(bf.degree for bf in basis_functions)
-        effective_params = n_coefficients + self.penalty * n_knots
-        denom = n * (1 - effective_params / n) ** 2
-
-        return rss / denom if denom > 0 else np.inf
+        return [current[i] for i in best_model_indices]
 
     def _compute_gcv(
         self,
@@ -930,10 +927,8 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
         # Exclude endpoints based on endspan
         candidates = sorted_unique[self._endspan:-self._endspan]
 
-        # Subsample if too many candidates (for efficiency)
-        if len(candidates) > 50:
-            # Use every min_span-th value
-            indices = np.arange(0, len(candidates), self._min_span)
+        if len(candidates) > 25:
+            indices = np.linspace(0, len(candidates) - 1, 25, dtype=int)
             candidates = candidates[indices]
 
         return candidates
@@ -1084,7 +1079,7 @@ class MARSClassifier(ClassifierMixin, BaseEstimator):
     ----------
     max_terms : int, default=None
         Maximum number of basis functions (including intercept).
-        If None, defaults to min(200, max(20, 2 * n_features)) + 1.
+        If None, defaults to min(100, max(20, 2 * n_features)) + 1.
 
     max_degree : int, default=1
         Maximum degree of interactions.

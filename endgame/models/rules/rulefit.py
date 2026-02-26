@@ -293,11 +293,10 @@ class RuleFitRegressor(BaseEstimator, RegressorMixin):
         self.tree_generator_ = self._get_tree_generator()
         self.tree_generator_.fit(X, y, sample_weight=sample_weight)
 
-        # Step 2: Extract rules
+        # Step 2: Extract rules (tree-based support avoids re-evaluating on X)
         rule_ensemble = extract_rules_from_ensemble(
             self.tree_generator_,
             list(self.feature_names_in_),
-            X_train=X,
         )
 
         # Step 3: Filter and deduplicate rules
@@ -316,7 +315,6 @@ class RuleFitRegressor(BaseEstimator, RegressorMixin):
         X_rules = rule_ensemble.transform(X)
 
         if self.include_linear:
-            # Preprocess linear features
             X_linear, self._linear_params = _preprocess_linear_features(
                 X,
                 winsorize=self.winsorize_linear,
@@ -879,11 +877,10 @@ class RuleFitClassifier(ClassifierMixin, BaseEstimator):
         self.tree_generator_ = self._get_tree_generator()
         self.tree_generator_.fit(X, y_encoded, sample_weight=sample_weight)
 
-        # Step 2: Extract rules
+        # Step 2: Extract rules (tree-based support avoids re-evaluating on X)
         rule_ensemble = extract_rules_from_ensemble(
             self.tree_generator_,
             list(self.feature_names_in_),
-            X_train=X,
         )
 
         # Step 3: Filter and deduplicate
@@ -948,12 +945,12 @@ class RuleFitClassifier(ClassifierMixin, BaseEstimator):
         if self.alpha is None:
             model = LogisticRegressionCV(
                 penalty="l1",
-                solver="liblinear",
+                solver="saga",
                 cv=self.cv,
-                Cs=5,
+                Cs=10,
                 class_weight=self.class_weight,
                 random_state=self.random_state,
-                max_iter=500,
+                max_iter=1000,
                 n_jobs=self.n_jobs,
             )
             model.fit(X_combined, y)
@@ -963,11 +960,11 @@ class RuleFitClassifier(ClassifierMixin, BaseEstimator):
         else:
             model = LogisticRegression(
                 penalty="l1",
-                solver="liblinear",
+                solver="saga",
                 C=1.0 / self.alpha,
                 class_weight=self.class_weight,
                 random_state=self.random_state,
-                max_iter=500,
+                max_iter=1000,
             )
             model.fit(X_combined, y)
 
@@ -979,18 +976,18 @@ class RuleFitClassifier(ClassifierMixin, BaseEstimator):
         self._logistic_model = model
 
     def _fit_multiclass(self, X_combined, y, sample_weight):
-        """Fit multiclass classification (one-vs-rest)."""
+        """Fit multiclass classification with multinomial loss."""
         from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
 
         if self.alpha is None:
             model = LogisticRegressionCV(
                 penalty="l1",
-                solver="liblinear",
+                solver="saga",
                 cv=self.cv,
-                Cs=5,
+                Cs=10,
                 class_weight=self.class_weight,
                 random_state=self.random_state,
-                max_iter=500,
+                max_iter=1000,
                 n_jobs=self.n_jobs,
             )
             model.fit(X_combined, y)
@@ -1000,11 +997,11 @@ class RuleFitClassifier(ClassifierMixin, BaseEstimator):
         else:
             model = LogisticRegression(
                 penalty="l1",
-                solver="liblinear",
+                solver="saga",
                 C=1.0 / self.alpha,
                 class_weight=self.class_weight,
                 random_state=self.random_state,
-                max_iter=500,
+                max_iter=1000,
             )
             model.fit(X_combined, y)
 

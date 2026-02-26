@@ -550,10 +550,16 @@ class TabRClassifier(ClassifierMixin, BaseEstimator):
         X_scaled = np.nan_to_num(X_scaled, nan=0.0).astype(np.float32)
 
         # Train/validation split for early stopping
-        X_train, X_val, y_train, y_val = train_test_split(
-            X_scaled, y_encoded, test_size=0.2,
-            random_state=self.random_state, stratify=y_encoded,
-        )
+        try:
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_scaled, y_encoded, test_size=0.2,
+                random_state=self.random_state, stratify=y_encoded,
+            )
+        except ValueError:
+            X_train, X_val, y_train, y_val = train_test_split(
+                X_scaled, y_encoded, test_size=0.2,
+                random_state=self.random_state,
+            )
 
         # Store full training data for retrieval context
         self._train_X_scaled = X_scaled

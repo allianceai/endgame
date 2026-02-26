@@ -265,12 +265,18 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
             for col in self._cat_cols:
                 df_val[col] = df_val[col].astype(str)
         else:
-            from sklearn.model_selection import StratifiedShuffleSplit
-            sss = StratifiedShuffleSplit(
-                n_splits=1, test_size=0.2,
-                random_state=self.random_state or 42,
-            )
-            train_idx, val_idx = next(sss.split(df, y_encoded))
+            from sklearn.model_selection import ShuffleSplit, StratifiedShuffleSplit
+            rng_seed = self.random_state or 42
+            try:
+                sss = StratifiedShuffleSplit(
+                    n_splits=1, test_size=0.2, random_state=rng_seed,
+                )
+                train_idx, val_idx = next(sss.split(df, y_encoded))
+            except ValueError:
+                ss = ShuffleSplit(
+                    n_splits=1, test_size=0.2, random_state=rng_seed,
+                )
+                train_idx, val_idx = next(ss.split(df))
             df_val = df.iloc[val_idx].reset_index(drop=True)
             df = df.iloc[train_idx].reset_index(drop=True)
 
@@ -529,7 +535,14 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
             for col in self._cat_cols:
                 df_val[col] = df_val[col].astype(str)
         else:
-            df_val = None
+            from sklearn.model_selection import ShuffleSplit
+            ss = ShuffleSplit(
+                n_splits=1, test_size=0.2,
+                random_state=self.random_state or 42,
+            )
+            train_idx, val_idx = next(ss.split(df))
+            df_val = df.iloc[val_idx].reset_index(drop=True)
+            df = df.iloc[train_idx].reset_index(drop=True)
 
         if not self.verbose:
             import logging

@@ -553,12 +553,19 @@ class GAMINetClassifier(ClassifierMixin, BaseEstimator):
             from sklearn.model_selection import train_test_split
             n_val = int(len(X) * self.validation_fraction)
             if n_val >= 1:
-                X_train, X_val, y_train, y_val = train_test_split(
-                    X, y,
-                    test_size=self.validation_fraction,
-                    stratify=y,
-                    random_state=self.random_state,
-                )
+                try:
+                    X_train, X_val, y_train, y_val = train_test_split(
+                        X, y,
+                        test_size=self.validation_fraction,
+                        stratify=y,
+                        random_state=self.random_state,
+                    )
+                except ValueError:
+                    X_train, X_val, y_train, y_val = train_test_split(
+                        X, y,
+                        test_size=self.validation_fraction,
+                        random_state=self.random_state,
+                    )
                 x_tensor = torch.tensor(X_train, dtype=torch.float32)
                 y_tensor = torch.tensor(y_train, dtype=torch.long)
                 eval_set = (X_val, y_val)
