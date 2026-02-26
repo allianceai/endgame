@@ -349,7 +349,18 @@ class SuiteLoader:
 
         self._log(f"Loading OpenML suite {suite_id}...")
 
-        suite = openml.study.get_suite(suite_id)
+        import time as _time
+        for _attempt in range(5):
+            try:
+                suite = openml.study.get_suite(suite_id)
+                break
+            except Exception as e:
+                if _attempt < 4 and "connection" in str(e).lower():
+                    wait = 10 * (2 ** _attempt)
+                    self._log(f"OpenML server error, retrying in {wait}s... ({e})")
+                    _time.sleep(wait)
+                else:
+                    raise
         task_ids = suite.tasks
 
         if self.max_datasets:
@@ -370,15 +381,23 @@ class SuiteLoader:
         if self.max_datasets:
             task_ids = task_ids[:self.max_datasets]
 
+        import time as _time
         for i, task_id in enumerate(task_ids):
-            try:
-                self._log(f"Loading task {task_id} ({i+1}/{len(task_ids)})...")
-                dataset_info = self._load_openml_task(task_id)
-                if dataset_info is not None:
-                    yield dataset_info
-            except Exception as e:
-                self._log(f"Failed to load task {task_id}: {e}")
-                continue
+            self._log(f"Loading task {task_id} ({i+1}/{len(task_ids)})...")
+            dataset_info = None
+            for _attempt in range(3):
+                try:
+                    dataset_info = self._load_openml_task(task_id)
+                    break
+                except Exception as e:
+                    if _attempt < 2:
+                        wait = 10 * (2 ** _attempt)
+                        self._log(f"Task {task_id} failed ({e}), retrying in {wait}s...")
+                        _time.sleep(wait)
+                    else:
+                        self._log(f"Failed to load task {task_id} after 3 attempts: {e}")
+            if dataset_info is not None:
+                yield dataset_info
 
     def _load_openml_task(self, task_id: int) -> DatasetInfo | None:
         """Load a single OpenML task."""
@@ -405,11 +424,14 @@ class SuiteLoader:
                 y = le.fit_transform(y.astype(str))
             y = np.nan_to_num(y, nan=0.0)
 
-            # Determine task type
-            if task.task_type_id == 1:  # Classification
+            # Determine task type (compare .value — OpenML enum != int)
+            type_id = task.task_type_id
+            if hasattr(type_id, "value"):
+                type_id = type_id.value
+            if type_id == 1:  # Classification
                 n_classes = len(np.unique(y))
                 task_type = TaskType.MULTICLASS if n_classes > 2 else TaskType.CLASSIFICATION
-            elif task.task_type_id == 2:  # Regression
+            elif type_id == 2:  # Regression
                 task_type = TaskType.REGRESSION
             else:
                 task_type = TaskType.CLASSIFICATION

@@ -411,8 +411,6 @@ def _get_regression_models(quick=False):
     if m is not None: models["MARS"] = m
     m = _try_load(lambda: eg.models.RuleFitRegressor(), "RuleFit")
     if m is not None: models["RuleFit"] = m
-    m = _try_load(lambda: eg.models.RuleFitPlusRegressor(), "RuleFit++")
-    if m is not None: models["RuleFit++"] = m
     m = _try_load(lambda: eg.models.NAMRegressor(n_epochs=50), "NAM")
     if m is not None: models["NAM"] = m
     m = _try_load(lambda: tabular.GRANDERegressor(), "GRANDE")
@@ -431,8 +429,8 @@ def _get_regression_models(quick=False):
     models["Lasso"] = make_pipeline(StandardScaler(), Lasso(max_iter=1000))
     models["SGD"] = make_pipeline(StandardScaler(), SGDRegressor(
         max_iter=1000, random_state=42, early_stopping=True, n_iter_no_change=10,
-        eta0=0.001, learning_rate='invscaling', power_t=0.25,
-        penalty='l2', alpha=1e-4,
+        eta0=0.01, learning_rate='adaptive', power_t=0.25,
+        penalty='l2', alpha=1e-3,
     ))
     models["KNN"] = make_pipeline(StandardScaler(), KNeighborsRegressor(n_neighbors=5, n_jobs=-1))
     m = _try_load(lambda: eg.models.LinearRegressor(), "LinearRegressor")
@@ -758,7 +756,7 @@ def preprocess_dataset(ds):
 def _load_previous_results(path):
     """Load previous results from parquet, returning (df, lookup_dict).
 
-    The lookup maps (dataset, model) -> row dict for quick status checks.
+    The lookup maps (dataset, model, task) -> row dict for quick status checks.
     """
     if not path.exists():
         return pd.DataFrame(), {}
@@ -770,7 +768,7 @@ def _load_previous_results(path):
 
     lookup = {}
     for _, row in df.iterrows():
-        key = (row["dataset"], row["model"])
+        key = (row["dataset"], row["model"], row["task"])
         lookup[key] = row.to_dict()
     return df, lookup
 
@@ -846,10 +844,21 @@ def main():
         if results:
             pd.DataFrame(results).to_parquet(output_path, index=False)
 
+    seen_datasets = set()
     for ds_idx, ds in enumerate(datasets, 1):
         X, y = preprocess_dataset(ds)
         ds_name = ds.name
-        task = "classification" if is_classification(y) else "regression"
+        # Use task type from SuiteLoader (OpenML metadata); fall back to heuristic
+        if hasattr(ds, "task_type") and ds.task_type is not None:
+            task = "regression" if ds.task_type.value == "regression" else "classification"
+        else:
+            task = "classification" if is_classification(y) else "regression"
+
+        # Skip duplicate (dataset, task) pairs from overlapping suites
+        ds_key = (ds_name, task)
+        if ds_key in seen_datasets:
+            continue
+        seen_datasets.add(ds_key)
 
         models = get_models(quick=args.quick, task=task)
 
@@ -864,7 +873,7 @@ def main():
         )
 
         for model_name, model in models.items():
-            key = (ds_name, model_name)
+            key = (ds_name, model_name, task)
             prev = prev_lookup.get(key)
             print(f"  {model_name:25s}", end=" ", flush=True)
 

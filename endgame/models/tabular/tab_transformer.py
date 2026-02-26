@@ -332,21 +332,8 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
 
     def predict(self, X) -> np.ndarray:
         """Predict class labels."""
-        if not self._is_fitted:
-            raise RuntimeError("TabTransformerClassifier has not been fitted.")
-
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-            X.columns = [f"f{i}" for i in range(X.shape[1])]
-
-        for col in self._cat_cols:
-            if col in X.columns:
-                X[col] = X[col].astype(str)
-
-        preds = self._model.predict(X)
-        pred_col = preds.columns[0]
-        y_pred = preds[pred_col].values
-        return self._label_encoder.inverse_transform(y_pred.astype(int))
+        proba = self.predict_proba(X)
+        return self._label_encoder.inverse_transform(np.argmax(proba, axis=1))
 
     def predict_proba(self, X) -> np.ndarray:
         """Predict class probabilities."""

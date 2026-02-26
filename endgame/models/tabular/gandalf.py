@@ -723,6 +723,11 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
 
         y = np.asarray(y).astype(np.float32)
 
+        # Normalize regression targets for stable training
+        self._y_mean = float(y.mean())
+        self._y_std = float(y.std()) or 1.0
+        y = (y - self._y_mean) / self._y_std
+
         # Prepare training data
         train_df = self._prepare_data(X, y, fit=True)
 
@@ -737,12 +742,15 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
         if eval_set is not None:
             X_val, y_val = eval_set
             y_val = np.asarray(y_val).astype(np.float32)
+            y_val = (y_val - self._y_mean) / self._y_std
             val_df = self._prepare_data(X_val, y_val, fit=False)
 
-        # Configure target range if specified
+        # Configure target range if specified (normalize to match targets)
         target_range_config = None
         if self.target_range is not None:
-            target_range_config = [list(self.target_range)]
+            lo = (self.target_range[0] - self._y_mean) / self._y_std
+            hi = (self.target_range[1] - self._y_mean) / self._y_std
+            target_range_config = [[lo, hi]]
 
         # Suppress Lightning logging when not verbose
         if not self.verbose:
@@ -836,21 +844,26 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
 
         # Extract prediction column — explicit name first, then fallback
         if "__target___prediction" in preds.columns:
-            return preds["__target___prediction"].values
-        if "target_prediction" in preds.columns:
-            return preds["target_prediction"].values
+            raw = preds["__target___prediction"].values
+        elif "target_prediction" in preds.columns:
+            raw = preds["target_prediction"].values
+        else:
+            # Fallback: find column ending with "_prediction"
+            pred_cols = [col for col in preds.columns if col.endswith("_prediction")]
+            if pred_cols:
+                raw = preds[pred_cols[0]].values
+            else:
+                # Last resort: first numeric column
+                raw = None
+                for col in preds.columns:
+                    if preds[col].dtype in [np.float32, np.float64, np.int32, np.int64]:
+                        raw = preds[col].values
+                        break
+                if raw is None:
+                    raise ValueError("Could not extract predictions from model output")
 
-        # Fallback: find column ending with "_prediction"
-        pred_cols = [col for col in preds.columns if col.endswith("_prediction")]
-        if pred_cols:
-            return preds[pred_cols[0]].values
-
-        # Last resort: first numeric column
-        for col in preds.columns:
-            if preds[col].dtype in [np.float32, np.float64, np.int32, np.int64]:
-                return preds[col].values
-
-        raise ValueError("Could not extract predictions from model output")
+        # Denormalize predictions
+        return raw * self._y_std + self._y_mean
 
     @property
     def feature_importances_(self) -> np.ndarray | None:

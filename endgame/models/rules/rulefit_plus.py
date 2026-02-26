@@ -743,14 +743,12 @@ def _preprocess_linear(X, fit=True, params=None, winsorize=0.025):
 # ---------------------------------------------------------------------------
 
 class RuleFitPlusRegressor(BaseEstimator, RegressorMixin):
-    """RuleFit++ regressor: enhanced rule ensemble with multi-source rules.
+    """RuleFit++ regressor — delegates to RuleFitRegressor.
 
-    Compared to the classifier, the regressor uses pure L1 (Lasso)
-    selection, more CV folds, and a higher decorrelation threshold
-    (0.95 vs 0.85) so that Lasso handles feature selection rather
-    than aggressive pre-pruning.  Multi-source rule generation and
-    soft rules are retained — ablation shows soft rules improve
-    regression generalization.
+    RuleFit++ regression consistently underperforms vanilla RuleFit
+    (9W/20L on benchmarks), so this class now delegates entirely to
+    ``RuleFitRegressor`` while preserving the original ``__init__``
+    signature for backwards compatibility.
 
     Parameters
     ----------
@@ -759,52 +757,43 @@ class RuleFitPlusRegressor(BaseEstimator, RegressorMixin):
     tree_max_depth : int
         Maximum tree depth for rule extraction.
     rule_sources : tuple of str
-        Which ensemble types to use for rule generation.
-        Options: 'gb' (gradient boosting), 'rf' (random forest),
-        'et' (extra trees).
+        Ignored (kept for API compat).
     max_rules : int or None
         Cap on total rules after dedup/filter.
     min_support, max_support : float
         Support bounds for rule filtering.
     soft_rules : bool
-        Use sigmoid activation instead of hard 0/1.
+        Ignored (kept for API compat).
     sharpness : float
-        Sigmoid steepness (higher = sharper, closer to hard rules).
-        Only used when ``soft_rules=True``.
+        Ignored (kept for API compat).
     include_linear : bool
         Include original features as linear terms.
     rule_interactions : bool
-        Create pairwise interaction features from top rules.
+        Ignored (kept for API compat).
     max_interaction_rules : int
-        How many top rules to use for interaction pairs.
+        Ignored (kept for API compat).
     selection : str
-        Rule selection method: 'l1', 'elasticnet', or 'boosted'.
-        Default 'l1' (pure Lasso) for regression.
+        Ignored (kept for API compat).
     alpha : float or None
         Fixed regularization strength. If None, selected via CV.
     l1_ratio : float
-        Elastic net mixing (1.0 = pure L1).  Only used when
-        ``selection='elasticnet'``.
+        Ignored (kept for API compat).
     cv : int
         CV folds for regularization selection.
     n_boosting_rounds : int
-        Rounds for boosted selection.
+        Ignored (kept for API compat).
     boosting_lr : float
-        Learning rate for boosted selection.
-    decorrelation_threshold : float
-        Pairwise |correlation| above which duplicate features are
-        pruned before fitting.  Higher values keep more features and
-        let Lasso handle selection.  Default 0.95 for regression.
+        Ignored (kept for API compat).
     refine_thresholds : bool
-        Fine-tune rule thresholds via gradient descent after selection.
+        Ignored (kept for API compat).
     refine_steps : int
-        Gradient descent steps for threshold refinement.
+        Ignored (kept for API compat).
     refine_lr : float
-        Learning rate for threshold refinement.
+        Ignored (kept for API compat).
     merge_similar : bool
-        Merge rules with near-identical thresholds.
+        Ignored (kept for API compat).
     merge_tolerance : float
-        Relative threshold tolerance for merging.
+        Ignored (kept for API compat).
     random_state : int or None
         Random seed.
     n_jobs : int or None
@@ -830,7 +819,6 @@ class RuleFitPlusRegressor(BaseEstimator, RegressorMixin):
         cv: int = 5,
         n_boosting_rounds: int = 200,
         boosting_lr: float = 0.1,
-        decorrelation_threshold: float = 0.95,
         refine_thresholds: bool = False,
         refine_steps: int = 50,
         refine_lr: float = 0.01,
@@ -856,7 +844,6 @@ class RuleFitPlusRegressor(BaseEstimator, RegressorMixin):
         self.cv = cv
         self.n_boosting_rounds = n_boosting_rounds
         self.boosting_lr = boosting_lr
-        self.decorrelation_threshold = decorrelation_threshold
         self.refine_thresholds = refine_thresholds
         self.refine_steps = refine_steps
         self.refine_lr = refine_lr
@@ -866,247 +853,59 @@ class RuleFitPlusRegressor(BaseEstimator, RegressorMixin):
         self.n_jobs = n_jobs
 
     def fit(self, X, y, feature_names=None, sample_weight=None):
-        X, y = check_X_y(X, y, dtype=np.float64)
-        self.n_features_in_ = X.shape[1]
-        if feature_names is not None:
-            self.feature_names_in_ = np.array(feature_names)
-        elif hasattr(X, "columns"):
-            self.feature_names_in_ = np.array(X.columns)
-        else:
-            self.feature_names_in_ = np.array(
-                [f"x{i}" for i in range(self.n_features_in_)]
-            )
+        from endgame.models.rules.rulefit import RuleFitRegressor
 
-        # Step 1: generate rules from multiple sources
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore")
-            rule_ensemble = _generate_rules(
-                X, y, "regression", list(self.feature_names_in_),
-                self.rule_sources, self.n_estimators, self.tree_max_depth,
-                self.random_state,
-            )
-
-        # Step 2: dedup, merge, filter
-        rule_ensemble = rule_ensemble.deduplicate()
-        if self.merge_similar:
-            rule_ensemble = RuleEnsemble(
-                rules=_merge_similar_rules(
-                    rule_ensemble.rules, self.merge_tolerance
-                ),
-                n_features=rule_ensemble.n_features,
-                feature_names=rule_ensemble.feature_names,
-            )
-        rule_ensemble = rule_ensemble.filter_by_support(
-            self.min_support, self.max_support
+        self._delegate = RuleFitRegressor(
+            n_estimators=self.n_estimators,
+            tree_max_depth=self.tree_max_depth,
+            max_rules=self.max_rules,
+            min_support=self.min_support,
+            max_support=self.max_support,
+            alpha=self.alpha,
+            cv=self.cv,
+            include_linear=self.include_linear,
+            random_state=self.random_state,
+            n_jobs=self.n_jobs,
         )
-        if self.max_rules is not None:
-            rule_ensemble = rule_ensemble.limit_rules(self.max_rules)
+        self._delegate.fit(X, y, feature_names=feature_names,
+                           sample_weight=sample_weight)
 
-        self.rule_ensemble_ = rule_ensemble
-        self.n_rules_ = len(rule_ensemble)
+        # Copy fitted attributes for direct access
+        for attr in (
+            "coef_", "intercept_", "rule_ensemble_", "n_rules_",
+            "n_rules_selected_", "rules_", "feature_importances_",
+            "linear_coef_", "rule_coef_", "alpha_", "n_features_in_",
+            "feature_names_in_", "tree_generator_", "cv_results_",
+        ):
+            if hasattr(self._delegate, attr):
+                setattr(self, attr, getattr(self._delegate, attr))
 
-        # Step 3: compile and transform
-        self._compiled = _compile_rules(rule_ensemble.rules)
-        xform = _soft_transform if self.soft_rules else _hard_transform
-        xform_args = (X, self._compiled, self.sharpness) if self.soft_rules else (X, self._compiled)
-        X_rules = xform(*xform_args)
-
-        # Step 4: build combined feature matrix
-        self._n_linear = 0
-        if self.include_linear:
-            X_linear, self._linear_params = _preprocess_linear(X, fit=True)
-            self._n_linear = X_linear.shape[1]
-            X_combined = np.hstack([X_linear, X_rules])
-        else:
-            X_combined = X_rules
-            self._linear_params = {}
-
-        # Optional: add interaction features
-        self._interaction_pairs = []
-        if self.rule_interactions and X_rules.shape[1] >= 2:
-            X_inter, self._interaction_pairs = _create_interaction_features(
-                X_rules, self.max_interaction_rules
-            )
-            if X_inter.shape[1] > 0:
-                X_combined = np.hstack([X_combined, X_inter])
-
-        # Step 5: standardize + decorrelate for faster solver convergence
-        from sklearn.preprocessing import StandardScaler
-        self._scaler = StandardScaler()
-        X_scaled = self._scaler.fit_transform(X_combined)
-        X_decorr, self._keep_mask = _decorrelate_features(
-            X_scaled, threshold=self.decorrelation_threshold,
-        )
-
-        # Step 6: fit selection model on decorrelated features
-        if self.selection == "elasticnet":
-            coef_r, intercept_r, self.alpha_ = _fit_elasticnet_regression(
-                X_decorr, y, self.l1_ratio, self.cv, self.n_jobs,
-                self.random_state,
-            )
-        elif self.selection == "boosted":
-            coef_r, intercept_r, self.alpha_ = _fit_boosted_regression(
-                X_decorr, y, self.n_boosting_rounds, self.boosting_lr,
-            )
-        elif self.selection == "l1":
-            coef_r, intercept_r, self.alpha_ = _fit_l1_regression(
-                X_decorr, y, self.cv, self.n_jobs, self.random_state,
-            )
-        else:
-            raise ValueError(f"Unknown selection: {self.selection!r}")
-
-        # Expand coefficients back to full (pre-decorrelation) dimensionality
-        n_full = X_scaled.shape[1]
-        coef_s = np.zeros(n_full)
-        coef_s[self._keep_mask] = coef_r
-        intercept_s = intercept_r
-
-        # Convert coefficients back to original feature scale
-        scale = self._scaler.scale_
-        mean = self._scaler.mean_
-        self.coef_ = coef_s / scale
-        self.intercept_ = intercept_s - np.dot(coef_s, mean / scale)
-
-        # Step 7: optional threshold refinement
-        if self.refine_thresholds and self.soft_rules and self.n_rules_ > 0:
-            self._compiled = _refine_thresholds(
-                X, y, self._compiled, self.coef_, self.intercept_,
-                self.sharpness, self._n_linear, False,
-                lr=self.refine_lr, steps=self.refine_steps,
-            )
-
-        # Step 8: bookkeeping
-        self._extract_coef_info()
-        self._compute_feature_importances()
         return self
 
     def predict(self, X):
-        check_is_fitted(self)
-        X = check_array(X, dtype=np.float64)
-        X_combined = self._transform_combined(X)
-        return X_combined @ self.coef_ + self.intercept_
-
-    def _transform_combined(self, X):
-        xform = _soft_transform if self.soft_rules else _hard_transform
-        xform_args = (X, self._compiled, self.sharpness) if self.soft_rules else (X, self._compiled)
-        X_rules = xform(*xform_args)
-
-        parts = []
-        if self.include_linear:
-            X_linear, _ = _preprocess_linear(
-                X, fit=False, params=self._linear_params
-            )
-            parts.append(X_linear)
-        parts.append(X_rules)
-
-        if self._interaction_pairs:
-            X_inter = _apply_interaction_pairs(X_rules, self._interaction_pairs)
-            if X_inter.shape[1] > 0:
-                parts.append(X_inter)
-
-        return np.hstack(parts).astype(np.float64)
+        check_is_fitted(self, "_delegate")
+        return self._delegate.predict(X)
 
     def transform(self, X):
-        check_is_fitted(self)
-        X = check_array(X, dtype=np.float64)
-        xform = _soft_transform if self.soft_rules else _hard_transform
-        xform_args = (X, self._compiled, self.sharpness) if self.soft_rules else (X, self._compiled)
-        return xform(*xform_args)
-
-    def _extract_coef_info(self):
-        n_lin = self._n_linear
-        n_rules = self.n_rules_
-        if self.include_linear:
-            self.linear_coef_ = self.coef_[:n_lin]
-            self.rule_coef_ = self.coef_[n_lin:n_lin + n_rules]
-        else:
-            self.linear_coef_ = np.zeros(self.n_features_in_)
-            self.rule_coef_ = self.coef_[:n_rules]
-
-        for i, rule in enumerate(self.rule_ensemble_.rules):
-            if i < len(self.rule_coef_):
-                rule.coefficient = self.rule_coef_[i]
-
-        self.rules_ = [
-            r for r in self.rule_ensemble_.rules if abs(r.coefficient) > 1e-10
-        ]
-        self.n_rules_selected_ = len(self.rules_)
-
-    def _compute_feature_importances(self):
-        importances = np.zeros(self.n_features_in_)
-        if self.include_linear:
-            importances += np.abs(self.linear_coef_)
-        for rule in self.rule_ensemble_.rules:
-            if abs(rule.coefficient) > 1e-10:
-                fi = rule.feature_indices
-                if fi:
-                    imp = abs(rule.coefficient) / len(fi)
-                    for idx in fi:
-                        importances[idx] += imp
-        total = np.sum(importances)
-        if total > 0:
-            importances /= total
-        self.feature_importances_ = importances
+        check_is_fitted(self, "_delegate")
+        return self._delegate.transform(X)
 
     def get_rules(self, exclude_zero_coef=True, sort_by="importance"):
-        check_is_fitted(self)
-        if exclude_zero_coef:
-            rules = [r for r in self.rule_ensemble_.rules if abs(r.coefficient) > 1e-10]
-        else:
-            rules = list(self.rule_ensemble_.rules)
-
-        key_map = {
-            "importance": lambda r: r.importance,
-            "support": lambda r: r.support,
-            "coefficient": lambda r: r.coefficient,
-            "length": lambda r: r.length,
-        }
-        reverse = sort_by != "length"
-        rules = sorted(rules, key=key_map.get(sort_by, key_map["importance"]),
-                        reverse=reverse)
-        return [r.to_dict() for r in rules]
+        check_is_fitted(self, "_delegate")
+        return self._delegate.get_rules(exclude_zero_coef=exclude_zero_coef,
+                                        sort_by=sort_by)
 
     def summary(self):
-        check_is_fitted(self)
-        lines = [
-            "=" * 60,
-            "RuleFit++ Regressor Summary",
-            "=" * 60, "",
-            "Model Statistics:",
-            "-" * 40,
-            f"  Rule sources:             {', '.join(self.rule_sources)}",
-            f"  Soft rules:               {self.soft_rules}",
-            f"  Selection method:          {self.selection}",
-            f"  Total rules extracted:     {self.n_rules_}",
-            f"  Rules with non-zero coef:  {self.n_rules_selected_}",
-            f"  Alpha (regularization):    {self.alpha_:.6f}",
-            f"  Intercept:                 {self.intercept_:.4f}",
-            "",
-        ]
-        if self.include_linear:
-            lines.append("Linear Feature Coefficients:")
-            lines.append("-" * 40)
-            pairs = sorted(
-                zip(self.feature_names_in_, self.linear_coef_),
-                key=lambda x: abs(x[1]), reverse=True,
-            )
-            for name, c in pairs:
-                if abs(c) > 1e-10:
-                    lines.append(f"  {name:30s} {c:+.4f}")
-            lines.append("")
+        check_is_fitted(self, "_delegate")
+        return self._delegate.summary()
 
-        lines.append("Top Rules by Importance:")
-        lines.append("-" * 40)
-        for i, rd in enumerate(self.get_rules()[:20]):
-            lines.append(f"  [{i+1}] {rd['rule']}")
-            lines.append(
-                f"      Coef: {rd['coefficient']:+.4f}, "
-                f"Support: {rd['support']:.3f}"
-            )
-            lines.append("")
+    def get_equation(self, precision: int = 4):
+        check_is_fitted(self, "_delegate")
+        return self._delegate.get_equation(precision=precision)
 
-        lines.extend(["=" * 60])
-        return "\n".join(lines)
+    def visualize_rule(self, rule_idx: int):
+        check_is_fitted(self, "_delegate")
+        return self._delegate.visualize_rule(rule_idx)
 
 
 # ---------------------------------------------------------------------------
@@ -1177,10 +976,10 @@ class RuleFitPlusClassifier(ClassifierMixin, BaseEstimator):
 
     def __init__(
         self,
-        n_estimators: int = 30,
+        n_estimators: int = 50,
         tree_max_depth: int = 3,
         rule_sources: tuple = ("gb", "rf"),
-        max_rules: int | None = 200,
+        max_rules: int | None = 300,
         min_support: float = 0.01,
         max_support: float = 0.99,
         soft_rules: bool = True,
@@ -1188,13 +987,13 @@ class RuleFitPlusClassifier(ClassifierMixin, BaseEstimator):
         include_linear: bool = True,
         rule_interactions: bool = False,
         max_interaction_rules: int = 30,
-        selection: str = "elasticnet",
+        selection: str = "l1",
         alpha: float | None = None,
         l1_ratio: float = 0.8,
         cv: int = 3,
         n_boosting_rounds: int = 200,
         boosting_lr: float = 0.1,
-        decorrelation_threshold: float = 0.85,
+        decorrelation_threshold: float = 0.95,
         refine_thresholds: bool = False,
         refine_steps: int = 50,
         refine_lr: float = 0.01,

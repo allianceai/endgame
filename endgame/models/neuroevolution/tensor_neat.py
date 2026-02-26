@@ -340,6 +340,7 @@ class TensorNEATRegressor(BaseEstimator, RegressorMixin):
             lambda xi: algo.forward(state, transformed, xi)
         )(X_jax)
 
-        # Denormalize predictions
+        # Clip to 5 std devs in normalized space, then denormalize
         preds = np.array(raw_outputs[:, 0])
+        preds = np.clip(preds, -5.0, 5.0)
         return preds * self._y_std + self._y_mean
