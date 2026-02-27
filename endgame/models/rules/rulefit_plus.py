@@ -277,6 +277,7 @@ def _soft_transform(X, compiled, sharpness=10.0):
         return np.zeros((n_samples, 0), dtype=np.float32)
 
     result = np.ones((n_samples, n_rules), dtype=np.float32)
+    half_s = sharpness * 0.5
     for k in range(compiled["max_conds"]):
         active = np.where(compiled["n_conds"] > k)[0]
         if len(active) == 0:
@@ -286,8 +287,8 @@ def _soft_transform(X, compiled, sharpness=10.0):
         le = compiled["is_le"][active, k]
         vals = X[:, fi]
         diff = np.where(le, th - vals, vals - th)
-        diff_clipped = np.clip(sharpness * diff, -30, 30)
-        soft = (1.0 / (1.0 + np.exp(-diff_clipped))).astype(np.float32)
+        # tanh form of sigmoid: 0.5*(1 + tanh(x/2)), avoids slow exp()
+        soft = (0.5 * (1.0 + np.tanh(np.clip(half_s * diff, -15, 15)))).astype(np.float32)
         result[:, active] *= soft
     return result
 
@@ -470,7 +471,7 @@ def _fit_elasticnet_classification(X, y, l1_ratio, cv, n_jobs, random_state,
     if n_classes > 2:
         model = LogisticRegression(
             penalty="l1", solver=solver, C=1.0,
-            max_iter=1000, tol=1e-3,
+            max_iter=500, tol=1e-3,
             class_weight=class_weight, random_state=random_state,
         )
         model.fit(X, y)
@@ -481,8 +482,8 @@ def _fit_elasticnet_classification(X, y, l1_ratio, cv, n_jobs, random_state,
     if solver == "liblinear":
         # L1 screen then elasticnet refit for best sparsity
         screen = LogisticRegressionCV(
-            penalty="l1", solver="liblinear", Cs=10, cv=cv,
-            max_iter=1000, n_jobs=n_jobs,
+            penalty="l1", solver="liblinear", Cs=5, cv=cv,
+            max_iter=300, n_jobs=n_jobs,
             class_weight=class_weight, random_state=random_state,
         )
         screen.fit(X, y)
@@ -495,8 +496,8 @@ def _fit_elasticnet_classification(X, y, l1_ratio, cv, n_jobs, random_state,
         X_reduced = X[:, mask]
         model = LogisticRegressionCV(
             penalty="elasticnet", solver="saga",
-            l1_ratios=[l1_ratio], Cs=5, cv=cv,
-            max_iter=1000, tol=1e-3, n_jobs=n_jobs,
+            l1_ratios=[l1_ratio], Cs=3, cv=cv,
+            max_iter=500, tol=1e-3, n_jobs=n_jobs,
             class_weight=class_weight, random_state=random_state,
         )
         model.fit(X_reduced, y)
@@ -513,8 +514,8 @@ def _fit_elasticnet_classification(X, y, l1_ratio, cv, n_jobs, random_state,
     else:
         model = LogisticRegressionCV(
             penalty="elasticnet", solver="saga",
-            l1_ratios=[l1_ratio], Cs=5, cv=cv,
-            max_iter=1000, tol=1e-3, n_jobs=n_jobs,
+            l1_ratios=[l1_ratio], Cs=3, cv=cv,
+            max_iter=500, tol=1e-3, n_jobs=n_jobs,
             class_weight=class_weight, random_state=random_state,
         )
         model.fit(X, y)
@@ -534,17 +535,17 @@ def _fit_l1_classification(X, y, cv, n_jobs, random_state, class_weight):
     if n_classes > 2:
         model = LogisticRegression(
             penalty="l1", solver=solver, C=1.0,
-            max_iter=1000, tol=1e-3,
+            max_iter=500, tol=1e-3,
             class_weight=class_weight, random_state=random_state,
         )
         model.fit(X, y)
         model.C_ = np.array([1.0])
         return model
 
-    cs = 10 if solver == "liblinear" else 5
+    mi = 300 if solver == "liblinear" else 500
     kw = dict(
-        penalty="l1", solver=solver, cv=cv, Cs=cs,
-        max_iter=1000, n_jobs=n_jobs,
+        penalty="l1", solver=solver, cv=cv, Cs=5,
+        max_iter=mi, n_jobs=n_jobs,
         class_weight=class_weight, random_state=random_state,
     )
     if solver == "saga":
@@ -696,23 +697,27 @@ def _decorrelate_features(X, threshold=0.85):
     if n <= 1:
         return X, np.ones(n, dtype=bool)
 
-    corr = np.corrcoef(X.T)
+    # Sample-based correlation for large feature counts to avoid O(p³)
+    if X.shape[0] > 500 and n > 200:
+        idx = np.random.RandomState(0).choice(X.shape[0], 500, replace=False)
+        corr = np.corrcoef(X[idx].T)
+    else:
+        corr = np.corrcoef(X.T)
     np.fill_diagonal(corr, 0)
     var = np.var(X, axis=0)
     keep = np.ones(n, dtype=bool)
 
-    for i in range(n):
-        if not keep[i]:
+    # Find all correlated pairs at once (vectorized)
+    abs_corr = np.abs(corr)
+    rows, cols = np.where(np.triu(abs_corr > threshold, k=1))
+    # Process pairs in order, dropping lower-variance feature
+    for i, j in zip(rows, cols):
+        if not keep[i] or not keep[j]:
             continue
-        for j in range(i + 1, n):
-            if not keep[j]:
-                continue
-            if abs(corr[i, j]) > threshold:
-                if var[i] >= var[j]:
-                    keep[j] = False
-                else:
-                    keep[i] = False
-                    break
+        if var[i] >= var[j]:
+            keep[j] = False
+        else:
+            keep[i] = False
 
     return X[:, keep], keep
 

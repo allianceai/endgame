@@ -947,10 +947,10 @@ class RuleFitClassifier(ClassifierMixin, BaseEstimator):
                 penalty="l1",
                 solver="saga",
                 cv=self.cv,
-                Cs=10,
+                Cs=5,
                 class_weight=self.class_weight,
                 random_state=self.random_state,
-                max_iter=1000,
+                max_iter=500,
                 n_jobs=self.n_jobs,
             )
             model.fit(X_combined, y)
@@ -984,10 +984,10 @@ class RuleFitClassifier(ClassifierMixin, BaseEstimator):
                 penalty="l1",
                 solver="saga",
                 cv=self.cv,
-                Cs=10,
+                Cs=5,
                 class_weight=self.class_weight,
                 random_state=self.random_state,
-                max_iter=1000,
+                max_iter=500,
                 n_jobs=self.n_jobs,
             )
             model.fit(X_combined, y)

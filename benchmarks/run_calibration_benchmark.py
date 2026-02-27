@@ -85,7 +85,8 @@ def load_binary_datasets(quick=False, max_samples=5000):
     if quick:
         loader = SuiteLoader("quick-test", max_samples=max_samples)
     else:
-        loader = SuiteLoader("uci-popular", max_samples=max_samples)
+        # Use Grinsztajn classification suites for more binary datasets
+        loader = SuiteLoader("grinsztajn-classif", max_samples=max_samples)
 
     for ds in loader.load():
         # Only binary classification
@@ -163,7 +164,7 @@ def evaluate_calibration(base_model, cal_methods, X, y, random_state=42):
                 if isinstance(cal_proba, tuple):
                     cal_proba = (cal_proba[0] + cal_proba[1]) / 2
             elif cal_name == "Temperature":
-                # Temperature scaling works on logits
+                # Temperature scaling works on logits (1D for binary)
                 calibrator = cal_class()
                 logits_cal = np.log(
                     np.clip(cal_proba_on_cal, 1e-10, 1 - 1e-10)
@@ -173,8 +174,8 @@ def evaluate_calibration(base_model, cal_methods, X, y, random_state=42):
                     np.clip(raw_proba, 1e-10, 1 - 1e-10)
                     / np.clip(1 - raw_proba, 1e-10, 1 - 1e-10)
                 )
-                calibrator.fit(logits_cal.reshape(-1, 1), y_cal)
-                cal_proba = calibrator.transform(logits_test.reshape(-1, 1)).ravel()
+                calibrator.fit(logits_cal, y_cal)
+                cal_proba = calibrator.transform(logits_test)[:, 1]
             else:
                 calibrator = cal_class()
                 calibrator.fit(cal_proba_on_cal, y_cal)

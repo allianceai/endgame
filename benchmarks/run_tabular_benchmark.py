@@ -427,11 +427,15 @@ def _get_regression_models(quick=False):
     from sklearn.preprocessing import StandardScaler
     models["Ridge"] = make_pipeline(StandardScaler(), Ridge())
     models["Lasso"] = make_pipeline(StandardScaler(), Lasso(max_iter=1000))
-    models["SGD"] = make_pipeline(StandardScaler(), SGDRegressor(
-        max_iter=1000, random_state=42, early_stopping=True, n_iter_no_change=10,
-        eta0=0.01, learning_rate='adaptive', power_t=0.25,
-        penalty='l2', alpha=1e-3,
-    ))
+    from sklearn.compose import TransformedTargetRegressor
+    models["SGD"] = TransformedTargetRegressor(
+        regressor=make_pipeline(StandardScaler(), SGDRegressor(
+            max_iter=1000, random_state=42, early_stopping=True, n_iter_no_change=10,
+            eta0=0.01, learning_rate='adaptive', power_t=0.25,
+            penalty='l2', alpha=1e-3,
+        )),
+        transformer=StandardScaler(),
+    )
     models["KNN"] = make_pipeline(StandardScaler(), KNeighborsRegressor(n_neighbors=5, n_jobs=-1))
     m = _try_load(lambda: eg.models.LinearRegressor(), "LinearRegressor")
     if m is not None: models["LinearRegressor"] = m

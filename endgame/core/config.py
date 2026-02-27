@@ -26,7 +26,7 @@ LGBM_FAST_DEFAULTS: dict[str, Any] = {
     "learning_rate": 0.05,
     "n_estimators": 1000,
     "num_leaves": 63,
-    "max_depth": -1,
+    "max_depth": 8,
     "feature_fraction": 0.9,
     "bagging_fraction": 0.9,
     "bagging_freq": 1,
