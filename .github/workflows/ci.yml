@@ -55,14 +55,13 @@ jobs:
           --ignore=tests/test_vision.py
           -k "not TestExtendedIsolationForest and not (TestTabularPredictor and (test_predict_classification or test_predict_proba_classification or test_leaderboard)) and not (TestAutoMLPredictor and (test_predict_automl or test_chained_fit_predict)) and not (TestCORELS and test_fit_predict_without_corels) and not (TestGAM and test_partial_dependence) and not TestUMAPReducer and not TestTriMAPReducer and not TestPHATEReducer and not TestPaCMAPReducer and not TestTextPredictor"
 
-      - name: Upload coverage
+      - name: Upload coverage to Codecov
         if: matrix.python-version == '3.11'
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: coverage.xml
           fail_ci_if_error: false
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   typecheck:
     runs-on: ubuntu-latest
