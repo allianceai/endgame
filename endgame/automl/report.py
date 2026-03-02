@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Performance report generation for AutoML pipelines.
 
 Generates a structured summary of the AutoML run including model

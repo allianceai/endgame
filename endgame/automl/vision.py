@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Vision/Image data AutoML predictor.
 
 This module provides the VisionPredictor class for automated machine learning
@@ -184,7 +186,7 @@ class VisionPredictor(BasePredictor):
         presets: str | None = None,
         hyperparameters: dict[str, Any] | None = None,
         **kwargs,
-    ) -> "VisionPredictor":
+    ) -> VisionPredictor:
         """Fit the VisionPredictor on image data.
 
         Parameters

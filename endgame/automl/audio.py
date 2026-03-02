@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Audio data AutoML predictor.
 
 This module provides the AudioPredictor class for automated machine learning
@@ -205,7 +207,7 @@ class AudioPredictor(BasePredictor):
         presets: str | None = None,
         hyperparameters: dict[str, Any] | None = None,
         **kwargs,
-    ) -> "AudioPredictor":
+    ) -> AudioPredictor:
         """Fit the AudioPredictor on audio data.
 
         Parameters

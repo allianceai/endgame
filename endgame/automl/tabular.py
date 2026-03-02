@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tabular data AutoML predictor.
 
 This module provides the TabularPredictor class for automated machine learning
@@ -137,7 +139,7 @@ class TabularPredictor(BasePredictor):
         output_path: str | None = None,
         random_state: int = 42,
         verbosity: int = 2,
-        logger: "ExperimentLogger | None" = None,
+        logger: ExperimentLogger | None = None,
         constraints: DeploymentConstraints | None = None,
         guardrails_strict: bool = False,
         checkpoint_dir: str | None = None,
@@ -209,7 +211,7 @@ class TabularPredictor(BasePredictor):
         hyperparameters: dict[str, Any] | None = None,
         interpretable_only: bool = False,
         **kwargs,
-    ) -> "TabularPredictor":
+    ) -> TabularPredictor:
         """Fit the AutoML predictor on tabular data.
 
         Parameters
@@ -1597,7 +1599,7 @@ class TabularPredictor(BasePredictor):
 
         return self._models[name].get("estimator")
 
-    def refit_full(self, data: DataInput | None = None) -> "TabularPredictor":
+    def refit_full(self, data: DataInput | None = None) -> TabularPredictor:
         """Retrain best model(s) on all available data (train + validation).
 
         After cross-validation identifies the best model and hyperparameters,

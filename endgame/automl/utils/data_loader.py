@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Unified data loading utilities for AutoML.
 
 This module provides utilities for loading data from various sources
@@ -337,7 +339,7 @@ class DataLoader:
         self,
         data: str | Path | pd.DataFrame | np.ndarray,
         **kwargs,
-    ) -> "DataLoader":
+    ) -> DataLoader:
         """Load training data.
 
         Parameters

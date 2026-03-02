@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """AutoML stacking ensemble builder.
 
 This module provides automatic multi-level stacking ensemble construction
@@ -123,7 +125,7 @@ class AutoMLStacker(BaseEstimator):
         X: pd.DataFrame | np.ndarray,
         y: np.ndarray,
         oof_predictions: dict[str, np.ndarray] | None = None,
-    ) -> "AutoMLStacker":
+    ) -> AutoMLStacker:
         """Fit the stacking ensemble.
 
         Parameters
@@ -535,7 +537,7 @@ class HillClimbingStacker(AutoMLStacker):
         X: pd.DataFrame | np.ndarray,
         y: np.ndarray,
         oof_predictions: dict[str, np.ndarray] | None = None,
-    ) -> "HillClimbingStacker":
+    ) -> HillClimbingStacker:
         """Fit using hill climbing.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Pipeline orchestrator for AutoML.
 
 This module coordinates the execution of all AutoML pipeline stages
@@ -2102,7 +2104,7 @@ class ModelTrainingExecutor(BaseStageExecutor):
     @staticmethod
     def _wrap_with_preprocessing(
         model: Any,
-        config: "PipelineConfig",
+        config: PipelineConfig,
     ) -> Any:
         """Wrap *model* in a sklearn Pipeline if the config specifies
         per-model preprocessing or feature-selection steps.

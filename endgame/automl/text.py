@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Text data AutoML predictor.
 
 This module provides the TextPredictor class for automated machine learning
@@ -177,7 +179,7 @@ class TextPredictor(BasePredictor):
         presets: str | None = None,
         hyperparameters: dict[str, Any] | None = None,
         **kwargs,
-    ) -> "TextPredictor":
+    ) -> TextPredictor:
         """Fit the TextPredictor on text data.
 
         Parameters

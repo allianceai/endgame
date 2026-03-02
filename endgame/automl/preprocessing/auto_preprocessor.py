@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Automatic preprocessing selection and pipeline building.
 
 This module provides intelligent preprocessing selection based on
@@ -494,7 +496,7 @@ class AutoPreprocessor:
         self,
         X: pd.DataFrame | np.ndarray,
         y: np.ndarray | None = None,
-    ) -> "AutoPreprocessor":
+    ) -> AutoPreprocessor:
         """Fit the preprocessor.
 
         Parameters

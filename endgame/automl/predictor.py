@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Unified AutoML predictor entry point.
 
 This module provides the AutoMLPredictor class - the primary interface
@@ -134,7 +136,7 @@ class AutoMLPredictor:
         hyperparameters: dict[str, Any] | None = None,
         domain: str | None = None,
         **kwargs,
-    ) -> "AutoMLPredictor":
+    ) -> AutoMLPredictor:
         """Fit the AutoML predictor.
 
         Parameters
@@ -313,7 +315,7 @@ class AutoMLPredictor:
         return self.predictor_.save(path)
 
     @classmethod
-    def load(cls, path: str) -> "AutoMLPredictor":
+    def load(cls, path: str) -> AutoMLPredictor:
         """Load a predictor from disk.
 
         Parameters

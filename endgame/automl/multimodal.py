@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """MultiModal data AutoML predictor.
 
 This module provides the MultiModalPredictor class for automated machine learning
@@ -160,7 +162,7 @@ class MultiModalPredictor(BasePredictor):
         output_path: str | None = None,
         random_state: int = 42,
         verbosity: int = 2,
-        logger: "ExperimentLogger | None" = None,
+        logger: ExperimentLogger | None = None,
     ):
         super().__init__(
             label=label,
@@ -454,7 +456,7 @@ class MultiModalPredictor(BasePredictor):
         time_limit: int | None = None,
         presets: str | None = None,
         **kwargs,
-    ) -> "MultiModalPredictor":
+    ) -> MultiModalPredictor:
         """Fit the multi-modal predictor.
 
         Parameters
@@ -1233,7 +1235,7 @@ class MultiModalPredictor(BasePredictor):
         df = df.sort_values("score", ascending=False)
         return df.reset_index(drop=True)
 
-    def refit_full(self, data: DataInput | None = None) -> "MultiModalPredictor":
+    def refit_full(self, data: DataInput | None = None) -> MultiModalPredictor:
         """Retrain all modality models on the full dataset.
 
         Calls ``refit_full()`` on each modality predictor and re-computes

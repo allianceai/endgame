@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """GANDALF: Gated Adaptive Network for Deep Automated Learning of Features.
 
 GANDALF is a high-performance, interpretable deep learning architecture for
@@ -236,10 +238,10 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
 
     def _prepare_data(
         self,
-        X: Union[np.ndarray, "pd.DataFrame"],
+        X: Union[np.ndarray, pd.DataFrame],
         y: np.ndarray | None = None,
         fit: bool = False,
-    ) -> "pd.DataFrame":
+    ) -> pd.DataFrame:
         """Prepare data for pytorch-tabular.
 
         Parameters
@@ -271,7 +273,7 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
 
         return df
 
-    def _infer_feature_types(self, df: "pd.DataFrame") -> tuple[list[str], list[str]]:
+    def _infer_feature_types(self, df: pd.DataFrame) -> tuple[list[str], list[str]]:
         """Infer categorical and continuous feature types.
 
         Parameters
@@ -310,11 +312,11 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
 
     def fit(
         self,
-        X: Union[np.ndarray, "pd.DataFrame"],
+        X: Union[np.ndarray, pd.DataFrame],
         y: np.ndarray,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "GANDALFClassifier":
+    ) -> GANDALFClassifier:
         """Fit the GANDALF classifier.
 
         Parameters
@@ -449,7 +451,7 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
         self._is_fitted = True
         return self
 
-    def predict_proba(self, X: Union[np.ndarray, "pd.DataFrame"]) -> np.ndarray:
+    def predict_proba(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
         """Predict class probabilities.
 
         Parameters
@@ -491,7 +493,7 @@ class GANDALFClassifier(ClassifierMixin, BaseEstimator):
 
         return proba
 
-    def predict(self, X: Union[np.ndarray, "pd.DataFrame"]) -> np.ndarray:
+    def predict(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
         """Predict class labels.
 
         Parameters
@@ -646,10 +648,10 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
 
     def _prepare_data(
         self,
-        X: Union[np.ndarray, "pd.DataFrame"],
+        X: Union[np.ndarray, pd.DataFrame],
         y: np.ndarray | None = None,
         fit: bool = False,
-    ) -> "pd.DataFrame":
+    ) -> pd.DataFrame:
         """Prepare data for pytorch-tabular."""
         if isinstance(X, pd.DataFrame):
             df = X.copy()
@@ -666,7 +668,7 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
 
         return df
 
-    def _infer_feature_types(self, df: "pd.DataFrame") -> tuple[list[str], list[str]]:
+    def _infer_feature_types(self, df: pd.DataFrame) -> tuple[list[str], list[str]]:
         """Infer categorical and continuous feature types."""
         if self.cat_features is not None and self.continuous_features is not None:
             return self.cat_features, self.continuous_features
@@ -691,11 +693,11 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
 
     def fit(
         self,
-        X: Union[np.ndarray, "pd.DataFrame"],
+        X: Union[np.ndarray, pd.DataFrame],
         y: np.ndarray,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "GANDALFRegressor":
+    ) -> GANDALFRegressor:
         """Fit the GANDALF regressor.
 
         Parameters
@@ -821,7 +823,7 @@ class GANDALFRegressor(BaseEstimator, RegressorMixin):
         self._is_fitted = True
         return self
 
-    def predict(self, X: Union[np.ndarray, "pd.DataFrame"]) -> np.ndarray:
+    def predict(self, X: Union[np.ndarray, pd.DataFrame]) -> np.ndarray:
         """Predict target values.
 
         Parameters
