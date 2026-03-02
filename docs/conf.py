@@ -32,6 +32,38 @@ napoleon_numpy_docstring = True
 napoleon_include_init_with_doc = True
 napoleon_use_rtype = False
 
+# -- Mock optional dependencies for RTD builds -------------------------------
+autodoc_mock_imports = [
+    "torch", "torchvision", "torchaudio",
+    "xgboost", "lightgbm", "catboost",
+    "interpret", "ngboost",
+    "transformers", "tokenizers", "datasets", "bitsandbytes", "peft", "evaluate",
+    "timm", "albumentations", "segmentation_models_pytorch",
+    "librosa", "soundfile",
+    "shap", "lime", "dice_ml",
+    "fairlearn",
+    "mlflow",
+    "onnx", "onnxruntime", "skl2onnx", "hummingbird",
+    "statsforecast", "darts", "tsfresh", "sktime",
+    "openml", "pymfe",
+    "pyod",
+    "pgmpy", "causal_learn",
+    "pywt",
+    "plotly", "matplotlib", "seaborn",
+    "mcp",
+    "pytorch_tabnet", "pytorch_tabular",
+    "pygam", "mord",
+    "ctgan",
+    "tabpfn", "tabdpt",
+    "neat", "tensorneat",
+    "pandas",
+    "treeple",
+    "numba",
+    "imbalanced_learn", "imblearn",
+    "fasterrisk",
+    "sacrebleu",
+]
+
 # -- Autodoc settings --------------------------------------------------------
 autodoc_default_options = {
     "members": True,
@@ -63,7 +95,7 @@ source_suffix = {
 # -- HTML output -------------------------------------------------------------
 html_theme = "furo"
 html_title = "Endgame"
-html_static_path = ["_static"]
+html_static_path = []
 html_css_files = []
 
 html_theme_options = {

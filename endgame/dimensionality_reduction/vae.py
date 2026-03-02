@@ -25,6 +25,7 @@ try:
 except ImportError:
     HAS_TORCH = False
     torch = None
+    nn = None
 
 
 def _check_torch_installed():
@@ -36,7 +37,10 @@ def _check_torch_installed():
         )
 
 
-class _VAEModule(nn.Module):
+_VAEBase = nn.Module if HAS_TORCH else object
+
+
+class _VAEModule(_VAEBase):
     """Variational Autoencoder neural network module.
 
     Architecture:
