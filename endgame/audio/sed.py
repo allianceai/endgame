@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Sound Event Detection (SED) models for audio classification.
 
 SED models provide temporal localization of audio events, predicting
@@ -620,7 +622,7 @@ class SEDModel(BaseEstimator, ClassifierMixin):
         X,
         y,
         val_data: tuple[Any, Any] | None = None,
-    ) -> "SEDModel":
+    ) -> SEDModel:
         """Fit the SED model.
 
         Parameters

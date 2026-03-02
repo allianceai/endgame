@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Segmentation models using segmentation_models_pytorch.
 
 Provides U-Net and other segmentation architectures with pretrained encoders.
@@ -272,7 +274,7 @@ class SegmentationModel(BaseEstimator):
         X,
         y,
         val_data: tuple[Any, Any] | None = None,
-    ) -> "SegmentationModel":
+    ) -> SegmentationModel:
         """Fit the segmentation model.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Neural K-Dependence Bayes Classifier.
 
 NeuralKDB replaces the exponentially-sized Conditional Probability Tables
@@ -242,7 +244,7 @@ class NeuralKDBClassifier(BaseBayesianClassifier):
         X_val: np.ndarray | None = None,
         y_val: np.ndarray | None = None,
         **fit_params,
-    ) -> 'NeuralKDBClassifier':
+    ) -> NeuralKDBClassifier:
         """
         Fit the Neural KDB classifier.
 

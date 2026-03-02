@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Neural Additive Models (NAM) for interpretable deep learning.
 
 NAM learns a separate neural network for each input feature, then combines
@@ -448,7 +450,7 @@ class NAMClassifier(ClassifierMixin, BaseEstimator):
         y,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "NAMClassifier":
+    ) -> NAMClassifier:
         """Fit the NAM classifier.
 
         Parameters
@@ -949,7 +951,7 @@ class NAMRegressor(RegressorMixin, BaseEstimator):
         y,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "NAMRegressor":
+    ) -> NAMRegressor:
         """Fit the NAM regressor.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """GAMI-Net: Generalized Additive Models with Structured Interactions.
 
 GAMI-Net is a neural network that learns GAM-style additive main effects
@@ -461,7 +463,7 @@ class GAMINetClassifier(ClassifierMixin, BaseEstimator):
         y,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "GAMINetClassifier":
+    ) -> GAMINetClassifier:
         """Fit the GAMI-Net classifier.
 
         Uses a two-stage training:
@@ -831,7 +833,7 @@ class GAMINetRegressor(RegressorMixin, BaseEstimator):
             torch.manual_seed(self.random_state)
             np.random.seed(self.random_state)
 
-    def fit(self, X, y, eval_set=None, **fit_params) -> "GAMINetRegressor":
+    def fit(self, X, y, eval_set=None, **fit_params) -> GAMINetRegressor:
         """Fit the GAMI-Net regressor."""
         _check_torch()
         self._set_seed()

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """NODE-GAM: Neural Oblivious Decision Ensembles as GAMs.
 
 NODE-GAM combines the differentiable decision trees from NODE with the
@@ -424,7 +426,7 @@ class NodeGAMClassifier(ClassifierMixin, BaseEstimator):
         y,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "NodeGAMClassifier":
+    ) -> NodeGAMClassifier:
         """Fit the NODE-GAM classifier.
 
         Parameters
@@ -764,7 +766,7 @@ class NodeGAMRegressor(RegressorMixin, BaseEstimator):
             torch.manual_seed(self.random_state)
             np.random.seed(self.random_state)
 
-    def fit(self, X, y, eval_set=None, **fit_params) -> "NodeGAMRegressor":
+    def fit(self, X, y, eval_set=None, **fit_params) -> NodeGAMRegressor:
         """Fit the regressor."""
         _check_torch()
         self._set_seed()

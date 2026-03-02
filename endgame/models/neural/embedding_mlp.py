@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """MLP with Entity Embeddings for categorical features.
 
 Entity embeddings learn dense representations for categorical variables,
@@ -486,7 +488,7 @@ class _BaseEmbeddingMLP(EndgameEstimator):
         output_dim: int,
         criterion: nn.Module,
         val_data: tuple[np.ndarray, np.ndarray] | None = None,
-    ) -> "EndgameEstimator":
+    ) -> EndgameEstimator:
         """Internal fit implementation."""
         self._set_seed()
         self._device = self._get_device()
@@ -773,7 +775,7 @@ class EmbeddingMLPClassifier(ClassifierMixin, _BaseEmbeddingMLP):
         X,
         y,
         val_data: tuple[Any, Any] | None = None,
-    ) -> "EmbeddingMLPClassifier":
+    ) -> EmbeddingMLPClassifier:
         """Fit the classifier.
 
         Parameters
@@ -962,7 +964,7 @@ class EmbeddingMLPRegressor(_BaseEmbeddingMLP, RegressorMixin):
         X,
         y,
         val_data: tuple[Any, Any] | None = None,
-    ) -> "EmbeddingMLPRegressor":
+    ) -> EmbeddingMLPRegressor:
         """Fit the regressor."""
         X_arr, y_arr = self._validate_data(X, y)
 

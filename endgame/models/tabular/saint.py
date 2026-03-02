@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """SAINT: Self-Attention and Intersample Attention Transformer.
 
 SAINT combines column-wise self-attention with row-wise (intersample) attention
@@ -435,7 +437,7 @@ class SAINTClassifier(ClassifierMixin, BaseEstimator):
         y,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "SAINTClassifier":
+    ) -> SAINTClassifier:
         """Fit the SAINT classifier."""
         _check_torch()
         self._set_seed()
@@ -731,7 +733,7 @@ class SAINTRegressor(BaseEstimator, RegressorMixin):
         self.history_ = {"train_loss": [], "val_loss": []}
         self._is_fitted = False
 
-    def fit(self, X, y, eval_set=None, **fit_params) -> "SAINTRegressor":
+    def fit(self, X, y, eval_set=None, **fit_params) -> SAINTRegressor:
         """Fit SAINT regressor."""
         _check_torch()
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Multi-Layer Perceptron implementations for tabular data.
 
 This module provides PyTorch-based MLP classifiers and regressors with
@@ -88,7 +90,7 @@ if HAS_TORCH:
             self.hidden_layers = nn.Sequential(*layers)
             self.output_layer = nn.Linear(prev_dim, output_dim)
 
-        def _get_activation(self, activation: str) -> "nn.Module":
+        def _get_activation(self, activation: str) -> nn.Module:
             """Get activation function by name."""
             activations = {
                 "relu": nn.ReLU(),
@@ -107,7 +109,7 @@ if HAS_TORCH:
                 )
             return activations[activation]
 
-        def forward(self, x: "torch.Tensor") -> "torch.Tensor":
+        def forward(self, x: torch.Tensor) -> torch.Tensor:
             """Forward pass."""
             x = self.hidden_layers(x)
             return self.output_layer(x)
@@ -184,7 +186,7 @@ class _BaseMLPEstimator(EndgameEstimator):
         self._device: torch.device | None = None
         self.history_: dict[str, list[float]] = {"train_loss": [], "val_loss": []}
 
-    def _get_device(self) -> "torch.device":
+    def _get_device(self) -> torch.device:
         """Get the computation device."""
         if self.device == "auto":
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -200,7 +202,7 @@ class _BaseMLPEstimator(EndgameEstimator):
 
     def _get_scheduler(
         self,
-        optimizer: "optim.Optimizer",
+        optimizer: optim.Optimizer,
         n_epochs: int,
     ) -> Any | None:
         """Create learning rate scheduler."""
@@ -226,7 +228,7 @@ class _BaseMLPEstimator(EndgameEstimator):
         X: np.ndarray,
         y: np.ndarray,
         shuffle: bool = True,
-    ) -> "DataLoader":
+    ) -> DataLoader:
         """Create a DataLoader from numpy arrays."""
         X_tensor = torch.FloatTensor(X)
         y_tensor = self._prepare_target_tensor(y)
@@ -240,24 +242,24 @@ class _BaseMLPEstimator(EndgameEstimator):
             pin_memory=self._device.type == "cuda",
         )
 
-    def _prepare_target_tensor(self, y: np.ndarray) -> "torch.Tensor":
+    def _prepare_target_tensor(self, y: np.ndarray) -> torch.Tensor:
         """Prepare target tensor (override in subclasses)."""
         raise NotImplementedError
 
     def _compute_loss(
         self,
-        outputs: "torch.Tensor",
-        targets: "torch.Tensor",
-        criterion: "nn.Module",
-    ) -> "torch.Tensor":
+        outputs: torch.Tensor,
+        targets: torch.Tensor,
+        criterion: nn.Module,
+    ) -> torch.Tensor:
         """Compute loss (override in subclasses if needed)."""
         return criterion(outputs, targets)
 
     def _train_epoch(
         self,
-        dataloader: "DataLoader",
-        optimizer: "optim.Optimizer",
-        criterion: "nn.Module",
+        dataloader: DataLoader,
+        optimizer: optim.Optimizer,
+        criterion: nn.Module,
     ) -> float:
         """Train for one epoch."""
         self.model_.train()
@@ -281,8 +283,8 @@ class _BaseMLPEstimator(EndgameEstimator):
 
     def _validate_epoch(
         self,
-        dataloader: "DataLoader",
-        criterion: "nn.Module",
+        dataloader: DataLoader,
+        criterion: nn.Module,
     ) -> float:
         """Validate for one epoch."""
         self.model_.eval()
@@ -307,9 +309,9 @@ class _BaseMLPEstimator(EndgameEstimator):
         X: np.ndarray,
         y: np.ndarray,
         output_dim: int,
-        criterion: "nn.Module",
+        criterion: nn.Module,
         val_data: tuple[np.ndarray, np.ndarray] | None = None,
-    ) -> "EndgameEstimator":
+    ) -> EndgameEstimator:
         """Internal fit implementation."""
         self._set_seed()
         self._device = self._get_device()
@@ -506,7 +508,7 @@ class MLPClassifier(ClassifierMixin, _BaseMLPEstimator):
         self._label_encoder: LabelEncoder | None = None
         self._class_weights: torch.Tensor | None = None
 
-    def _prepare_target_tensor(self, y: np.ndarray) -> "torch.Tensor":
+    def _prepare_target_tensor(self, y: np.ndarray) -> torch.Tensor:
         """Prepare target tensor for classification."""
         return torch.LongTensor(y)
 
@@ -535,7 +537,7 @@ class MLPClassifier(ClassifierMixin, _BaseMLPEstimator):
         X,
         y,
         val_data: tuple[Any, Any] | None = None,
-    ) -> "MLPClassifier":
+    ) -> MLPClassifier:
         """Fit the classifier.
 
         Parameters
@@ -708,7 +710,7 @@ class MLPRegressor(_BaseMLPEstimator, RegressorMixin):
 
         self._target_scaler: StandardScaler | None = None
 
-    def _prepare_target_tensor(self, y: np.ndarray) -> "torch.Tensor":
+    def _prepare_target_tensor(self, y: np.ndarray) -> torch.Tensor:
         """Prepare target tensor for regression."""
         if y.ndim == 1:
             y = y.reshape(-1, 1)
@@ -730,7 +732,7 @@ class MLPRegressor(_BaseMLPEstimator, RegressorMixin):
         X,
         y,
         val_data: tuple[Any, Any] | None = None,
-    ) -> "MLPRegressor":
+    ) -> MLPRegressor:
         """Fit the regressor.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Neural embedding layers for Bayesian Network Classifiers.
 
 This module provides neural network components for learning

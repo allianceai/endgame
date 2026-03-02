@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Denoising Autoencoder for tabular representation learning.
 
 DAE is a key technique from Tabular Playground Series 1st place solutions.
@@ -90,7 +92,7 @@ if HAS_TORCH:
 
             self.bottleneck_dim = hidden_dims[-1]
 
-        def _get_activation(self, activation: str) -> "nn.Module":
+        def _get_activation(self, activation: str) -> nn.Module:
             """Get activation function by name."""
             activations = {
                 "relu": nn.ReLU(),
@@ -105,15 +107,15 @@ if HAS_TORCH:
                 raise ValueError(f"Unknown activation: {activation}")
             return activations[activation]
 
-        def encode(self, x: "torch.Tensor") -> "torch.Tensor":
+        def encode(self, x: torch.Tensor) -> torch.Tensor:
             """Encode input to bottleneck representation."""
             return self.encoder(x)
 
-        def decode(self, z: "torch.Tensor") -> "torch.Tensor":
+        def decode(self, z: torch.Tensor) -> torch.Tensor:
             """Decode bottleneck to reconstruction."""
             return self.decoder(z)
 
-        def forward(self, x: "torch.Tensor") -> tuple["torch.Tensor", "torch.Tensor"]:
+        def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
             """Forward pass returning both encoding and reconstruction."""
             z = self.encode(x)
             x_reconstructed = self.decode(z)
@@ -232,7 +234,7 @@ class DenoisingAutoEncoder(BaseEstimator, TransformerMixin):
         if self.verbose:
             print(f"[DAE] {message}")
 
-    def _get_device(self) -> "torch.device":
+    def _get_device(self) -> torch.device:
         """Get computation device."""
         if self.device == "auto":
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -271,9 +273,9 @@ class DenoisingAutoEncoder(BaseEstimator, TransformerMixin):
 
     def _apply_swap_noise(
         self,
-        X: "torch.Tensor",
+        X: torch.Tensor,
         noise_fraction: float,
-    ) -> "torch.Tensor":
+    ) -> torch.Tensor:
         """Apply swap noise by randomly swapping values between samples.
 
         Parameters
@@ -305,7 +307,7 @@ class DenoisingAutoEncoder(BaseEstimator, TransformerMixin):
 
     def _get_scheduler(
         self,
-        optimizer: "optim.Optimizer",
+        optimizer: optim.Optimizer,
         n_epochs: int,
     ) -> Any | None:
         """Create learning rate scheduler."""
@@ -324,9 +326,9 @@ class DenoisingAutoEncoder(BaseEstimator, TransformerMixin):
 
     def _train_epoch(
         self,
-        X: "torch.Tensor",
-        optimizer: "optim.Optimizer",
-        criterion: "nn.Module",
+        X: torch.Tensor,
+        optimizer: optim.Optimizer,
+        criterion: nn.Module,
     ) -> float:
         """Train for one epoch."""
         self.model_.train()
@@ -356,8 +358,8 @@ class DenoisingAutoEncoder(BaseEstimator, TransformerMixin):
 
     def _validate_epoch(
         self,
-        X: "torch.Tensor",
-        criterion: "nn.Module",
+        X: torch.Tensor,
+        criterion: nn.Module,
     ) -> float:
         """Compute validation loss (without noise)."""
         self.model_.eval()
@@ -378,7 +380,7 @@ class DenoisingAutoEncoder(BaseEstimator, TransformerMixin):
 
         return total_loss / n_batches
 
-    def fit(self, X, y=None) -> "DenoisingAutoEncoder":
+    def fit(self, X, y=None) -> DenoisingAutoEncoder:
         """Fit the Denoising Autoencoder.
 
         Parameters
