@@ -8,12 +8,13 @@
   </p>
   <p align="center">
     <a href="https://pypi.org/project/endgame-ml/"><img src="https://img.shields.io/pypi/v/endgame-ml.svg" alt="PyPI"></a>
+    <a href="https://pepy.tech/project/endgame-ml"><img src="https://img.shields.io/pepy/dt/endgame-ml" alt="Downloads"></a>
     <a href="https://github.com/allianceai/endgame/actions"><img src="https://img.shields.io/github/actions/workflow/status/allianceai/endgame/ci.yml?branch=main" alt="Build"></a>
     <a href="https://codecov.io/gh/allianceai/endgame"><img src="https://img.shields.io/codecov/c/github/allianceai/endgame" alt="Coverage"></a>
     <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
     <a href="https://github.com/allianceai/endgame/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
     <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python"></a>
-    <a href="#citation"><img src="https://img.shields.io/badge/cite-BibTeX-orange.svg" alt="Citation"></a>
+    <a href="https://github.com/allianceai/endgame/stargazers"><img src="https://img.shields.io/github/stars/allianceai/endgame" alt="Stars"></a>
   </p>
   <p align="center">
     <a href="#quick-start">Quick Start</a> &middot;
@@ -41,6 +42,13 @@ Endgame is a production-aware ML framework built for high-stakes domains where i
 
 ```bash
 pip install endgame-ml
+```
+
+```python
+import endgame as eg
+
+result = eg.quick.classify(X, y, preset="competition")
+print(result)  # QuickResult(cv_score=0.923, metric='roc_auc')
 ```
 
 ## Why Endgame
@@ -680,10 +688,6 @@ ruff check endgame/
 
 </details>
 
-## Commercial Support
-
-Endgame is built and maintained by [Cameron Hamilton](https://github.com/allianceai), ML engineer at Alliance AI. For consulting on production ML pipelines, auditable AI in finance and healthcare, or custom integration work, reach out directly via [GitHub](https://github.com/allianceai) or [LinkedIn](https://linkedin.com/in/cameron-r-hamilton).
-
 ## Citation
 
 If you use Endgame in your research, please cite:
@@ -702,6 +706,10 @@ If you use Endgame in your research, please cite:
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+## Commercial Support
+
+Endgame is built and maintained by [Cameron Hamilton](https://github.com/allianceai), ML engineer at Alliance AI. For consulting on production ML pipelines, auditable AI in finance and healthcare, or custom integration work, reach out directly via [GitHub](https://github.com/allianceai) or [LinkedIn](https://linkedin.com/in/cameron-r-hamilton).
 
 ---
 
