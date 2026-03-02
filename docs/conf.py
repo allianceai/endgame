@@ -60,7 +60,6 @@ autodoc_mock_imports = [
     "treeple",
     "numba",
     "imbalanced_learn", "imblearn",
-    "fasterrisk",
     "sacrebleu",
 ]
 

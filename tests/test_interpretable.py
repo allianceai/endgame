@@ -329,7 +329,7 @@ class TestSLIM:
 # ============================================================================
 
 class TestFasterRisk:
-    """Test FasterRisk classifier."""
+    """Test FasterRisk classifier (native implementation)."""
 
     def test_import(self):
         """Test that FasterRiskClassifier can be imported."""
@@ -343,18 +343,79 @@ class TestFasterRisk:
         assert clf.max_coef == 5
         assert clf.sparsity == 10
 
-    def test_fit_predict_without_fasterrisk(self, binary_classification_data):
-        """Test that fitting raises ImportError when fasterrisk not installed."""
-        from endgame.models.interpretable.slim import HAS_FASTERRISK, FasterRiskClassifier
-
-        if HAS_FASTERRISK:
-            pytest.skip("fasterrisk is installed, skipping import error test")
+    def test_fit_predict(self, binary_classification_data):
+        """Test full fit/predict cycle."""
+        from endgame.models.interpretable import FasterRiskClassifier
 
         X_train, X_test, y_train, y_test = binary_classification_data
-        clf = FasterRiskClassifier()
+        clf = FasterRiskClassifier(max_coef=5, sparsity=5, n_models=10,
+                                   parent_size=5, n_iters=100)
+        clf.fit(X_train, y_train)
 
-        with pytest.raises(ImportError, match="fasterrisk"):
-            clf.fit(X_train, y_train)
+        # Predictions
+        y_pred = clf.predict(X_test)
+        assert y_pred.shape == y_test.shape
+        assert set(np.unique(y_pred)).issubset(set(clf.classes_))
+
+        # Probabilities
+        proba = clf.predict_proba(X_test)
+        assert proba.shape == (len(X_test), 2)
+        np.testing.assert_allclose(proba.sum(axis=1), 1.0)
+        assert np.all(proba >= 0) and np.all(proba <= 1)
+
+    def test_integer_coefficients(self, binary_classification_data):
+        """Test that coefficients are integers within bounds."""
+        from endgame.models.interpretable import FasterRiskClassifier
+
+        X_train, X_test, y_train, y_test = binary_classification_data
+        max_coef = 3
+        clf = FasterRiskClassifier(max_coef=max_coef, sparsity=5,
+                                   n_models=10, parent_size=5, n_iters=100)
+        clf.fit(X_train, y_train)
+
+        # Coefficients must be integers
+        np.testing.assert_array_equal(clf.coef_, clf.coef_.astype(int))
+        # Coefficients must be within bounds
+        assert np.all(np.abs(clf.coef_) <= max_coef)
+        # Intercept must be an integer
+        assert isinstance(clf.intercept_, int)
+
+    def test_sparsity(self, binary_classification_data):
+        """Test that sparsity constraint is respected."""
+        from endgame.models.interpretable import FasterRiskClassifier
+
+        X_train, X_test, y_train, y_test = binary_classification_data
+        sparsity = 3
+        clf = FasterRiskClassifier(sparsity=sparsity, n_models=10,
+                                   parent_size=5, n_iters=100)
+        clf.fit(X_train, y_train)
+
+        n_nonzero = np.count_nonzero(clf.coef_)
+        assert n_nonzero <= sparsity
+
+    def test_scorecard(self, binary_classification_data):
+        """Test scorecard generation."""
+        from endgame.models.interpretable import FasterRiskClassifier
+
+        X_train, X_test, y_train, y_test = binary_classification_data
+        clf = FasterRiskClassifier(sparsity=5, n_models=10,
+                                   parent_size=5, n_iters=100)
+        clf.fit(X_train, y_train)
+
+        scorecard = clf.get_scorecard()
+        assert isinstance(scorecard, str)
+        assert "FasterRisk Scoring System" in scorecard
+
+    def test_multiplier(self, binary_classification_data):
+        """Test that multiplier is stored and positive."""
+        from endgame.models.interpretable import FasterRiskClassifier
+
+        X_train, X_test, y_train, y_test = binary_classification_data
+        clf = FasterRiskClassifier(n_models=10, parent_size=5, n_iters=100)
+        clf.fit(X_train, y_train)
+
+        assert hasattr(clf, "multiplier_")
+        assert clf.multiplier_ > 0
 
 
 # ============================================================================

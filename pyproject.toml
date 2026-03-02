@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "endgame-ml"
-version = "1.0.1"
+version = "1.0.2"
 description = "A living library of machine learning — classic to SOTA, under one roof"
 readme = "README.md"
 license = "Apache-2.0"
@@ -50,7 +50,7 @@ dependencies = [
 tabular = [
     "xgboost>=2.0",
     "lightgbm>=4.0",
-    "catboost>=1.2",
+    "catboost>=1.2.3",
     "torch>=2.0",
     "interpret>=0.5",
     "tabpfn>=0.1.10",
@@ -63,7 +63,6 @@ tabular = [
     "pytorch-tabnet>=4.0",
     "pytorch-tabular>=1.1",
     "pygam>=0.9",
-    "fasterrisk>=0.1",
     "ctgan>=0.10",
 ]
 trees = [

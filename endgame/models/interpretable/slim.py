@@ -32,83 +32,6 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import KBinsDiscretizer, LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
-try:
-    # FasterRisk package
-    from fasterrisk.fasterrisk import RiskScoreClassifier, RiskScoreOptimizer
-    HAS_FASTERRISK = True
-except ImportError:
-    HAS_FASTERRISK = False
-    RiskScoreOptimizer = None
-    RiskScoreClassifier = None
-
-
-def _patch_fasterrisk_tostring():
-    """Patch fasterrisk for numpy 2.0+ where ndarray.tostring() was removed."""
-    try:
-        import inspect
-
-        import fasterrisk.rounding as _rounding
-
-        src = inspect.getsource(_rounding.starRaySearchModel.star_ray_search_scale_and_round)
-        if ".tostring()" not in src:
-            return
-
-        # Only patch if tostring is actually missing from ndarray
-        test_arr = np.zeros(1, dtype=bool)
-        try:
-            test_arr.tostring()
-            return  # tostring still works, no patch needed
-        except AttributeError:
-            pass
-
-        _orig_method = _rounding.starRaySearchModel.star_ray_search_scale_and_round  # noqa
-
-        def _patched_method(
-            self_inner,
-            sparseDiversePool_beta0_continuous,
-            sparseDiversePool_betas_continuous,
-        ):
-            from fasterrisk.rounding import get_support_indices
-
-            sparseDiversePool_continuous = np.hstack((
-                sparseDiversePool_beta0_continuous.reshape(-1, 1),
-                sparseDiversePool_betas_continuous,
-            ))
-
-            sparseDiversePool_integer = []
-            multipliers = []
-            mask_set = set()
-            tmp_mask = np.zeros((self_inner.p,), dtype=bool)
-
-            for i in range(len(sparseDiversePool_continuous)):
-                tmp_mult, tmp_int = self_inner.line_search_scale_and_round(
-                    sparseDiversePool_continuous[i]
-                )
-                tmp_indices = get_support_indices(tmp_int)
-                tmp_mask[:] = False
-                tmp_mask[tmp_indices] = True
-
-                key = tmp_mask.tobytes()
-                if key in mask_set:
-                    continue
-
-                mask_set.add(key)
-                multipliers.append(tmp_mult)
-                sparseDiversePool_integer.append(tmp_int)
-
-            multipliers = np.array(multipliers)
-            sparseDiversePool_integer = np.vstack(sparseDiversePool_integer)
-            return (
-                multipliers,
-                sparseDiversePool_integer[:, 0],
-                sparseDiversePool_integer[:, 1:],
-            )
-
-        _rounding.starRaySearchModel.star_ray_search_scale_and_round = _patched_method
-    except Exception:
-        pass
-
-
 def _round_to_integers(
     coefficients: np.ndarray,
     max_coef: int = 5,
@@ -493,11 +416,12 @@ class SLIMClassifier(ClassifierMixin, BaseEstimator):
 class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
     """FasterRisk Classifier.
 
-    FasterRisk produces optimized sparse integer risk scores using
-    coordinate descent and beam search. It typically produces better
-    scores than SLIM with faster optimization.
+    Produces optimized sparse integer risk scores using beam search,
+    diverse pool collection, and star ray search with auxiliary loss
+    rounding. Native implementation based on:
 
-    Requires the fasterrisk package: pip install fasterrisk
+    Liu & Rudin, "FasterRisk: Fast and Accurate Interpretable Risk
+    Scores", NeurIPS 2022.
 
     Parameters
     ----------
@@ -535,6 +459,9 @@ class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
 
     intercept_ : int
         Integer intercept.
+
+    multiplier_ : float
+        Scaling factor for probability calibration.
 
     Examples
     --------
@@ -586,11 +513,7 @@ class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
         -------
         self : FasterRiskClassifier
         """
-        if not HAS_FASTERRISK:
-            raise ImportError(
-                "The 'fasterrisk' package is required. "
-                "Install with: pip install endgame-ml[tabular]"
-            )
+        from endgame.models.interpretable._fasterrisk_core import fasterrisk_fit
 
         X, y = check_X_y(X, y)
         self.n_features_in_ = X.shape[1]
@@ -619,40 +542,24 @@ class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
             self.feature_names_ = self._original_feature_names
             self._discretizer = None
 
-        # Convert y to -1, 1
-        y_binary = 2 * y_encoded - 1
+        # Convert y to {-1, +1}
+        y_binary = (2 * y_encoded - 1).astype(np.float64)
 
-        # Fit FasterRisk
-        opt_kwargs = dict(
+        # Fit using native FasterRisk algorithm
+        self.multiplier_, beta0, betas = fasterrisk_fit(
             X=X_processed,
-            y=y_binary,
+            y_binary=y_binary,
             k=self.sparsity,
-            lb=-self.max_coef,
-            ub=self.max_coef,
+            max_coef=self.max_coef,
             parent_size=self.parent_size,
-            num_ray_search=self.n_models,
-        )
-        import inspect
-        sig = inspect.signature(RiskScoreOptimizer.__init__)
-        if "maxiter" in sig.parameters:
-            opt_kwargs["maxiter"] = self.n_iters
-        optimizer = RiskScoreOptimizer(**opt_kwargs)
-
-        _patch_fasterrisk_tostring()
-        optimizer.optimize()
-
-        # Get best model (index 0 = lowest logistic loss)
-        multiplier, beta0, betas = optimizer.get_models(model_index=0)
-        self._fasterrisk_model = RiskScoreClassifier(
-            multiplier, beta0, betas,
-            featureNames=self.feature_names_,
-            X_train=X_processed,
+            pool_size=self.n_models,
+            num_rays=self.n_models,
+            max_iter=self.n_iters,
         )
 
-        # Extract coefficients
-        self.coef_ = betas.copy()
+        self.coef_ = betas
         self.intercept_ = int(beta0)
-        self._threshold = 0  # FasterRisk uses 0 as default threshold
+        self._threshold = 0
 
         # Build scorecard
         self._build_scorecard()
@@ -716,7 +623,8 @@ class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
         scores = self._compute_scores(X)
 
         # Calibrated probability using FasterRisk's multiplier
-        proba_1 = 1 / (1 + np.exp(-scores))
+        m = getattr(self, "multiplier_", 1.0)
+        proba_1 = 1 / (1 + np.exp(-scores / m))
         proba_0 = 1 - proba_1
 
         return np.column_stack([proba_0, proba_1])
