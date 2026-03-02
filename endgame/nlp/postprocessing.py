@@ -321,7 +321,7 @@ class LLMPostEditor(EndgameEstimator):
         except ImportError:
             raise ImportError(
                 "transformers and torch required. "
-                "Install with: pip install transformers torch"
+                "Install with: pip install endgame-ml[nlp]"
             )
 
         self._log(f"Loading model: {self.model_name}")

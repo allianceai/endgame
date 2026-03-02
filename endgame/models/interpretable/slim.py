@@ -589,7 +589,7 @@ class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
         if not HAS_FASTERRISK:
             raise ImportError(
                 "The 'fasterrisk' package is required. "
-                "Install with: pip install fasterrisk"
+                "Install with: pip install endgame-ml[tabular]"
             )
 
         X, y = check_X_y(X, y)

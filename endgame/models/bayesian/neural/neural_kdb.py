@@ -142,7 +142,7 @@ class NeuralKDBClassifier(BaseBayesianClassifier):
         if not HAS_TORCH:
             raise ImportError(
                 "NeuralKDBClassifier requires PyTorch. "
-                "Install with: pip install torch"
+                "Install with: pip install endgame-ml[tabular]"
             )
 
         super().__init__(

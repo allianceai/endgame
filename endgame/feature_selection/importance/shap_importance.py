@@ -21,7 +21,7 @@ def _check_shap_installed():
     if not HAS_SHAP:
         raise ImportError(
             "The 'shap' package is required for SHAPSelector. "
-            "Install it with: pip install shap"
+            "Install with: pip install endgame-ml[explain]"
         )
 
 

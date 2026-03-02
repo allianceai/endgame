@@ -93,7 +93,7 @@ def _check_rocket_available():
     if not (HAS_SKTIME_ROCKET or HAS_NATIVE_ROCKET):
         raise ImportError(
             "ROCKET requires either sktime or the native rocket implementation. "
-            "Install with: pip install sktime  OR  pip install rocket-learn"
+            "Install with: pip install endgame-ml[timeseries]"
         )
 
 
@@ -102,7 +102,7 @@ def _check_minirocket_available():
     if not (HAS_SKTIME_ROCKET or HAS_NATIVE_MINIROCKET):
         raise ImportError(
             "MiniROCKET requires either sktime or the native minirocket implementation. "
-            "Install with: pip install sktime  OR  pip install rocket-learn"
+            "Install with: pip install endgame-ml[timeseries]"
         )
 
 
@@ -111,7 +111,7 @@ def _check_hydra_available():
     if not (HAS_SKTIME_HYDRA or HAS_NATIVE_HYDRA):
         raise ImportError(
             "HYDRA requires either sktime or the native hydra implementation. "
-            "Install with: pip install sktime  OR  pip install hydra-ts"
+            "Install with: pip install endgame-ml[timeseries]"
         )
 
 
@@ -406,7 +406,7 @@ class MultiRocketTransformer(BaseEstimator, TransformerMixin):
         if not HAS_SKTIME_MULTIROCKET:
             raise ImportError(
                 "MultiROCKET requires sktime with MultiRocket support. "
-                "Install with: pip install sktime"
+                "Install with: pip install endgame-ml[timeseries]"
             )
 
         X = _to_sktime_format(X)

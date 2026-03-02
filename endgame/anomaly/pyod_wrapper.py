@@ -105,7 +105,7 @@ def _import_pyod_class(algorithm: str):
     except ImportError as e:
         raise ImportError(
             f"Could not import {algorithm}. "
-            f"Make sure PyOD is installed: pip install pyod\n"
+            f"Make sure PyOD is installed: pip install endgame-ml[anomaly]\n"
             f"Original error: {e}"
         )
 

@@ -53,7 +53,7 @@ def _check_statsforecast():
     if not HAS_STATSFORECAST:
         raise ImportError(
             "statsforecast is required for statistical forecasting models. "
-            "Install with: pip install statsforecast"
+            "Install with: pip install endgame-ml[timeseries]"
         )
 
 

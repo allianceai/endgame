@@ -131,7 +131,7 @@ class Explanation:
             except ImportError:
                 raise ImportError(
                     f"Plot kind='{kind}' requires the 'shap' package. "
-                    "Install it with: pip install shap"
+                    "Install with: pip install endgame-ml[explain]"
                 )
 
             shap_explanation = shap_lib.Explanation(
@@ -183,7 +183,7 @@ class Explanation:
         except ImportError:
             raise ImportError(
                 "pandas is required for to_dataframe(). "
-                "Install it with: pip install pandas"
+                "Install with: pip install pandas"
             )
 
         vals = np.asarray(self.values)

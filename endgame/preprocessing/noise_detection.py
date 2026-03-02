@@ -114,7 +114,10 @@ class ConfidentLearningFilter(BaseEstimator):
                         verbosity=0,
                     )
                 except ImportError:
-                    raise ImportError("xgboost is required for base_estimator='xgboost'")
+                    raise ImportError(
+                        "xgboost is required for base_estimator='xgboost'. "
+                        "Install with: pip install endgame-ml[tabular]"
+                    )
             elif self.base_estimator == "lgbm":
                 try:
                     from lightgbm import LGBMClassifier
@@ -125,7 +128,10 @@ class ConfidentLearningFilter(BaseEstimator):
                         verbose=-1,
                     )
                 except ImportError:
-                    raise ImportError("lightgbm is required for base_estimator='lgbm'")
+                    raise ImportError(
+                        "lightgbm is required for base_estimator='lgbm'. "
+                        "Install with: pip install endgame-ml[tabular]"
+                    )
             else:
                 raise ValueError(f"Unknown estimator string: {self.base_estimator}")
         return clone(self.base_estimator)

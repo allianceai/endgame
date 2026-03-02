@@ -25,7 +25,7 @@ def _check_albumentations():
     if not HAS_ALBUMENTATIONS:
         raise ImportError(
             "albumentations is required for AugmentationPipeline. "
-            "Install with: pip install albumentations"
+            "Install with: pip install endgame-ml[vision]"
         )
 
 

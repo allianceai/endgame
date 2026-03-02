@@ -41,7 +41,10 @@ except ImportError:
 
 def _check_torch():
     if not HAS_TORCH:
-        raise ImportError("PyTorch is required for NODE-GAM. Install with: pip install torch")
+        raise ImportError(
+            "PyTorch is required for NODE-GAM. "
+            "Install with: pip install endgame-ml[tabular]"
+        )
 
 
 class _EntmaxBisect(torch.autograd.Function):

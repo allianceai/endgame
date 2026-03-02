@@ -87,7 +87,7 @@ class DomainAdaptivePretrainer(EndgameEstimator):
         except ImportError:
             raise ImportError(
                 "transformers and datasets are required. "
-                "Install with: pip install transformers datasets"
+                "Install with: pip install endgame-ml[nlp]"
             )
 
         self._log(f"Loading model: {self.model_name}")

@@ -11,7 +11,7 @@ for tabular data, including:
 
 All models follow the sklearn interface and support GPU acceleration.
 
-Note: These models require PyTorch. Install with: pip install torch
+Note: These models require PyTorch. Install with: pip install endgame-ml[tabular]
 """
 
 __all__ = []

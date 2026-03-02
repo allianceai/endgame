@@ -635,7 +635,7 @@ class VisionPredictor(BasePredictor):
         except ImportError:
             raise ImportError(
                 "VisionClassifier requires torch and timm. "
-                "Install with: pip install torch timm"
+                "Install with: pip install endgame-ml[vision]"
             )
 
     def _predict_with_tta(

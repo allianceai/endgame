@@ -35,7 +35,7 @@ def _check_torch_installed():
     if not HAS_TORCH:
         raise ImportError(
             "PyTorch is required for VAEReducer. "
-            "Install it with: pip install torch"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 

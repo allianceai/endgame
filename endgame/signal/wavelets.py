@@ -39,7 +39,7 @@ def _check_pywt():
     if not HAS_PYWT:
         raise ImportError(
             "PyWavelets is required for wavelet transforms. "
-            "Install with: pip install PyWavelets"
+            "Install with: pip install endgame-ml[signal]"
         )
 
 

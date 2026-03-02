@@ -49,7 +49,7 @@ def _ensure_skl2onnx():
     except ImportError:
         raise ImportError(
             "skl2onnx is required for ONNX export of sklearn models. "
-            "Install it with: pip install skl2onnx"
+            "Install with: pip install endgame-ml[deployment]"
         )
 
 
@@ -61,7 +61,7 @@ def _ensure_onnx():
     except ImportError:
         raise ImportError(
             "onnx is required for ONNX export. "
-            "Install it with: pip install onnx"
+            "Install with: pip install endgame-ml[deployment]"
         )
 
 
@@ -73,7 +73,7 @@ def _ensure_hummingbird():
     except ImportError:
         raise ImportError(
             "hummingbird-ml is required for this conversion backend. "
-            "Install it with: pip install hummingbird-ml"
+            "Install with: pip install endgame-ml[deployment]"
         )
 
 

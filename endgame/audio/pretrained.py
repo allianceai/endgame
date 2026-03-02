@@ -167,7 +167,9 @@ class PretrainedAudioClassifier(BaseEstimator, ClassifierMixin):
         verbose: bool = False,
     ):
         if not HAS_TORCH:
-            raise ImportError("PyTorch is required. Install with: pip install torch")
+            raise ImportError(
+                "PyTorch is required. Install with: pip install endgame-ml[audio]"
+            )
 
         self.model_name = model_name
         self.sample_rate = sample_rate
@@ -216,7 +218,7 @@ class PretrainedAudioClassifier(BaseEstimator, ClassifierMixin):
         except ImportError:
             raise ImportError(
                 "transformers is required for PretrainedAudioClassifier. "
-                "Install with: pip install transformers"
+                "Install with: pip install endgame-ml[audio]"
             )
 
         self._log(f"Loading model: {self.model_name}")

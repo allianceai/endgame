@@ -55,7 +55,7 @@ def _check_umap_installed():
     if not HAS_UMAP:
         raise ImportError(
             "The 'umap-learn' package is required. "
-            "Install it with: pip install umap-learn"
+            "Install with: pip install umap-learn"
         )
 
 
@@ -64,7 +64,7 @@ def _check_trimap_installed():
     if not HAS_TRIMAP:
         raise ImportError(
             "The 'trimap' package is required. "
-            "Install it with: pip install trimap"
+            "Install with: pip install trimap"
         )
 
 
@@ -73,7 +73,7 @@ def _check_phate_installed():
     if not HAS_PHATE:
         raise ImportError(
             "The 'phate' package is required. "
-            "Install it with: pip install phate"
+            "Install with: pip install phate"
         )
 
 
@@ -82,7 +82,7 @@ def _check_pacmap_installed():
     if not HAS_PACMAP:
         raise ImportError(
             "The 'pacmap' package is required. "
-            "Install it with: pip install pacmap"
+            "Install with: pip install pacmap"
         )
 
 
@@ -358,6 +358,7 @@ class ParametricUMAP(TransformerMixin, BaseEstimator):
             raise ImportError(
                 "TensorFlow is required for ParametricUMAP. "
                 "Install with: pip install tensorflow"
+                " (not included in standard extras groups)"
             )
 
         layers = [keras.layers.InputLayer(input_shape=(input_dim,))]
@@ -378,6 +379,7 @@ class ParametricUMAP(TransformerMixin, BaseEstimator):
             raise ImportError(
                 "TensorFlow is required for ParametricUMAP. "
                 "Install with: pip install tensorflow"
+                " (not included in standard extras groups)"
             )
 
         layers = [keras.layers.InputLayer(input_shape=(self.n_components,))]

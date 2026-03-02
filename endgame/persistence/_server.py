@@ -32,8 +32,7 @@ def _ensure_onnxruntime():
     except ImportError:
         raise ImportError(
             "onnxruntime is required for ONNX model serving. "
-            "Install it with: pip install onnxruntime  "
-            "(or onnxruntime-gpu for GPU support)"
+            "Install with: pip install endgame-ml[deployment]"
         )
 
 

@@ -57,14 +57,16 @@ except ImportError:
 def _check_torch():
     if not HAS_TORCH:
         raise ImportError(
-            "PyTorch is required for this sampler. Install with: pip install torch"
+            "PyTorch is required for this sampler. "
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 
 def _check_ctgan():
     if not HAS_CTGAN:
         raise ImportError(
-            "ctgan is required for CTGANResampler. Install with: pip install ctgan"
+            "ctgan is required for CTGANResampler. "
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 
@@ -72,7 +74,7 @@ def _check_xgboost():
     if not HAS_XGBOOST:
         raise ImportError(
             "XGBoost is required for ForestFlowResampler. "
-            "Install with: pip install xgboost"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 

@@ -41,7 +41,7 @@ def _check_gosdt_installed():
     if not HAS_GOSDT:
         raise ImportError(
             "The 'gosdt' package is required for GOSDTClassifier. "
-            "Install it with: pip install gosdt"
+            "Install with: pip install gosdt"
         )
 
 

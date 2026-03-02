@@ -346,7 +346,7 @@ class SuiteLoader:
         if not HAS_OPENML:
             raise ImportError(
                 "openml is required for OpenML suites. "
-                "Install with: pip install openml"
+                "Install with: pip install endgame-ml[benchmark]"
             )
 
         self._log(f"Loading OpenML suite {suite_id}...")
@@ -377,7 +377,7 @@ class SuiteLoader:
         if not HAS_OPENML:
             raise ImportError(
                 "openml is required for OpenML datasets. "
-                "Install with: pip install openml"
+                "Install with: pip install endgame-ml[benchmark]"
             )
 
         if self.max_datasets:

@@ -70,7 +70,7 @@ def _check_darts():
     if not HAS_DARTS:
         raise ImportError(
             "darts is required for neural forecasting models. "
-            "Install with: pip install darts[torch]"
+            "Install with: pip install endgame-ml[timeseries]"
         )
 
 
@@ -632,7 +632,7 @@ class PatchTSTForecaster(DartsForecasterWrapper):
         if not HAS_PATCHTST:
             raise ImportError(
                 "PatchTSTModel requires a recent version of darts. "
-                "Install with: pip install -U darts[torch]"
+                "Install with: pip install endgame-ml[timeseries]"
             )
 
         model_kwargs = {
@@ -789,7 +789,7 @@ class TimesNetForecaster(DartsForecasterWrapper):
         if not HAS_TIMESNET:
             raise ImportError(
                 "TimesNetModel requires a recent version of darts. "
-                "Install with: pip install -U darts[torch]"
+                "Install with: pip install endgame-ml[timeseries]"
             )
 
         model_kwargs = {

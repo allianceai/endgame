@@ -141,7 +141,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                             return error_response(
                                 "missing_dependency",
                                 "imbalanced-learn required for balancing",
-                                hint="pip install imbalanced-learn",
+                                hint="pip install endgame-ml[tabular]",
                             )
                         applied.append(f"balance({method})")
 

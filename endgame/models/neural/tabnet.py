@@ -31,7 +31,7 @@ def _check_tabnet():
     if not HAS_TABNET:
         raise ImportError(
             "pytorch-tabnet is required for TabNet models. "
-            "Install with: pip install pytorch-tabnet"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 

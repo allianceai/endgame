@@ -373,7 +373,10 @@ class AutoSLE:
                 from pgmpy.estimators import PC
                 from pgmpy.models import BayesianNetwork
             except ImportError:
-                raise ImportError("PC solver requires pgmpy: pip install pgmpy")
+                raise ImportError(
+                    "PC solver requires pgmpy. "
+                    "Install with: pip install endgame-ml[bayesian]"
+                )
 
             df = pd.DataFrame(data)
             pc = PC(df)
@@ -384,7 +387,10 @@ class AutoSLE:
             try:
                 from causallearn.search.ScoreBased.GES import ges
             except ImportError:
-                raise ImportError("GES solver requires causal-learn: pip install causal-learn")
+                raise ImportError(
+                    "GES solver requires causal-learn. "
+                    "Install with: pip install endgame-ml[bayesian]"
+                )
 
             record = ges(data)
             G = record['G']

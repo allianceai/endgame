@@ -28,7 +28,7 @@ def _check_lime_installed() -> None:
     except ImportError:
         raise ImportError(
             "The 'lime' package is required for LIMEExplainer. "
-            "Install it with: pip install lime"
+            "Install with: pip install endgame-ml[explain]"
         )
 
 

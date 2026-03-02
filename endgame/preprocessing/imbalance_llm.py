@@ -43,7 +43,7 @@ def _check_transformers():
     if not HAS_TRANSFORMERS:
         raise ImportError(
             "transformers and PyTorch are required for GReaTResampler. "
-            "Install with: pip install transformers torch"
+            "Install with: pip install endgame-ml[nlp]"
         )
 
 

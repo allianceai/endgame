@@ -75,7 +75,7 @@ class SpectrogramTransformer(EndgameEstimator, TransformerMixin):
         except ImportError:
             raise ImportError(
                 "librosa is required for SpectrogramTransformer. "
-                "Install with: pip install librosa"
+                "Install with: pip install endgame-ml[audio]"
             )
 
     def fit(self, X, y=None) -> SpectrogramTransformer:

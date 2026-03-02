@@ -50,7 +50,7 @@ def _check_interpret_installed():
     if not HAS_INTERPRET:
         raise ImportError(
             "The 'interpret' package is required for EBM models. "
-            "Install it with: pip install interpret"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 
@@ -949,5 +949,5 @@ def show_explanation(explanation, share_graphs: bool = False):
     except ImportError:
         raise ImportError(
             "The 'interpret' package is required. "
-            "Install it with: pip install interpret"
+            "Install with: pip install endgame-ml[tabular]"
         )

@@ -87,7 +87,7 @@ class TransformerClassifier(EndgameEstimator, ClassifierMixin):
         except ImportError:
             raise ImportError(
                 "transformers and torch are required. "
-                "Install with: pip install transformers torch"
+                "Install with: pip install endgame-ml[nlp]"
             )
 
     def fit(

@@ -27,7 +27,7 @@ def _ensure_joblib():
     except ImportError:
         raise ImportError(
             "joblib is required for model persistence. "
-            "Install it with: pip install joblib"
+            "Install with: pip install joblib"
         )
 
 

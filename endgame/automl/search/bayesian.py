@@ -123,7 +123,7 @@ class BayesianSearch(BaseSearchStrategy):
             except ImportError:
                 raise ImportError(
                     "Optuna is required for BayesianSearch. "
-                    "Install it with: pip install optuna"
+                    "Install with: pip install optuna"
                 )
         return self._optuna
 

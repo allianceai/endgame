@@ -22,7 +22,7 @@ specifically designed for tabular data:
 - RealMLP: Meta-Tuned MLP with Robust Preprocessing (Holzmuller et al., NeurIPS 2024)
 - xRFM: Tree-Structured Recursive Feature Machines (Beaglehole & Holzmuller, 2025)
 
-Note: Most models require PyTorch. Install with: pip install torch
+Note: Most models require PyTorch. Install with: pip install endgame-ml[tabular]
 """
 
 # Check if PyTorch is available
@@ -162,7 +162,7 @@ else:
         class TorchRequiredModel:
             def __init__(self, *args, **kwargs):
                 raise ImportError(
-                    f"{name} requires PyTorch. Install with: pip install torch"
+                    f"{name} requires PyTorch. Install with: pip install endgame-ml[tabular]"
                 )
         TorchRequiredModel.__name__ = name
         TorchRequiredModel.__qualname__ = name

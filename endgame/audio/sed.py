@@ -31,7 +31,7 @@ def _check_torch():
     if not HAS_TORCH:
         raise ImportError(
             "PyTorch is required for SED models. "
-            "Install with: pip install torch"
+            "Install with: pip install endgame-ml[audio]"
         )
 
 
@@ -221,7 +221,10 @@ class _SEDModule(nn.Module):
         try:
             import timm
         except ImportError:
-            raise ImportError("timm is required for efficientnet encoder")
+            raise ImportError(
+                "timm is required for efficientnet encoder. "
+                "Install with: pip install endgame-ml[vision]"
+            )
 
         # Use EfficientNet-B0
         backbone = timm.create_model(

@@ -352,7 +352,7 @@ class ExponentiatedGradient(BaseEstimator, ClassifierMixin):
         except ImportError:
             raise ImportError(
                 "fairlearn is required for ExponentiatedGradient. "
-                "Install with: pip install fairlearn"
+                "Install with: pip install endgame-ml[fairness]"
             )
 
     def _get_constraint_object(self):

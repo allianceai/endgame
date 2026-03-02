@@ -50,8 +50,8 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     except ImportError:
                         return error_response(
                             "missing_dependency",
-                            "openml package required. Install with: pip install openml",
-                            hint="pip install openml",
+                            "openml package required. Install with: pip install endgame-ml[benchmark]",
+                            hint="pip install endgame-ml[benchmark]",
                         )
                 # URL loading
                 elif source.startswith("http://") or source.startswith("https://"):

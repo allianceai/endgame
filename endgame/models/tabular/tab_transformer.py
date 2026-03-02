@@ -68,16 +68,18 @@ def _check_dependencies():
     """Check that required dependencies are installed."""
     if not HAS_TORCH:
         raise ImportError(
-            "PyTorch is required for TabTransformer. Install with: pip install torch"
+            "PyTorch is required for TabTransformer. "
+            "Install with: pip install endgame-ml[tabular]"
         )
     if not HAS_PANDAS:
         raise ImportError(
-            "pandas is required for TabTransformer. Install with: pip install pandas"
+            "pandas is required for TabTransformer. "
+            "Install with: pip install endgame-ml[tabular]"
         )
     if not HAS_PYTORCH_TABULAR:
         raise ImportError(
             "pytorch-tabular is required for TabTransformer. "
-            "Install with: pip install pytorch-tabular"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 

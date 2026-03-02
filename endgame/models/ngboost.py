@@ -45,7 +45,7 @@ def _check_ngboost():
     if not HAS_NGBOOST:
         raise ImportError(
             "ngboost is required for NGBoost models. "
-            "Install with: pip install ngboost"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 

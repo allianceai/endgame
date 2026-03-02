@@ -160,7 +160,7 @@ class TransformerTranslator(EndgameEstimator):
         except ImportError:
             raise ImportError(
                 "PyTorch and Transformers are required. "
-                "Install with: pip install torch transformers"
+                "Install with: pip install endgame-ml[nlp]"
             )
 
         if self.config.use_lora:
@@ -169,7 +169,7 @@ class TransformerTranslator(EndgameEstimator):
             except ImportError:
                 warnings.warn(
                     "PEFT not installed. Disabling LoRA. "
-                    "Install with: pip install peft"
+                    "Install with: pip install endgame-ml[nlp]"
                 )
                 self.config.use_lora = False
 

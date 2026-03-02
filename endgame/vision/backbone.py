@@ -76,7 +76,7 @@ class VisionBackbone(EndgameEstimator):
         except ImportError:
             raise ImportError(
                 "timm and torch are required for VisionBackbone. "
-                "Install with: pip install timm torch"
+                "Install with: pip install endgame-ml[vision]"
             )
 
         self._model = timm.create_model(
@@ -118,7 +118,9 @@ class VisionBackbone(EndgameEstimator):
         try:
             import timm
         except ImportError:
-            raise ImportError("timm is required")
+            raise ImportError(
+                "timm is required. Install with: pip install endgame-ml[vision]"
+            )
 
         if self._model is None:
             self._create_model()
@@ -147,7 +149,9 @@ class VisionBackbone(EndgameEstimator):
         try:
             import timm
         except ImportError:
-            raise ImportError("timm is required")
+            raise ImportError(
+                "timm is required. Install with: pip install endgame-ml[vision]"
+            )
 
         if self._model is None:
             self._create_model()
@@ -246,6 +250,8 @@ class VisionBackbone(EndgameEstimator):
         try:
             import timm
         except ImportError:
-            raise ImportError("timm is required")
+            raise ImportError(
+                "timm is required. Install with: pip install endgame-ml[vision]"
+            )
 
         return timm.list_models(filter_str)

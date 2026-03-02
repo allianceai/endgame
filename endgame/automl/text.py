@@ -679,7 +679,7 @@ class TextPredictor(BasePredictor):
         except ImportError:
             raise ImportError(
                 "TransformerClassifier requires the transformers library. "
-                "Install with: pip install transformers"
+                "Install with: pip install endgame-ml[nlp]"
             )
 
     def _run_pseudo_labeling(

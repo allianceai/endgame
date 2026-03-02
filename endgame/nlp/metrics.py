@@ -16,7 +16,7 @@ def _check_evaluate():
     except ImportError:
         warnings.warn(
             "evaluate library not installed. "
-            "Install with: pip install evaluate sacrebleu"
+            "Install with: pip install endgame-ml[nlp]"
         )
         return False
 

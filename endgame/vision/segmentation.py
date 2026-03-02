@@ -35,12 +35,12 @@ def _check_dependencies():
     if not HAS_TORCH:
         raise ImportError(
             "PyTorch is required for SegmentationModel. "
-            "Install with: pip install torch"
+            "Install with: pip install endgame-ml[vision]"
         )
     if not HAS_SMP:
         raise ImportError(
             "segmentation_models_pytorch is required for SegmentationModel. "
-            "Install with: pip install segmentation-models-pytorch"
+            "Install with: pip install endgame-ml[vision]"
         )
 
 

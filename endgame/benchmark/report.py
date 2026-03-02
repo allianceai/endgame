@@ -136,7 +136,10 @@ class BenchmarkReportGenerator:
             Path to the generated report.
         """
         if not HAS_PLOTLY:
-            raise ImportError("Plotly is required for report generation. Install with: pip install plotly")
+            raise ImportError(
+                "Plotly is required for report generation. "
+                "Install with: pip install endgame-ml[benchmark]"
+            )
 
         sections = []
 

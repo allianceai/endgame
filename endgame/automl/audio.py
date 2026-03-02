@@ -602,7 +602,10 @@ class AudioPredictor(BasePredictor):
                     import librosa
                     waveform, _ = librosa.load(audio, sr=self.sample_rate)
                 except ImportError:
-                    raise ImportError("librosa is required for loading audio files")
+                    raise ImportError(
+                        "librosa is required for loading audio files. "
+                        "Install with: pip install endgame-ml[audio]"
+                    )
             else:
                 waveform = np.array(audio)
 
@@ -765,7 +768,7 @@ class AudioPredictor(BasePredictor):
         except ImportError:
             raise ImportError(
                 "SEDModel requires torch and librosa. "
-                "Install with: pip install torch librosa"
+                "Install with: pip install endgame-ml[audio]"
             )
 
     def _build_ensemble(

@@ -45,7 +45,7 @@ def _check_shap_installed() -> None:
     except ImportError:
         raise ImportError(
             "The 'shap' package is required for SHAPExplainer. "
-            "Install it with: pip install shap"
+            "Install with: pip install endgame-ml[explain]"
         )
 
 

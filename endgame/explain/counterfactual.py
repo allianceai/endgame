@@ -34,7 +34,7 @@ def _check_dice_installed() -> None:
     except ImportError:
         raise ImportError(
             "The 'dice-ml' package is required for CounterfactualExplainer. "
-            "Install it with: pip install dice-ml"
+            "Install with: pip install endgame-ml[explain]"
         )
 
 

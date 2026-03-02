@@ -30,7 +30,7 @@ def _check_torch():
     if not HAS_TORCH:
         raise ImportError(
             "PyTorch is required for DenoisingAutoEncoder. "
-            "Install with: pip install torch"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 

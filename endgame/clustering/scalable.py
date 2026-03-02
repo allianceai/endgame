@@ -229,6 +229,7 @@ class FINCHClusterer(BaseEstimator, ClusterMixin):
             raise ImportError(
                 "finch-clust is required for FINCHClusterer. "
                 "Install with: pip install finch-clust"
+                " (not included in standard extras groups)"
             )
 
         X = check_array(X, dtype=np.float64)

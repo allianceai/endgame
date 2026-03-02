@@ -31,7 +31,7 @@ def _check_transformers():
     if not HAS_TRANSFORMERS:
         raise ImportError(
             "transformers is required for LLM utilities. "
-            "Install with: pip install transformers torch"
+            "Install with: pip install endgame-ml[nlp]"
         )
 
 
@@ -178,7 +178,7 @@ class LLMWrapper(BaseEstimator):
         except ImportError:
             raise ImportError(
                 "bitsandbytes is required for quantization. "
-                "Install with: pip install bitsandbytes"
+                "Install with: pip install endgame-ml[nlp]"
             )
 
         if self.quantization == "4bit":

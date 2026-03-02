@@ -48,7 +48,7 @@ def _check_imblearn():
     if not _IMBLEARN_AVAILABLE:
         raise ImportError(
             "imbalanced-learn is required for class balancing. "
-            "Install with: pip install imbalanced-learn"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 

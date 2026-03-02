@@ -339,7 +339,7 @@ class BayesianClassifierMixin(BayesianSerializationMixin):
         except ImportError:
             raise ImportError(
                 "pgmpy is required for export. "
-                "Install with: pip install pgmpy"
+                "Install with: pip install endgame-ml[bayesian]"
             )
 
         if not hasattr(self, 'structure_') or self.structure_ is None:

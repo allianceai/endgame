@@ -57,7 +57,7 @@ def _check_tsfresh():
     if not HAS_TSFRESH:
         raise ImportError(
             "tsfresh is required for TSFreshFeatureExtractor. "
-            "Install with: pip install tsfresh"
+            "Install with: pip install endgame-ml[timeseries]"
         )
 
 

@@ -228,7 +228,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                         return error_response(
                             "missing_dependency",
                             "statsforecast is required for ARIMA forecasting. "
-                            "Install with: pip install statsforecast",
+                            "Install with: pip install endgame-ml[timeseries]",
                             hint="Use method='naive' for a simple last-value forecast without extra dependencies.",
                         )
 
@@ -253,7 +253,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                         return error_response(
                             "missing_dependency",
                             "statsforecast is required for ETS forecasting. "
-                            "Install with: pip install statsforecast",
+                            "Install with: pip install endgame-ml[timeseries]",
                             hint="Use method='naive' for a simple last-value forecast without extra dependencies.",
                         )
 
@@ -275,7 +275,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                         return error_response(
                             "missing_dependency",
                             "statsforecast is required for Theta forecasting. "
-                            "Install with: pip install statsforecast",
+                            "Install with: pip install endgame-ml[timeseries]",
                             hint="Use method='naive' for a simple last-value forecast without extra dependencies.",
                         )
 

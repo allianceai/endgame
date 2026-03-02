@@ -259,7 +259,10 @@ def to_string(node: Node, feature_names: list[str] | None = None,
 def to_sympy(node: Node, feature_names: list[str] | None = None):
     """Convert expression tree to SymPy expression."""
     if not HAS_SYMPY:
-        raise ImportError("sympy is required for symbolic export. Install with: pip install sympy")
+        raise ImportError(
+            "sympy is required for symbolic export. "
+            "Install with: pip install endgame-ml[tabular]"
+        )
     import sympy
 
     if isinstance(node, Constant):
@@ -299,7 +302,10 @@ def evaluate_torch(node: Node, X_tensor):
     reconstruct in _constant_optimizer.
     """
     if not HAS_TORCH:
-        raise ImportError("PyTorch is required for constant optimization")
+        raise ImportError(
+            "PyTorch is required for constant optimization. "
+            "Install with: pip install endgame-ml[tabular]"
+        )
     import torch
 
     if isinstance(node, Constant):

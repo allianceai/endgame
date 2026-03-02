@@ -168,6 +168,7 @@ class GenieClusterer(BaseEstimator, ClusterMixin):
             raise ImportError(
                 "genieclust is required for GenieClusterer. "
                 "Install with: pip install genieclust"
+                " (not included in standard extras groups)"
             )
 
         X = check_array(X, dtype=np.float64)

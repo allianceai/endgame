@@ -130,7 +130,10 @@ class TensorNEATClassifier(BaseEstimator, ClassifierMixin):
     def __init__(self, population_size=1000, n_generations=100, species_size=10,
                  random_state=None, verbose=0):
         if not _HAS_TENSORNEAT:
-            raise ImportError("tensorneat and jax are required for TensorNEATClassifier")
+            raise ImportError(
+                "tensorneat and jax are required for TensorNEATClassifier. "
+                "Install from GitHub: https://github.com/EMI-Group/tensorneat"
+            )
         self.population_size = population_size
         self.n_generations = n_generations
         self.species_size = species_size

@@ -30,7 +30,10 @@ except ImportError:
 
 def _check_torch():
     if not HAS_TORCH:
-        raise ImportError("PyTorch is required for NODE. Install with: pip install torch")
+        raise ImportError(
+            "PyTorch is required for NODE. "
+            "Install with: pip install endgame-ml[tabular]"
+        )
 
 
 def entmax15(x: torch.Tensor, dim: int = -1) -> torch.Tensor:

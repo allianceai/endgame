@@ -147,7 +147,7 @@ class OrdinalClassifier(ClassifierMixin, BaseEstimator):
         if not _HAS_MORD:
             raise ImportError(
                 "Ordinal regression requires mord. "
-                "Install with: pip install mord"
+                "Install with: pip install endgame-ml[tabular]"
             )
 
         if self.variant_ == "at":

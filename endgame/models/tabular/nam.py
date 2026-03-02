@@ -31,7 +31,10 @@ except ImportError:
 
 def _check_torch():
     if not HAS_TORCH:
-        raise ImportError("PyTorch is required for NAM. Install with: pip install torch")
+        raise ImportError(
+            "PyTorch is required for NAM. "
+            "Install with: pip install endgame-ml[tabular]"
+        )
 
 
 class ExU(nn.Module):
@@ -761,7 +764,10 @@ class NAMClassifier(ClassifierMixin, BaseEstimator):
         try:
             import matplotlib.pyplot as plt
         except ImportError:
-            raise ImportError("matplotlib is required for plotting. Install with: pip install matplotlib")
+            raise ImportError(
+                "matplotlib is required for plotting. "
+                "Install with: pip install endgame-ml[benchmark]"
+            )
 
         if not self._is_fitted:
             raise RuntimeError("NAMClassifier has not been fitted.")

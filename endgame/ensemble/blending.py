@@ -405,7 +405,10 @@ class OptimizedBlender(BaseEnsemble):
         try:
             import optuna
         except ImportError:
-            raise ImportError("Optuna is required for OptimizedBlender. Install with: pip install optuna")
+            raise ImportError(
+                "Optuna is required for OptimizedBlender. "
+                "Install with: pip install optuna"
+            )
 
         predictions = self._validate_predictions(predictions, y_true)
         y_true = np.asarray(y_true)

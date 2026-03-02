@@ -643,7 +643,7 @@ class TimeSeriesPredictor(BasePredictor):
         except ImportError as e:
             raise ImportError(
                 f"Time series classifier '{clf_name}' requires additional dependencies. "
-                f"Install with: pip install sktime. Error: {e}"
+                f"Install with: pip install endgame-ml[timeseries]. Error: {e}"
             )
 
     def _build_ensemble(

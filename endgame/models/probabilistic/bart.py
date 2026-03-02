@@ -145,7 +145,8 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
         if not _HAS_PYMC_BART:
             raise ImportError(
                 "BART requires pymc and pymc-bart. "
-                "Install with: pip install pymc pymc-bart"
+                "Install with: pip install pymc pymc-bart "
+                "(not included in standard extras groups)"
             )
 
         X = np.asarray(X, dtype=np.float64)
@@ -423,7 +424,8 @@ class BARTClassifier(ClassifierMixin, BaseEstimator):
         if not _HAS_PYMC_BART:
             raise ImportError(
                 "BART requires pymc and pymc-bart. "
-                "Install with: pip install pymc pymc-bart"
+                "Install with: pip install pymc pymc-bart "
+                "(not included in standard extras groups)"
             )
 
         X = np.asarray(X, dtype=np.float64)

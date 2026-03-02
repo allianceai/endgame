@@ -40,7 +40,7 @@ def _check_pygam():
     if not HAS_PYGAM:
         raise ImportError(
             "The 'pygam' package is required for GAM models. "
-            "Install with: pip install pygam"
+            "Install with: pip install endgame-ml[tabular]"
         )
 
 
@@ -328,7 +328,10 @@ class GAMClassifier(ClassifierMixin, BaseEstimator):
         try:
             import matplotlib.pyplot as plt
         except ImportError:
-            raise ImportError("matplotlib is required for plotting.")
+            raise ImportError(
+                "matplotlib is required for plotting. "
+                "Install with: pip install endgame-ml[benchmark]"
+            )
 
         grid, effects = self.partial_dependence(feature_idx, X)
 
@@ -590,7 +593,10 @@ class GAMRegressor(RegressorMixin, BaseEstimator):
         try:
             import matplotlib.pyplot as plt
         except ImportError:
-            raise ImportError("matplotlib is required for plotting.")
+            raise ImportError(
+                "matplotlib is required for plotting. "
+                "Install with: pip install endgame-ml[benchmark]"
+            )
 
         grid, effects = self.partial_dependence(feature_idx, X)
 
