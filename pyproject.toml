@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "endgame-ml"
-version = "1.0.0"
+version = "1.0.1"
 description = "A living library of machine learning — classic to SOTA, under one roof"
 readme = "README.md"
 license = "Apache-2.0"
@@ -145,7 +145,7 @@ mcp = [
     "mcp>=1.2.0",
 ]
 all = [
-    "endgame-ml[tabular,trees,bayesian,vision,nlp,audio,timeseries,signal,benchmark,calibration,explain,fairness,anomaly,deployment,tracking,mcp,neuroevolution]",
+    "endgame-ml[tabular,trees,bayesian,vision,nlp,audio,timeseries,signal,benchmark,calibration,explain,fairness,anomaly,deployment,tracking,mcp]",
 ]
 dev = [
     "pytest>=7.0",
