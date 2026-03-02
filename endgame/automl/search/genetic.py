@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Genetic algorithm-based search strategy.
 
 Evolves full pipeline configurations — model, hyperparameters,

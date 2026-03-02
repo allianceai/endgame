@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Ordinal Regression models for ordered categorical targets.
 
 Ordinal regression is appropriate when the target variable has a natural
@@ -164,7 +166,7 @@ class OrdinalClassifier(ClassifierMixin, BaseEstimator):
                 "Options: 'auto', 'at', 'it', 'se', 'lad', 'ridge'"
             )
 
-    def fit(self, X, y, sample_weight=None, **fit_params) -> "OrdinalClassifier":
+    def fit(self, X, y, sample_weight=None, **fit_params) -> OrdinalClassifier:
         """Fit the ordinal regression model.
 
         Parameters

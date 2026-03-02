@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """K-Nearest Neighbors classifiers and regressors.
 
 KNN models provide a fundamentally different inductive bias from
@@ -106,7 +108,7 @@ class KNNClassifier(ClassifierMixin, BaseEstimator):
         self._label_encoder: LabelEncoder | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, **fit_params) -> "KNNClassifier":
+    def fit(self, X, y, **fit_params) -> KNNClassifier:
         """Fit the KNN classifier.
 
         Parameters
@@ -292,7 +294,7 @@ class KNNRegressor(RegressorMixin, BaseEstimator):
         self._scaler: StandardScaler | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, **fit_params) -> "KNNRegressor":
+    def fit(self, X, y, **fit_params) -> KNNRegressor:
         """Fit the KNN regressor.
 
         Parameters

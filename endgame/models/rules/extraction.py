@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Rule extraction from tree ensembles.
 
 This module contains functions to extract rules from sklearn-compatible

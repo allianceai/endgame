@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Time series cross-validation and metrics.
 
 This module extends the validation strategies in endgame.validation

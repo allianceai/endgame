@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Stacking Ensemble: Multi-level model stacking."""
 
 from typing import Any
@@ -126,7 +128,7 @@ class StackingEnsemble(BaseEnsemble):
         y,
         sample_weight: np.ndarray | None = None,
         **fit_params,
-    ) -> "StackingEnsemble":
+    ) -> StackingEnsemble:
         """Fit the stacking ensemble.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Structure learning algorithms and scoring functions for Bayesian Networks."""
 
 from endgame.models.bayesian.structure.learning import (

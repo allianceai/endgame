@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TabDPT: Tabular Discriminative Pre-trained Transformer.
 
 TabDPT (Ma et al., 2024) is a foundation model for tabular data that uses
@@ -167,7 +169,7 @@ class TabDPTClassifier(ClassifierMixin, BaseEstimator):
 
     # ----- sklearn interface -------------------------------------------------
 
-    def fit(self, X, y) -> "TabDPTClassifier":
+    def fit(self, X, y) -> TabDPTClassifier:
         """Store training data and initialise the underlying TabDPT model.
 
         Parameters
@@ -423,7 +425,7 @@ class TabDPTRegressor(RegressorMixin, BaseEstimator):
 
     # ----- sklearn interface -------------------------------------------------
 
-    def fit(self, X, y) -> "TabDPTRegressor":
+    def fit(self, X, y) -> TabDPTRegressor:
         """Store training data and initialise the underlying TabDPT model.
 
         Parameters

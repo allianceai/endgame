@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Submission file generation and validation."""
 
 from typing import Any

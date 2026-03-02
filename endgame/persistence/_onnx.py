@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """ONNX export for sklearn-compatible estimators.
 
 Converts fitted estimators to ONNX format for portable, framework-agnostic

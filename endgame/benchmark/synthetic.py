@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Synthetic dataset generators for controlled experiments.
 
 Provides synthetic datasets with known structure for validating

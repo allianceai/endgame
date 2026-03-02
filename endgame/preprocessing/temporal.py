@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Temporal feature extraction for time series and datetime columns."""
 
 from collections.abc import Sequence
@@ -68,7 +70,7 @@ class TemporalFeatures(PolarsTransformer):
         self._target_cols: list[str] = []
         self._new_feature_names: list[str] = []
 
-    def _detect_datetime_cols(self, df: "pl.DataFrame") -> list[str]:
+    def _detect_datetime_cols(self, df: pl.DataFrame) -> list[str]:
         """Auto-detect datetime columns."""
         datetime_cols = []
         for col in df.columns:
@@ -77,7 +79,7 @@ class TemporalFeatures(PolarsTransformer):
                 datetime_cols.append(col)
         return datetime_cols
 
-    def fit(self, X, y=None, **fit_params) -> "TemporalFeatures":
+    def fit(self, X, y=None, **fit_params) -> TemporalFeatures:
         """Identify datetime columns."""
         lf = self._to_lazyframe(X, store_metadata=True)
         df = lf.collect()
@@ -269,7 +271,7 @@ class LagFeatures(PolarsTransformer):
 
         self._target_cols: list[str] = []
 
-    def fit(self, X, y=None, **fit_params) -> "LagFeatures":
+    def fit(self, X, y=None, **fit_params) -> LagFeatures:
         """Identify columns to lag."""
         lf = self._to_lazyframe(X, store_metadata=True)
         df = lf.collect()
@@ -361,7 +363,7 @@ class RollingFeatures(PolarsTransformer):
 
         self._target_cols: list[str] = []
 
-    def fit(self, X, y=None, **fit_params) -> "RollingFeatures":
+    def fit(self, X, y=None, **fit_params) -> RollingFeatures:
         """Identify columns for rolling statistics."""
         lf = self._to_lazyframe(X, store_metadata=True)
         df = lf.collect()

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Spatial filtering and Riemannian geometry for multi-channel signals.
 
 Provides sklearn-compatible spatial filtering methods:
@@ -201,7 +203,7 @@ class CovarianceEstimator(BaseSignalTransformer):
         super().__init__(fs=fs, copy=copy)
         self.estimator = estimator
 
-    def fit(self, X, y=None, **fit_params) -> "CovarianceEstimator":
+    def fit(self, X, y=None, **fit_params) -> CovarianceEstimator:
         """Fit the estimator.
 
         Parameters
@@ -306,7 +308,7 @@ class CSP(BaseSignalTransformer):
         self.log = log
         self.cov_estimator = cov_estimator
 
-    def fit(self, X, y, **fit_params) -> "CSP":
+    def fit(self, X, y, **fit_params) -> CSP:
         """Fit CSP spatial filters.
 
         Parameters
@@ -468,7 +470,7 @@ class TangentSpace(BaseFeatureExtractor):
         self.reference = reference
         self.cov_estimator = cov_estimator
 
-    def fit(self, X, y=None, input_type: str = "covariances", **fit_params) -> "TangentSpace":
+    def fit(self, X, y=None, input_type: str = "covariances", **fit_params) -> TangentSpace:
         """Fit the tangent space projector.
 
         Parameters
@@ -608,7 +610,7 @@ class FilterBankCSP(BaseSignalTransformer):
         self.n_components = n_components
         self.filter_order = filter_order
 
-    def fit(self, X, y, **fit_params) -> "FilterBankCSP":
+    def fit(self, X, y, **fit_params) -> FilterBankCSP:
         """Fit FilterBank CSP.
 
         Parameters

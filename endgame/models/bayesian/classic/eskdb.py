@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Ensemble of Selective K-Dependence Bayes (ESKDB) Classifier.
 
 ESKDB is a state-of-the-art ensemble method for Bayesian Network
@@ -460,7 +462,7 @@ class ESKDBClassifier(BaseBayesianClassifier):
         """Not used for ESKDB - parameters learned by individual estimators."""
         pass
 
-    def fit(self, X, y, **fit_params) -> 'ESKDBClassifier':
+    def fit(self, X, y, **fit_params) -> ESKDBClassifier:
         """
         Fit ensemble of KDB classifiers.
 

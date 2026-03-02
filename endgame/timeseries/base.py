@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Base classes for time series forecasting.
 
 This module provides the foundational abstractions for all forecasters
@@ -279,7 +281,7 @@ class BaseForecaster(BaseEstimator, RegressorMixin, ABC):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "BaseForecaster":
+    ) -> BaseForecaster:
         """Fit the forecaster to training data.
 
         Parameters
@@ -355,7 +357,7 @@ class BaseForecaster(BaseEstimator, RegressorMixin, ABC):
         self,
         y_new: Any,
         X_new: Any | None = None,
-    ) -> "BaseForecaster":
+    ) -> BaseForecaster:
         """Update the forecaster with new observations.
 
         Default implementation re-fits with concatenated data.

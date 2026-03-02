@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Aggregation and interaction feature generation."""
 
 from collections.abc import Sequence
@@ -84,7 +86,7 @@ class AutoAggregator(PolarsTransformer):
         self._target_agg_cols: list[str] = []
         self._new_feature_names: list[str] = []
 
-    def fit(self, X, y=None, **fit_params) -> "AutoAggregator":
+    def fit(self, X, y=None, **fit_params) -> AutoAggregator:
         """Compute aggregation statistics from training data.
 
         Parameters
@@ -281,7 +283,7 @@ class InteractionFeatures(PolarsTransformer):
         self._pairs: list[tuple[str, str]] = []
         self._new_feature_names: list[str] = []
 
-    def fit(self, X, y=None, **fit_params) -> "InteractionFeatures":
+    def fit(self, X, y=None, **fit_params) -> InteractionFeatures:
         """Determine interaction pairs from training data."""
         lf = self._to_lazyframe(X, store_metadata=True)
         df = lf.collect()
@@ -418,7 +420,7 @@ class RankFeatures(PolarsTransformer):
 
         self._target_cols: list[str] = []
 
-    def fit(self, X, y=None, **fit_params) -> "RankFeatures":
+    def fit(self, X, y=None, **fit_params) -> RankFeatures:
         """Identify columns to rank."""
         lf = self._to_lazyframe(X, store_metadata=True)
         df = lf.collect()

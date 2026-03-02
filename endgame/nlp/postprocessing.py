@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Post-processing utilities for NLP/translation outputs.
 
 Based on techniques from winning Kaggle solutions for translation competitions.

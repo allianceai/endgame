@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Conformal prediction for classification and regression.
 
 Conformal prediction provides prediction sets (classification) or intervals
@@ -113,7 +115,7 @@ class ConformalClassifier(BaseEstimator, ClassifierMixin):
         X_cal: np.ndarray | None = None,
         y_cal: np.ndarray | None = None,
         cal_size: float = 0.2,
-    ) -> "ConformalClassifier":
+    ) -> ConformalClassifier:
         """Fit base model and calibrate conformal scores.
 
         Parameters
@@ -485,7 +487,7 @@ class ConformalRegressor(BaseEstimator, RegressorMixin):
         X_cal: np.ndarray | None = None,
         y_cal: np.ndarray | None = None,
         cal_size: float = 0.2,
-    ) -> "ConformalRegressor":
+    ) -> ConformalRegressor:
         """Fit base model and calibrate conformal scores.
 
         Parameters
@@ -887,7 +889,7 @@ class ConformizedQuantileRegressor(BaseEstimator, RegressorMixin):
         X_cal: np.ndarray | None = None,
         y_cal: np.ndarray | None = None,
         cal_size: float = 0.2,
-    ) -> "ConformizedQuantileRegressor":
+    ) -> ConformizedQuantileRegressor:
         """Fit the CQR model.
 
         Parameters
@@ -952,7 +954,7 @@ class ConformizedQuantileRegressor(BaseEstimator, RegressorMixin):
         self,
         X: np.ndarray,
         y: np.ndarray,
-    ) -> "ConformizedQuantileRegressor":
+    ) -> ConformizedQuantileRegressor:
         """Fit using cross-conformal for better data efficiency."""
         from sklearn.model_selection import KFold
 

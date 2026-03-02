@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Clustering module: 16 algorithms spanning centroid, density, hierarchical,
 distribution, graph, and scalable methods plus automatic method selection.
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Base classes for signal processing transformers.
 
 Provides sklearn-compatible base classes that handle:
@@ -155,7 +157,7 @@ class BaseSignalTransformer(BaseEstimator, TransformerMixin, SignalMixin):
                 "Call 'fit' before using this transformer."
             )
 
-    def fit(self, X, y=None, **fit_params) -> "BaseSignalTransformer":
+    def fit(self, X, y=None, **fit_params) -> BaseSignalTransformer:
         """Fit the transformer.
 
         Most signal transformers don't need fitting, but this provides
@@ -239,7 +241,7 @@ class BaseFeatureExtractor(BaseEstimator, TransformerMixin, SignalMixin):
         self._is_fitted = False
         self.feature_names_: list[str] | None = None
 
-    def fit(self, X, y=None, **fit_params) -> "BaseFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> BaseFeatureExtractor:
         """Fit the feature extractor.
 
         Parameters

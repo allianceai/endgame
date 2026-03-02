@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """C5.0 Rust extension module."""
 
 try:

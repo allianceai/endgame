@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """ReliefF and MultiSURF feature selection algorithms."""
 
 from typing import Literal

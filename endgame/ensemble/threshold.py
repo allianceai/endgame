@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Threshold optimization for classification."""
 
 from collections.abc import Callable
@@ -226,7 +228,7 @@ class ThresholdOptimizer(EndgameEstimator):
         self,
         y_true: np.ndarray,
         y_proba: np.ndarray,
-    ) -> "ThresholdOptimizer":
+    ) -> ThresholdOptimizer:
         """Find optimal threshold(s).
 
         Parameters

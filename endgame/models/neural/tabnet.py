@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TabNet wrapper for tabular data.
 
 TabNet is an attention-based architecture for tabular data that provides
@@ -391,7 +393,7 @@ class TabNetClassifier(_BaseTabNetWrapper, ClassifierMixin):
         eval_metric: list[str] | None = None,
         weights: int | np.ndarray | None = None,
         **fit_params,
-    ) -> "TabNetClassifier":
+    ) -> TabNetClassifier:
         """Fit the classifier.
 
         Parameters
@@ -571,7 +573,7 @@ class TabNetRegressor(_BaseTabNetWrapper, RegressorMixin):
         eval_metric: list[str] | None = None,
         weights: int | np.ndarray | None = None,
         **fit_params,
-    ) -> "TabNetRegressor":
+    ) -> TabNetRegressor:
         """Fit the regressor.
 
         Parameters

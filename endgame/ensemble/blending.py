@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Blending methods for ensemble combination."""
 
 from collections.abc import Callable
@@ -90,7 +92,7 @@ class BlendingEnsemble(BaseEnsemble, ClassifierMixin):
         y,
         sample_weight: np.ndarray | None = None,
         **fit_params,
-    ) -> "BlendingEnsemble":
+    ) -> BlendingEnsemble:
         """Fit the blending ensemble.
 
         Parameters
@@ -386,7 +388,7 @@ class OptimizedBlender(BaseEnsemble):
         self,
         predictions: list[np.ndarray],
         y_true: np.ndarray,
-    ) -> "OptimizedBlender":
+    ) -> OptimizedBlender:
         """Optimize blend weights using Optuna.
 
         Parameters
@@ -536,7 +538,7 @@ class RankAverageBlender(BaseEnsemble):
         self,
         predictions: list[np.ndarray] | None = None,
         y_true: np.ndarray | None = None,
-    ) -> "RankAverageBlender":
+    ) -> RankAverageBlender:
         """Fit the blender (stores weights if provided).
 
         Parameters
@@ -633,7 +635,7 @@ class PowerBlender(BaseEnsemble):
         predictions: list[np.ndarray] | None = None,
         y_true: np.ndarray | None = None,
         scores: list[float] | None = None,
-    ) -> "PowerBlender":
+    ) -> PowerBlender:
         """Compute power-weighted blending weights.
 
         Parameters

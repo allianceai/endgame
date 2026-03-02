@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Spectral analysis transformers for signal processing.
 
 Provides sklearn-compatible spectral analysis methods:
@@ -80,7 +82,7 @@ class FFTTransformer(BaseSignalTransformer):
                 f"got {output}"
             )
 
-    def fit(self, X, y=None, **fit_params) -> "FFTTransformer":
+    def fit(self, X, y=None, **fit_params) -> FFTTransformer:
         """Fit the transformer (compute frequency bins).
 
         Parameters
@@ -227,7 +229,7 @@ class WelchPSD(BaseSignalTransformer):
         self.scaling = scaling
         self.average = average
 
-    def fit(self, X, y=None, **fit_params) -> "WelchPSD":
+    def fit(self, X, y=None, **fit_params) -> WelchPSD:
         """Fit the transformer.
 
         Parameters
@@ -402,7 +404,7 @@ class MultitaperPSD(BaseSignalTransformer):
         self.adaptive = adaptive
         self.normalization = normalization
 
-    def fit(self, X, y=None, **fit_params) -> "MultitaperPSD":
+    def fit(self, X, y=None, **fit_params) -> MultitaperPSD:
         """Fit the transformer (compute DPSS tapers).
 
         Parameters
@@ -617,7 +619,7 @@ class BandPowerExtractor(BaseFeatureExtractor):
         if method not in ("welch", "multitaper", "fft"):
             raise ValueError(f"method must be 'welch', 'multitaper', or 'fft', got {method}")
 
-    def fit(self, X, y=None, **fit_params) -> "BandPowerExtractor":
+    def fit(self, X, y=None, **fit_params) -> BandPowerExtractor:
         """Fit the extractor.
 
         Parameters
@@ -755,7 +757,7 @@ class SpectralFeatureExtractor(BaseFeatureExtractor):
         self.edge_percentiles = edge_percentiles or [0.5, 0.75, 0.9, 0.95]
         self.welch_params = welch_params or {}
 
-    def fit(self, X, y=None, **fit_params) -> "SpectralFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> SpectralFeatureExtractor:
         """Fit the extractor.
 
         Parameters

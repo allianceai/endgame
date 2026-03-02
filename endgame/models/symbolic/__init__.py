@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Symbolic Regression models for interpretable equation discovery.
 
 Pure-Python GP engine — no Julia or PySR dependency required.

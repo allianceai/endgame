@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Naive Bayes classifier with automatic variant selection.
 
 Naive Bayes assumes feature independence - a strong assumption that's
@@ -159,7 +161,7 @@ class NaiveBayesClassifier(ClassifierMixin, BaseEstimator):
                            "Options: 'auto', 'gaussian', 'bernoulli', "
                            "'multinomial', 'complement'")
 
-    def fit(self, X, y, sample_weight=None, **fit_params) -> "NaiveBayesClassifier":
+    def fit(self, X, y, sample_weight=None, **fit_params) -> NaiveBayesClassifier:
         """Fit the Naive Bayes classifier.
 
         Parameters

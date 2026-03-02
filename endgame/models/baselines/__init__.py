@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Simple baseline models for ensemble diversity.
 
 This module provides simple yet effective models that have different

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Oblique Decision Trees for Oblique Random Forests.
 
 Oblique decision trees use linear combinations of features for splits,
@@ -57,8 +59,8 @@ class ObliqueTreeNode:
 
     is_leaf: bool = True
     split: ObliqueSplit | None = None
-    left: Optional["ObliqueTreeNode"] = None
-    right: Optional["ObliqueTreeNode"] = None
+    left: Optional[ObliqueTreeNode] = None
+    right: Optional[ObliqueTreeNode] = None
     value: np.ndarray | None = None
     n_samples: int = 0
     impurity: float = 0.0
@@ -200,7 +202,7 @@ class ObliqueDecisionTreeClassifier(ClassifierMixin, BaseEstimator):
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-    ) -> "ObliqueDecisionTreeClassifier":
+    ) -> ObliqueDecisionTreeClassifier:
         """Build the oblique decision tree.
 
         Parameters
@@ -697,7 +699,7 @@ class ObliqueDecisionTreeRegressor(BaseEstimator, RegressorMixin):
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-    ) -> "ObliqueDecisionTreeRegressor":
+    ) -> ObliqueDecisionTreeRegressor:
         """Build the oblique decision tree.
 
         Parameters

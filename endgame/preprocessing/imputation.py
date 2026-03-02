@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Missing data imputation transformers.
 
 Provides sklearn-compatible imputers with competition-winning defaults:
@@ -122,7 +124,7 @@ class SimpleImputer(EndgameEstimator, TransformerMixin):
         self.add_indicator = add_indicator
         self.copy = copy
 
-    def fit(self, X, y=None, **fit_params) -> "SimpleImputer":
+    def fit(self, X, y=None, **fit_params) -> SimpleImputer:
         """Fit the imputer on training data.
 
         Parameters
@@ -246,7 +248,7 @@ class IndicatorImputer(EndgameEstimator, TransformerMixin):
         self.fill_value = fill_value
         self.only_missing = only_missing
 
-    def fit(self, X, y=None, **fit_params) -> "IndicatorImputer":
+    def fit(self, X, y=None, **fit_params) -> IndicatorImputer:
         """Fit the indicator imputer.
 
         Parameters
@@ -395,7 +397,7 @@ class KNNImputer(EndgameEstimator, TransformerMixin):
         self.add_indicator = add_indicator
         self.copy = copy
 
-    def fit(self, X, y=None, **fit_params) -> "KNNImputer":
+    def fit(self, X, y=None, **fit_params) -> KNNImputer:
         """Fit the KNN imputer.
 
         Parameters
@@ -529,7 +531,7 @@ class MICEImputer(EndgameEstimator, TransformerMixin):
         self.sample_posterior = sample_posterior
         self.add_indicator = add_indicator
 
-    def fit(self, X, y=None, **fit_params) -> "MICEImputer":
+    def fit(self, X, y=None, **fit_params) -> MICEImputer:
         """Fit the MICE imputer.
 
         Parameters
@@ -676,7 +678,7 @@ class MissForestImputer(EndgameEstimator, TransformerMixin):
         self.n_jobs = n_jobs
         self.add_indicator = add_indicator
 
-    def fit(self, X, y=None, **fit_params) -> "MissForestImputer":
+    def fit(self, X, y=None, **fit_params) -> MissForestImputer:
         """Fit the MissForest imputer.
 
         Parameters
@@ -911,7 +913,7 @@ class AutoImputer(EndgameEstimator, TransformerMixin):
         else:
             return "MNAR", mean_corr
 
-    def fit(self, X, y=None, **fit_params) -> "AutoImputer":
+    def fit(self, X, y=None, **fit_params) -> AutoImputer:
         """Fit the auto imputer.
 
         Analyzes missingness patterns and selects the appropriate strategy,

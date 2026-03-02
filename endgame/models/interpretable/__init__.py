@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Interpretable Machine Learning Models.
 
 This module provides wrappers and implementations for interpretable ML models

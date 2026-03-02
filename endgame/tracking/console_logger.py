@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Lightweight console/file logger with no external dependencies."""
 
 import json

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Univariate statistical feature selection methods."""
 
 from collections.abc import Callable

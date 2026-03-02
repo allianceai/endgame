@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 TensorNEAT sklearn-compatible classifiers and regressors.
 

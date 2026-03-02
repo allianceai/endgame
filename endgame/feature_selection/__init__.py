@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Feature Selection Module.
 
 This module provides a comprehensive suite of feature selection methods

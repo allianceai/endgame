@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """MLflow-backed experiment logger."""
 
 import logging

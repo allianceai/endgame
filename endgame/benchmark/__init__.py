@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Benchmarking and Meta-Learning Engine for Endgame.
 
 This module provides tools for systematic model evaluation across standard

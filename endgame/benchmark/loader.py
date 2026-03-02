@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Dataset loading utilities for benchmark suites.
 
 Provides unified access to benchmark datasets from OpenML, sklearn, and custom sources.

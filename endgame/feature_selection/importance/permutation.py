@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Permutation importance-based feature selection."""
 
 

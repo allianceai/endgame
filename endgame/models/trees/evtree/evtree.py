@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Evolutionary Trees (evtree) - Globally optimal decision trees via genetic algorithms.
 
 This implementation uses evolutionary algorithms to find globally optimal tree
@@ -67,14 +69,14 @@ class TreeNode:
     feature_idx: int = -1  # -1 means leaf node
     threshold: float = 0.0
     value: np.ndarray = field(default_factory=lambda: np.array([]))
-    left: Optional['TreeNode'] = None
-    right: Optional['TreeNode'] = None
+    left: Optional[TreeNode] = None
+    right: Optional[TreeNode] = None
     n_samples: int = 0
 
     def is_leaf(self) -> bool:
         return self.feature_idx == -1
 
-    def copy(self) -> 'TreeNode':
+    def copy(self) -> TreeNode:
         """Deep copy the node and its subtree."""
         new_node = TreeNode(
             feature_idx=self.feature_idx,
@@ -116,7 +118,7 @@ class TreeNode:
         right_depth = self.right.depth() if self.right else 0
         return 1 + max(left_depth, right_depth)
 
-    def get_all_nodes(self) -> list['TreeNode']:
+    def get_all_nodes(self) -> list[TreeNode]:
         """Get all nodes in subtree as a flat list."""
         nodes = [self]
         if self.left is not None:
@@ -125,7 +127,7 @@ class TreeNode:
             nodes.extend(self.right.get_all_nodes())
         return nodes
 
-    def get_internal_nodes(self) -> list['TreeNode']:
+    def get_internal_nodes(self) -> list[TreeNode]:
         """Get all internal (non-leaf) nodes."""
         nodes = []
         if not self.is_leaf():
@@ -136,7 +138,7 @@ class TreeNode:
                 nodes.extend(self.right.get_internal_nodes())
         return nodes
 
-    def get_leaves(self) -> list['TreeNode']:
+    def get_leaves(self) -> list[TreeNode]:
         """Get all leaf nodes."""
         if self.is_leaf():
             return [self]
@@ -1154,7 +1156,7 @@ class EvolutionaryTreeClassifier(_EvolutionaryTreeBase, ClassifierMixin):
 
         return build_node(0, np.arange(len(y)))
 
-    def fit(self, X, y, **fit_params) -> "EvolutionaryTreeClassifier":
+    def fit(self, X, y, **fit_params) -> EvolutionaryTreeClassifier:
         """Fit the evolutionary tree classifier.
 
         Parameters
@@ -1353,7 +1355,7 @@ class EvolutionaryTreeRegressor(_EvolutionaryTreeBase, RegressorMixin):
 
         return build_node(0, np.arange(len(y)))
 
-    def fit(self, X, y, **fit_params) -> "EvolutionaryTreeRegressor":
+    def fit(self, X, y, **fit_params) -> EvolutionaryTreeRegressor:
         """Fit the evolutionary tree regressor.
 
         Parameters

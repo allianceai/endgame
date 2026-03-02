@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Calibration analysis and visualization tools.
 
 Provides metrics and diagnostic plots for assessing probability calibration.

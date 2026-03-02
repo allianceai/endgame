@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Audio feature extraction for classification tasks.
 
 Extracts handcrafted audio features (MFCCs, spectral, temporal) from raw
@@ -82,7 +84,7 @@ class AudioFeatureExtractor(EndgameEstimator, TransformerMixin):
                 "Install with: pip install librosa"
             )
 
-    def fit(self, X, y=None) -> "AudioFeatureExtractor":
+    def fit(self, X, y=None) -> AudioFeatureExtractor:
         """Fit the extractor (computes feature names).
 
         Parameters

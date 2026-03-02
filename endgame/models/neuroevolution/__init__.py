@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Neuroevolution models: NEAT and TensorNEAT sklearn-compatible classifiers and regressors."""
 
 from endgame.models.neuroevolution.neat import NEATClassifier, NEATRegressor

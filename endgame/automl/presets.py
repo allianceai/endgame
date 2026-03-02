@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Preset configurations for AutoML.
 
 This module defines preset configurations that control the behavior of

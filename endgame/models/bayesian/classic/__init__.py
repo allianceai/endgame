@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Classic Bayesian Network Classifiers using discrete probability tables."""
 
 from endgame.models.bayesian.classic.ebmc import EBMCClassifier

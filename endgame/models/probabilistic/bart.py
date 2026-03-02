@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Bayesian Additive Regression Trees (BART) wrapper.
 
 BART is a Bayesian nonparametric approach that models functions as sums of
@@ -126,7 +128,7 @@ class BARTRegressor(RegressorMixin, BaseEstimator):
         self._bart: Any | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, **fit_params) -> "BARTRegressor":
+    def fit(self, X, y, **fit_params) -> BARTRegressor:
         """Fit the BART regressor using MCMC.
 
         Parameters
@@ -404,7 +406,7 @@ class BARTClassifier(ClassifierMixin, BaseEstimator):
         self._X_train: np.ndarray | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, **fit_params) -> "BARTClassifier":
+    def fit(self, X, y, **fit_params) -> BARTClassifier:
         """Fit the BART classifier.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Competition project scaffolding and organization.
 
 Creates standardized folder structures for Kaggle competitions.
@@ -117,7 +119,7 @@ class CompetitionProject:
         root_dir: str | Path = ".",
         download_data: bool = True,
         client: KaggleClient | None = None,
-    ) -> "CompetitionProject":
+    ) -> CompetitionProject:
         """Create a new competition project with full folder structure.
 
         Parameters
@@ -172,7 +174,7 @@ class CompetitionProject:
         cls,
         project_dir: str | Path,
         client: KaggleClient | None = None,
-    ) -> "CompetitionProject":
+    ) -> CompetitionProject:
         """Load an existing competition project.
 
         Parameters

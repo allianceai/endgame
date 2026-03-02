@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Target and categorical encoding transformers."""
 
 from typing import Any
@@ -81,7 +83,7 @@ class SafeTargetEncoder(PolarsTransformer):
         self._global_mean: float = 0.0
         self._target_cols: list[str] = []
 
-    def fit(self, X, y, **fit_params) -> "SafeTargetEncoder":
+    def fit(self, X, y, **fit_params) -> SafeTargetEncoder:
         """Fit the target encoder.
 
         Uses inner-fold encoding to prevent leakage during training.
@@ -328,7 +330,7 @@ class LeaveOneOutEncoder(PolarsTransformer):
         self._global_mean: float = 0.0
         self._target_cols: list[str] = []
 
-    def fit(self, X, y, **fit_params) -> "LeaveOneOutEncoder":
+    def fit(self, X, y, **fit_params) -> LeaveOneOutEncoder:
         """Fit the LOO encoder."""
         lf = self._to_lazyframe(X, store_metadata=True)
         df = lf.collect()
@@ -459,7 +461,7 @@ class CatBoostEncoder(PolarsTransformer):
         self._global_mean: float = 0.0
         self._target_cols: list[str] = []
 
-    def fit(self, X, y, **fit_params) -> "CatBoostEncoder":
+    def fit(self, X, y, **fit_params) -> CatBoostEncoder:
         """Fit encoder (stores final statistics for transform)."""
         lf = self._to_lazyframe(X, store_metadata=True)
         df = lf.collect()
@@ -628,7 +630,7 @@ class FrequencyEncoder(PolarsTransformer):
         self._target_cols: list[str] = []
         self._n_samples: int = 0
 
-    def fit(self, X, y=None, **fit_params) -> "FrequencyEncoder":
+    def fit(self, X, y=None, **fit_params) -> FrequencyEncoder:
         """Compute frequencies from training data."""
         lf = self._to_lazyframe(X, store_metadata=True)
         df = lf.collect()

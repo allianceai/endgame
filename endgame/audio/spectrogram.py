@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Spectrogram conversion for audio classification."""
 
 
@@ -76,7 +78,7 @@ class SpectrogramTransformer(EndgameEstimator, TransformerMixin):
                 "Install with: pip install librosa"
             )
 
-    def fit(self, X, y=None) -> "SpectrogramTransformer":
+    def fit(self, X, y=None) -> SpectrogramTransformer:
         """Fit the transformer (precompute mel filterbank).
 
         Parameters

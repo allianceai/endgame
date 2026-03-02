@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """SHAP-based feature selection."""
 
 from typing import Literal

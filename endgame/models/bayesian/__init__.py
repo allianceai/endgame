@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Bayesian Network Classifiers for Endgame.
 
 This module provides a unified API for Bayesian Network Classification:

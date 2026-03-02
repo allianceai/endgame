@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Discretization utilities for Bayesian Network Classifiers.
 
 Bayesian Networks with discrete CPTs require categorical features.
@@ -104,7 +106,7 @@ class BayesianDiscretizer(EndgameEstimator, TransformerMixin):
         self.n_features_in_: int | None = None
         self.feature_names_in_: np.ndarray | None = None
 
-    def fit(self, X, y=None, **fit_params) -> 'BayesianDiscretizer':
+    def fit(self, X, y=None, **fit_params) -> BayesianDiscretizer:
         """
         Fit the discretizer.
 

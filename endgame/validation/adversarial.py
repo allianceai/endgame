@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Adversarial Validation for detecting train/test distribution drift."""
 
 from typing import Any

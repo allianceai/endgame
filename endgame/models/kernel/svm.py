@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Support Vector Machine wrappers with competition-tuned defaults.
 
 SVMs use max-margin optimization which is fundamentally different from
@@ -109,7 +111,7 @@ class SVMClassifier(ClassifierMixin, BaseEstimator):
         self._label_encoder: LabelEncoder | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, sample_weight=None, **fit_params) -> "SVMClassifier":
+    def fit(self, X, y, sample_weight=None, **fit_params) -> SVMClassifier:
         """Fit the SVM classifier.
 
         Parameters
@@ -334,7 +336,7 @@ class SVMRegressor(RegressorMixin, BaseEstimator):
         self._y_scaler: StandardScaler | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, sample_weight=None, **fit_params) -> "SVMRegressor":
+    def fit(self, X, y, sample_weight=None, **fit_params) -> SVMRegressor:
         """Fit the SVM regressor.
 
         Parameters

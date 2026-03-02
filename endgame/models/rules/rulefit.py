@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """RuleFit: Rule-based models combining tree ensembles with Lasso.
 
 RuleFit, developed by Friedman and Popescu (2008), is a hybrid model that combines

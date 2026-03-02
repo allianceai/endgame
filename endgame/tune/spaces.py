@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Predefined hyperparameter search spaces for common models."""
 
 from typing import Any

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Competition-specific metrics not in sklearn."""
 
 from collections.abc import Callable

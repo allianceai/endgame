@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Models module: GBDT wrappers, custom trees, EBMs, linear models, neural networks, and Bayesian classifiers."""
 
 from endgame.models.wrappers import (

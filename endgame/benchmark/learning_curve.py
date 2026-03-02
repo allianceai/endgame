@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Learning Curve Experiments following LCDB protocol.
 
 Generates learning curves at standard anchor points for systematic

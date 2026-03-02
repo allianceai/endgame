@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Cross-validation splitters for competition-specific scenarios."""
 
 from collections.abc import Generator
@@ -459,7 +461,7 @@ class AdversarialKFold(BaseCrossValidator):
         """Return the number of splits."""
         return self.n_splits
 
-    def fit(self, X_train: Any, X_test: Any) -> "AdversarialKFold":
+    def fit(self, X_train: Any, X_test: Any) -> AdversarialKFold:
         """Compute test similarity scores for training samples.
 
         Parameters

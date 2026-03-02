@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Neural network models for tabular data.
 
 This module provides PyTorch-based neural network implementations optimized

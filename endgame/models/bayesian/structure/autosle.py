@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """AutoSLE: Automatic Structure Learning Ensemble.
 
 AutoSLE provides scalable structure learning for massive datasets

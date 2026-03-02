@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Base classes for search strategies.
 
 This module defines the interfaces and data structures used by
@@ -87,7 +89,7 @@ class PipelineConfig:
         }
 
     @classmethod
-    def from_dict(cls, d: dict[str, Any]) -> "PipelineConfig":
+    def from_dict(cls, d: dict[str, Any]) -> PipelineConfig:
         """Create from dictionary representation."""
         return cls(
             model_name=d["model_name"],

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Default configurations and hyperparameter presets for Endgame."""
 
 from typing import Any, Literal

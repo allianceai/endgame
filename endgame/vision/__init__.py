@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Vision module: CV backbones, TTA, WBF, augmentation, segmentation."""
 
 from endgame.vision.augmentation import AugmentationPipeline

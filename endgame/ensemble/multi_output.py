@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Multi-output wrappers: parallel and chained multi-target estimation.
 
 Provides MultiOutputClassifier, MultiOutputRegressor, ClassifierChain,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Random search strategy.
 
 This module provides a simple random search strategy that samples

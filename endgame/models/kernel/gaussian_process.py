@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Gaussian Process models with competition-tuned defaults.
 
 Gaussian Processes provide Bayesian inference with kernel methods,
@@ -129,7 +131,7 @@ class GPClassifier(ClassifierMixin, BaseEstimator):
             return KERNEL_PRESETS[self.kernel](self.length_scale)
         return self.kernel
 
-    def fit(self, X, y, **fit_params) -> "GPClassifier":
+    def fit(self, X, y, **fit_params) -> GPClassifier:
         """Fit the Gaussian Process classifier.
 
         Parameters
@@ -328,7 +330,7 @@ class GPRegressor(RegressorMixin, BaseEstimator):
             return base_kernel + WhiteKernel(noise_level=0.1)
         return self.kernel
 
-    def fit(self, X, y, **fit_params) -> "GPRegressor":
+    def fit(self, X, y, **fit_params) -> GPRegressor:
         """Fit the Gaussian Process regressor.
 
         Parameters

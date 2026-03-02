@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """SLIM and FasterRisk: Sparse Integer Linear Models for Risk Scoring.
 
 SLIM (Supersparse Linear Integer Models) and FasterRisk produce scoring
@@ -233,7 +235,7 @@ class SLIMClassifier(ClassifierMixin, BaseEstimator):
         y,
         feature_names: list[str] | None = None,
         sample_weight: np.ndarray | None = None,
-    ) -> "SLIMClassifier":
+    ) -> SLIMClassifier:
         """Fit the SLIM classifier.
 
         Parameters
@@ -570,7 +572,7 @@ class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
         y,
         feature_names: list[str] | None = None,
         sample_weight: np.ndarray | None = None,
-    ) -> "FasterRiskClassifier":
+    ) -> FasterRiskClassifier:
         """Fit the FasterRisk classifier.
 
         Parameters

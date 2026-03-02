@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Type definitions and result dataclasses for Endgame."""
 
 from collections.abc import Sequence
@@ -50,7 +52,7 @@ class AdversarialValidationResult:
     drift_severity: DriftSeverity
 
     @classmethod
-    def from_auc(cls, auc: float, importances: dict[str, float]) -> "AdversarialValidationResult":
+    def from_auc(cls, auc: float, importances: dict[str, float]) -> AdversarialValidationResult:
         """Create result from AUC score and feature importances."""
         sorted_features = sorted(importances.keys(), key=lambda x: importances[x], reverse=True)
 

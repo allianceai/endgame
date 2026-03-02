@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Text preprocessing utilities for NLP tasks."""
 
 import re
@@ -329,7 +331,7 @@ class TextPreprocessor:
         """
         return [self(text) for text in texts]
 
-    def add(self, func: Callable) -> "TextPreprocessor":
+    def add(self, func: Callable) -> TextPreprocessor:
         """Add a preprocessing function.
 
         Parameters
@@ -345,31 +347,31 @@ class TextPreprocessor:
         self.steps.append(func)
         return self
 
-    def normalize_unicode(self, form: str = "NFC") -> "TextPreprocessor":
+    def normalize_unicode(self, form: str = "NFC") -> TextPreprocessor:
         """Add Unicode normalization."""
         return self.add(lambda t: normalize_unicode(t, form))
 
-    def normalize_whitespace(self) -> "TextPreprocessor":
+    def normalize_whitespace(self) -> TextPreprocessor:
         """Add whitespace normalization."""
         return self.add(normalize_whitespace)
 
-    def lowercase(self) -> "TextPreprocessor":
+    def lowercase(self) -> TextPreprocessor:
         """Add lowercasing."""
         return self.add(str.lower)
 
-    def uppercase(self) -> "TextPreprocessor":
+    def uppercase(self) -> TextPreprocessor:
         """Add uppercasing."""
         return self.add(str.upper)
 
-    def strip(self) -> "TextPreprocessor":
+    def strip(self) -> TextPreprocessor:
         """Add stripping."""
         return self.add(str.strip)
 
-    def remove_accents(self) -> "TextPreprocessor":
+    def remove_accents(self) -> TextPreprocessor:
         """Add accent removal."""
         return self.add(remove_accents)
 
-    def normalize_subscripts(self) -> "TextPreprocessor":
+    def normalize_subscripts(self) -> TextPreprocessor:
         """Add subscript normalization."""
         return self.add(normalize_subscripts)
 
@@ -377,21 +379,21 @@ class TextPreprocessor:
         self,
         input_brackets: str = "{}",
         output_brackets: str = "[]",
-    ) -> "TextPreprocessor":
+    ) -> TextPreprocessor:
         """Add determinative normalization."""
         return self.add(
             lambda t: normalize_determinatives(t, input_brackets, output_brackets)
         )
 
-    def clean_html(self) -> "TextPreprocessor":
+    def clean_html(self) -> TextPreprocessor:
         """Add HTML cleaning."""
         return self.add(clean_html)
 
-    def clean_urls(self, replacement: str = " ") -> "TextPreprocessor":
+    def clean_urls(self, replacement: str = " ") -> TextPreprocessor:
         """Add URL cleaning."""
         return self.add(lambda t: clean_urls(t, replacement))
 
-    def clean_email(self, replacement: str = " ") -> "TextPreprocessor":
+    def clean_email(self, replacement: str = " ") -> TextPreprocessor:
         """Add email cleaning."""
         return self.add(lambda t: clean_email(t, replacement))
 
@@ -400,7 +402,7 @@ class TextPreprocessor:
         pattern: str,
         replacement: str,
         flags: int = 0,
-    ) -> "TextPreprocessor":
+    ) -> TextPreprocessor:
         """Add regex replacement."""
         compiled = re.compile(pattern, flags)
         return self.add(lambda t: compiled.sub(replacement, t))
@@ -410,13 +412,13 @@ class TextPreprocessor:
         max_length: int,
         strategy: str = "end",
         ellipsis: str = "...",
-    ) -> "TextPreprocessor":
+    ) -> TextPreprocessor:
         """Add truncation."""
         return self.add(
             lambda t: truncate_text(t, max_length, strategy, ellipsis)
         )
 
-    def custom(self, func: Callable[[str], str]) -> "TextPreprocessor":
+    def custom(self, func: Callable[[str], str]) -> TextPreprocessor:
         """Add a custom preprocessing function.
 
         Parameters
@@ -432,7 +434,7 @@ class TextPreprocessor:
         return self.add(func)
 
     @classmethod
-    def default_preset(cls) -> "TextPreprocessor":
+    def default_preset(cls) -> TextPreprocessor:
         """Create preprocessor with sensible defaults.
 
         Returns
@@ -447,7 +449,7 @@ class TextPreprocessor:
         )
 
     @classmethod
-    def transliteration_preset(cls) -> "TextPreprocessor":
+    def transliteration_preset(cls) -> TextPreprocessor:
         """Create preprocessor for transliterated ancient languages.
 
         Suitable for Akkadian, Sumerian, Hittite, etc.
@@ -466,7 +468,7 @@ class TextPreprocessor:
         )
 
     @classmethod
-    def web_text_preset(cls) -> "TextPreprocessor":
+    def web_text_preset(cls) -> TextPreprocessor:
         """Create preprocessor for web-scraped text.
 
         Returns
@@ -483,7 +485,7 @@ class TextPreprocessor:
         )
 
     @classmethod
-    def kaggle_preset(cls) -> "TextPreprocessor":
+    def kaggle_preset(cls) -> TextPreprocessor:
         """Create preprocessor for typical Kaggle NLP competitions.
 
         Returns

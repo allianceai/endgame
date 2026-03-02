@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Calibration module: Conformal prediction and probability calibration.
 
 This module provides tools for:

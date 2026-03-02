@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Base classes for AutoML predictors.
 
 This module defines the base predictor class that all domain-specific
@@ -120,7 +122,7 @@ class BasePredictor(EndgameEstimator, ABC):
         output_path: str | None = None,
         random_state: int = 42,
         verbosity: int = 2,
-        logger: "ExperimentLogger | None" = None,
+        logger: ExperimentLogger | None = None,
     ):
         super().__init__(random_state=random_state, verbose=verbosity > 0)
 
@@ -165,7 +167,7 @@ class BasePredictor(EndgameEstimator, ABC):
         presets: str | None = None,
         hyperparameters: dict[str, Any] | None = None,
         **kwargs,
-    ) -> "BasePredictor":
+    ) -> BasePredictor:
         """Fit the AutoML predictor.
 
         Parameters
@@ -494,7 +496,7 @@ class BasePredictor(EndgameEstimator, ABC):
         return str(path)
 
     @classmethod
-    def load(cls, path: str) -> "BasePredictor":
+    def load(cls, path: str) -> BasePredictor:
         """Load a predictor from disk.
 
         Supports both the legacy pickle format and the new endgame
@@ -681,7 +683,7 @@ class BasePredictor(EndgameEstimator, ABC):
             X = df.drop(columns=[self.label])
             return X, y
 
-    def refit_full(self, data: DataInput | None = None) -> "BasePredictor":
+    def refit_full(self, data: DataInput | None = None) -> BasePredictor:
         """Retrain best model(s) on all available data (train + validation).
 
         After cross-validation identifies the best model and hyperparameters,

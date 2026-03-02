@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Utility modules for AutoML.
 
 This package provides utilities for data loading, checkpointing,

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Variational Autoencoder for Dimensionality Reduction.
 
 This module implements a VAE-based approach to dimensionality reduction,

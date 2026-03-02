@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Custom tree-based models.
 
 When ``treeple`` is installed, its Cython-compiled oblique / patch-oblique /

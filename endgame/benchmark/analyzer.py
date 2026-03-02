@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Results analysis and visualization for benchmarks.
 
 Provides tools for analyzing, ranking, and visualizing benchmark results.
@@ -121,7 +123,7 @@ class ResultsAnalyzer:
         metric: str = "accuracy",
         higher_is_better: bool = True,
         significance_level: float = 0.05,
-    ) -> "ResultsAnalyzer":
+    ) -> ResultsAnalyzer:
         """Create a ResultsAnalyzer from a pivot dict.
 
         Convenience factory for external experiment systems that already have

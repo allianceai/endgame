@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Weighted Boxes Fusion and NMS variants for object detection."""
 
 from typing import Literal

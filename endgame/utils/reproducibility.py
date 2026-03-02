@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Reproducibility utilities for consistent experiments."""
 
 import os
@@ -90,7 +92,7 @@ class SeedEverything:
         self._torch_state: any | None = None
         self._cuda_state: any | None = None
 
-    def __enter__(self) -> "SeedEverything":
+    def __enter__(self) -> SeedEverything:
         """Enter the context manager."""
         if self.restore:
             # Save current state
@@ -155,7 +157,7 @@ class ReproducibleRun:
         self.environment_info: dict = {}
         self._seed_ctx: SeedEverything | None = None
 
-    def __enter__(self) -> "ReproducibleRun":
+    def __enter__(self) -> ReproducibleRun:
         """Enter the context manager."""
         # Set seeds
         self._seed_ctx = SeedEverything(self.seed)

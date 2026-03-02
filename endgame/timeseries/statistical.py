@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Statistical forecasting models via statsforecast.
 
 This module wraps Nixtla's statsforecast library, providing sklearn-compatible
@@ -96,7 +98,7 @@ class StatsForecastWrapper(BaseForecaster, UnivariateForecasterMixin):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "StatsForecastWrapper":
+    ) -> StatsForecastWrapper:
         """Fit the statsforecast model.
 
         Parameters
@@ -520,7 +522,7 @@ class MSTLForecaster(BaseForecaster, UnivariateForecasterMixin):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "MSTLForecaster":
+    ) -> MSTLForecaster:
         """Fit MSTL model."""
         _check_statsforecast()
 

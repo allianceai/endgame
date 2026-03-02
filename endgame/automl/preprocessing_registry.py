@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Preprocessing component registry for AutoML.
 
 This module provides a centralized registry of feature selection and

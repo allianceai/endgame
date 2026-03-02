@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Entropy measures for signal complexity analysis.
 
 Provides sklearn-compatible entropy feature extractors:
@@ -409,7 +411,7 @@ class PermutationEntropy(BaseFeatureExtractor):
         self.delay = delay
         self.normalize = normalize
 
-    def fit(self, X, y=None, **fit_params) -> "PermutationEntropy":
+    def fit(self, X, y=None, **fit_params) -> PermutationEntropy:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["permutation_entropy"]
@@ -455,7 +457,7 @@ class SampleEntropy(BaseFeatureExtractor):
         self.order = order
         self.r = r
 
-    def fit(self, X, y=None, **fit_params) -> "SampleEntropy":
+    def fit(self, X, y=None, **fit_params) -> SampleEntropy:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["sample_entropy"]
@@ -501,7 +503,7 @@ class ApproximateEntropy(BaseFeatureExtractor):
         self.order = order
         self.r = r
 
-    def fit(self, X, y=None, **fit_params) -> "ApproximateEntropy":
+    def fit(self, X, y=None, **fit_params) -> ApproximateEntropy:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["approximate_entropy"]
@@ -551,7 +553,7 @@ class SpectralEntropy(BaseFeatureExtractor):
         self.nperseg = nperseg
         self.normalize = normalize
 
-    def fit(self, X, y=None, **fit_params) -> "SpectralEntropy":
+    def fit(self, X, y=None, **fit_params) -> SpectralEntropy:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["spectral_entropy"]
@@ -601,7 +603,7 @@ class SVDEntropy(BaseFeatureExtractor):
         self.delay = delay
         self.normalize = normalize
 
-    def fit(self, X, y=None, **fit_params) -> "SVDEntropy":
+    def fit(self, X, y=None, **fit_params) -> SVDEntropy:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["svd_entropy"]
@@ -673,7 +675,7 @@ class EntropyFeatureExtractor(BaseFeatureExtractor):
         self.sample_order = sample_order
         self.svd_order = svd_order
 
-    def fit(self, X, y=None, **fit_params) -> "EntropyFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> EntropyFeatureExtractor:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
 

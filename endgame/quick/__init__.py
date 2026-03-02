@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Quick API for rapid prototyping and model comparison.
 
 This module provides high-level functions for quickly training and

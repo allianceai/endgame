@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Entry point: python -m endgame.mcp"""
 
 import sys

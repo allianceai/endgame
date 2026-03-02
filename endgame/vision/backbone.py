@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Vision backbone wrappers using timm."""
 
 from typing import Any

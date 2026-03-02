@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Self-Training: Semi-supervised learning via iterative pseudo-labeling.
 
 Self-training is a simple but effective semi-supervised learning technique
@@ -197,7 +199,7 @@ class SelfTrainingClassifier(BaseEstimator, ClassifierMixin, MetaEstimatorMixin)
         self.verbose = verbose
         self.random_state = random_state
 
-    def fit(self, X, y, **fit_params) -> "SelfTrainingClassifier":
+    def fit(self, X, y, **fit_params) -> SelfTrainingClassifier:
         """Fit the self-training classifier.
 
         Parameters
@@ -660,7 +662,7 @@ class SelfTrainingRegressor(BaseEstimator, RegressorMixin, MetaEstimatorMixin):
         # Uncertainty increases with distance
         return base_uncertainty * (1 + normalized_dist)
 
-    def fit(self, X, y, **fit_params) -> "SelfTrainingRegressor":
+    def fit(self, X, y, **fit_params) -> SelfTrainingRegressor:
         """Fit the self-training regressor.
 
         Parameters

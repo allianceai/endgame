@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Base classes and mixins for Bayesian Network Classifiers."""
 
 from abc import abstractmethod
@@ -113,7 +115,7 @@ class BayesianSerializationMixin:
         pass
 
     @classmethod
-    def from_dict(cls, state: dict[str, Any]) -> 'BayesianClassifierMixin':
+    def from_dict(cls, state: dict[str, Any]) -> BayesianClassifierMixin:
         """
         Reconstruct model from dictionary.
 
@@ -640,7 +642,7 @@ class BaseBayesianClassifier(ClassifierMixin, EndgameEstimator, BayesianClassifi
 
         return X_disc
 
-    def fit(self, X, y, **fit_params) -> 'BaseBayesianClassifier':
+    def fit(self, X, y, **fit_params) -> BaseBayesianClassifier:
         """
         Fit the Bayesian Network Classifier.
 

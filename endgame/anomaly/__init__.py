@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Anomaly detection module: Isolation Forest, LOF, GritBot, PyOD integration, and more.
 
 This module provides sklearn-compatible anomaly detectors with competition-tuned

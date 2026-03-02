@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Linear Dimensionality Reduction Methods.
 
 This module provides sklearn-compatible wrappers for linear dimensionality

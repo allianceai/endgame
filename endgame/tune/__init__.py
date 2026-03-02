@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tune module: Hyperparameter optimization with Optuna."""
 
 from endgame.tune.optuna import OptunaOptimizer

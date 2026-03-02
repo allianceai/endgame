@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """NGBoost wrapper for probabilistic prediction.
 
 Wraps the Stanford NGBoost library (https://github.com/stanfordmlgroup/ngboost)
@@ -302,7 +304,7 @@ class NGBoostRegressor(EndgameEstimator, RegressorMixin):
         y_val: np.ndarray | None = None,
         sample_weight: np.ndarray | None = None,
         val_sample_weight: np.ndarray | None = None,
-    ) -> "NGBoostRegressor":
+    ) -> NGBoostRegressor:
         """Fit the NGBoost regressor.
 
         Parameters
@@ -648,7 +650,7 @@ class NGBoostClassifier(ClassifierMixin, EndgameEstimator):
         y_val: np.ndarray | None = None,
         sample_weight: np.ndarray | None = None,
         val_sample_weight: np.ndarray | None = None,
-    ) -> "NGBoostClassifier":
+    ) -> NGBoostClassifier:
         """Fit the NGBoost classifier.
 
         Parameters

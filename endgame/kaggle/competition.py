@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """High-level competition management interface.
 
 Provides a convenient abstraction for working with a single Kaggle competition.

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Signal processing module for time series and biosignal analysis.
 
 This module provides sklearn-compatible signal processing transformers

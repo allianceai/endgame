@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 Endgame: The Competitive Machine Learning Framework
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Sequence-to-sequence translation models with PEFT support."""
 
 import warnings
@@ -239,7 +241,7 @@ class TransformerTranslator(EndgameEstimator):
         y: list[str],
         eval_set: tuple[list[str], list[str]] | None = None,
         **fit_params,
-    ) -> "TransformerTranslator":
+    ) -> TransformerTranslator:
         """Fine-tune the translation model.
 
         Parameters
@@ -522,7 +524,7 @@ class TransformerTranslator(EndgameEstimator):
         path: str,
         config: TranslationConfig | None = None,
         **kwargs,
-    ) -> "TransformerTranslator":
+    ) -> TransformerTranslator:
         """Load a saved model.
 
         Parameters

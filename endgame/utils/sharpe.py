@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Sharpe Ratio utilities for backtesting and multiple testing correction.
 
 This module implements the Deflated Sharpe Ratio (DSR) and Probabilistic Sharpe

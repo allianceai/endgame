@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """xRFM: Accurate, Scalable, and Interpretable Feature Learning for Tabular Data.
 
 xRFM (Beaglehole & Holzmüller, 2025) combines Recursive Feature Machines (RFMs)
@@ -172,7 +174,7 @@ class xRFMClassifier(ClassifierMixin, BaseEstimator):
 
     # ----- sklearn interface -------------------------------------------------
 
-    def fit(self, X, y) -> "xRFMClassifier":
+    def fit(self, X, y) -> xRFMClassifier:
         """Fit the xRFM classifier.
 
         Parameters
@@ -475,7 +477,7 @@ class xRFMRegressor(RegressorMixin, BaseEstimator):
 
     # ----- sklearn interface -------------------------------------------------
 
-    def fit(self, X, y) -> "xRFMRegressor":
+    def fit(self, X, y) -> xRFMRegressor:
         """Fit the xRFM regressor.
 
         Parameters

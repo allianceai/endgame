@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Test Time Augmentation for vision models."""
 
 from collections.abc import Callable

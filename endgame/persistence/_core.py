@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Core save/load functions for model persistence."""
 
 from pathlib import Path

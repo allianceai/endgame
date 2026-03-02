@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Complexity and fractal dimension measures for signal analysis.
 
 Provides sklearn-compatible feature extractors for:
@@ -444,7 +446,7 @@ class HiguchiFD(BaseFeatureExtractor):
         super().__init__(fs=fs)
         self.kmax = kmax
 
-    def fit(self, X, y=None, **fit_params) -> "HiguchiFD":
+    def fit(self, X, y=None, **fit_params) -> HiguchiFD:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["higuchi_fd"]
@@ -478,7 +480,7 @@ class PetrosianFD(BaseFeatureExtractor):
     def __init__(self, fs: float | None = None):
         super().__init__(fs=fs)
 
-    def fit(self, X, y=None, **fit_params) -> "PetrosianFD":
+    def fit(self, X, y=None, **fit_params) -> PetrosianFD:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["petrosian_fd"]
@@ -512,7 +514,7 @@ class KatzFD(BaseFeatureExtractor):
     def __init__(self, fs: float | None = None):
         super().__init__(fs=fs)
 
-    def fit(self, X, y=None, **fit_params) -> "KatzFD":
+    def fit(self, X, y=None, **fit_params) -> KatzFD:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["katz_fd"]
@@ -549,7 +551,7 @@ class HurstExponent(BaseFeatureExtractor):
         super().__init__(fs=fs)
         self.max_lag = max_lag
 
-    def fit(self, X, y=None, **fit_params) -> "HurstExponent":
+    def fit(self, X, y=None, **fit_params) -> HurstExponent:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["hurst_exponent"]
@@ -598,7 +600,7 @@ class DFA(BaseFeatureExtractor):
         self.scale_max = scale_max
         self.n_scales = n_scales
 
-    def fit(self, X, y=None, **fit_params) -> "DFA":
+    def fit(self, X, y=None, **fit_params) -> DFA:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["dfa_alpha"]
@@ -637,7 +639,7 @@ class LempelZivComplexity(BaseFeatureExtractor):
         super().__init__(fs=fs)
         self.threshold = threshold
 
-    def fit(self, X, y=None, **fit_params) -> "LempelZivComplexity":
+    def fit(self, X, y=None, **fit_params) -> LempelZivComplexity:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
         self.feature_names_ = ["lempel_ziv_complexity"]
@@ -704,7 +706,7 @@ class ComplexityFeatureExtractor(BaseFeatureExtractor):
         self.include_lzc = include_lzc
         self.higuchi_kmax = higuchi_kmax
 
-    def fit(self, X, y=None, **fit_params) -> "ComplexityFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> ComplexityFeatureExtractor:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
 

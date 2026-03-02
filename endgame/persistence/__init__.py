@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Model persistence for Endgame estimators.
 
 Save and load any sklearn-compatible estimator, including PyTorch-backed

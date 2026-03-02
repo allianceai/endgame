@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Quantile Regression Forest: Random Forest for conditional quantile estimation.
 
 Quantile Regression Forests extend Random Forests to estimate any conditional
@@ -325,7 +327,7 @@ class QuantileRegressorForest(BaseEstimator, RegressorMixin):
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-    ) -> "QuantileRegressorForest":
+    ) -> QuantileRegressorForest:
         """Build a quantile regression forest from training data.
 
         Parameters

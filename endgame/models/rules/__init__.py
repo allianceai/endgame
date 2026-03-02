@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Rule-based models: RuleFit and FURIA for interpretable machine learning.
 
 This module provides RuleFit implementations that combine the predictive power

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Vision augmentation pipelines.
 
 Provides preset-based augmentation pipelines using albumentations,

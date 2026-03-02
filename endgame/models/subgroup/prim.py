@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """PRIM: Patient Rule Induction Method for bump hunting.
 
 PRIM is a subgroup discovery algorithm that finds rectangular regions
@@ -213,7 +215,7 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
         self.n_features_in_: int = 0
         self._is_fitted: bool = False
 
-    def fit(self, X, y, feature_names: list[str] | None = None) -> "PRIMRegressor":
+    def fit(self, X, y, feature_names: list[str] | None = None) -> PRIMRegressor:
         """Fit PRIM to find high-density regions.
 
         Parameters
@@ -666,7 +668,7 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
         self._majority_class_idx: int = 0
         self._is_fitted: bool = False
 
-    def fit(self, X, y, feature_names: list[str] | None = None) -> "PRIMClassifier":
+    def fit(self, X, y, feature_names: list[str] | None = None) -> PRIMClassifier:
         """Fit one PRIM model per class (one-vs-rest).
 
         Parameters

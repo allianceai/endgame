@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Dataset meta-feature extraction for meta-learning.
 
 Extracts comprehensive meta-features that characterize datasets for predicting

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Modern deep learning models for tabular data.
 
 This module provides state-of-the-art neural network architectures

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Endgame AutoML Framework.
 
 This module provides automated machine learning capabilities that match

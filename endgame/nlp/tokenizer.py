@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tokenizer analysis and optimization utilities.
 
 Identifies tokenization artifacts that hurt performance and suggests fixes.

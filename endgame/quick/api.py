@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Quick API implementation for rapid prototyping.
 
 Provides one-line model training with automatic preprocessing,
@@ -276,7 +278,7 @@ def classify(
     cv_folds: int | None = None,
     random_state: int = 42,
     verbose: bool = True,
-    logger: "ExperimentLogger | None" = None,
+    logger: ExperimentLogger | None = None,
 ) -> QuickResult:
     """Quick classification with automatic model selection.
 
@@ -437,7 +439,7 @@ def regress(
     cv_folds: int | None = None,
     random_state: int = 42,
     verbose: bool = True,
-    logger: "ExperimentLogger | None" = None,
+    logger: ExperimentLogger | None = None,
 ) -> QuickResult:
     """Quick regression with automatic model selection.
 
@@ -571,7 +573,7 @@ def compare(
     cv_folds: int | None = None,
     random_state: int = 42,
     verbose: bool = True,
-    logger: "ExperimentLogger | None" = None,
+    logger: ExperimentLogger | None = None,
 ) -> ComparisonResult:
     """Compare multiple models quickly.
 

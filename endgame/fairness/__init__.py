@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Fairness module: Bias metrics, mitigation methods, and reporting.
 
 This module provides tools for measuring and mitigating algorithmic bias

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Venn-ABERS predictors for well-calibrated probability intervals.
 
 Venn-ABERS provides probability intervals rather than point estimates,
@@ -95,7 +97,7 @@ class VennABERS(BaseEstimator, ClassifierMixin):
         X_cal: np.ndarray | None = None,
         y_cal: np.ndarray | None = None,
         cal_size: float = 0.2,
-    ) -> "VennABERS":
+    ) -> VennABERS:
         """Fit Venn-ABERS predictor.
 
         Parameters
@@ -339,7 +341,7 @@ class IVAPCalibrator(BaseEstimator, ClassifierMixin):
         y_train,
         X_cal,
         y_cal,
-    ) -> "IVAPCalibrator":
+    ) -> IVAPCalibrator:
         """Fit IVAP calibrator."""
         X_train = np.asarray(X_train)
         y_train = np.asarray(y_train)

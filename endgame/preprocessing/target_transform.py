@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Target transformation wrappers for regression.
 
 Applies invertible transformations to the target variable during training,
@@ -139,7 +141,7 @@ class TargetTransformer(EndgameEstimator, RegressorMixin):
     # Fit
     # ------------------------------------------------------------------
 
-    def fit(self, X, y, **fit_params) -> "TargetTransformer":
+    def fit(self, X, y, **fit_params) -> TargetTransformer:
         """Fit the wrapped regressor on transformed targets.
 
         Parameters
@@ -602,7 +604,7 @@ class TargetQuantileTransformer(EndgameEstimator, RegressorMixin):
         self.output_distribution = output_distribution
         self.subsample = subsample
 
-    def fit(self, X, y, **fit_params) -> "TargetQuantileTransformer":
+    def fit(self, X, y, **fit_params) -> TargetQuantileTransformer:
         """Fit the wrapped regressor on quantile-transformed targets.
 
         Parameters

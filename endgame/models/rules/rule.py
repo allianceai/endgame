@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Rule and RuleEnsemble data structures for RuleFit.
 
 This module contains the core data structures for representing rules extracted
@@ -315,7 +317,7 @@ class RuleEnsemble:
 
     def filter_by_support(
         self, min_support: float = 0.01, max_support: float = 0.99
-    ) -> "RuleEnsemble":
+    ) -> RuleEnsemble:
         """
         Filter rules by support thresholds.
 
@@ -341,7 +343,7 @@ class RuleEnsemble:
             feature_names=self.feature_names,
         )
 
-    def deduplicate(self) -> "RuleEnsemble":
+    def deduplicate(self) -> RuleEnsemble:
         """
         Remove duplicate rules.
 
@@ -365,7 +367,7 @@ class RuleEnsemble:
             feature_names=self.feature_names,
         )
 
-    def limit_rules(self, max_rules: int) -> "RuleEnsemble":
+    def limit_rules(self, max_rules: int) -> RuleEnsemble:
         """
         Limit number of rules, keeping those with highest support.
 

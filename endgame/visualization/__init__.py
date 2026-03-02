@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Visualization module for Endgame models.
 
 Interactive, publication-quality visualizations for machine learning models.

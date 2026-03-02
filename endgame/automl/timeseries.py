@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Time series data AutoML predictor.
 
 This module provides the TimeSeriesPredictor class for automated machine learning
@@ -186,7 +188,7 @@ class TimeSeriesPredictor(BasePredictor):
         presets: str | None = None,
         hyperparameters: dict[str, Any] | None = None,
         **kwargs,
-    ) -> "TimeSeriesPredictor":
+    ) -> TimeSeriesPredictor:
         """Fit the TimeSeriesPredictor on time series data.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tree Augmented Naive Bayes (TAN) Classifier.
 
 TAN relaxes the Naive Bayes independence assumption by allowing

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Wrappers for dimensionality reduction that gracefully handle
 n_components > n_features by capping at runtime."""
 

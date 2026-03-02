@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Knockoff filter for FDR-controlled feature selection."""
 
 from typing import Literal

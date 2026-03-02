@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Unified wrappers for gradient boosting libraries."""
 
 from typing import Any, Literal
@@ -89,7 +91,7 @@ class GBDTWrapper(EndgameEstimator):
         params.update(self.kwargs)
         return params
 
-    def set_params(self, **params) -> "GBDTWrapper":
+    def set_params(self, **params) -> GBDTWrapper:
         """Set parameters including kwargs."""
         # Separate known params from kwargs
         known_params = {'backend', 'task', 'preset', 'use_gpu',
@@ -306,7 +308,7 @@ class GBDTWrapper(EndgameEstimator):
         eval_set: list[tuple[Any, Any]] | None = None,
         sample_weight: np.ndarray | None = None,
         **fit_params,
-    ) -> "GBDTWrapper":
+    ) -> GBDTWrapper:
         """Fit the model.
 
         Parameters

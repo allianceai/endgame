@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Meta-learning for automatic model selection.
 
 Uses benchmark results and meta-features to predict optimal models/pipelines
@@ -127,7 +129,7 @@ class MetaLearner:
         self,
         tracker: ExperimentTracker,
         metric: str | None = None,
-    ) -> "MetaLearner":
+    ) -> MetaLearner:
         """Fit meta-learner from benchmark results.
 
         Parameters
@@ -686,7 +688,7 @@ class PipelineRecommender:
         self,
         tracker: ExperimentTracker,
         **kwargs,
-    ) -> "PipelineRecommender":
+    ) -> PipelineRecommender:
         """Fit recommender from benchmark results."""
         self.meta_learner.fit(tracker, **kwargs)
         return self

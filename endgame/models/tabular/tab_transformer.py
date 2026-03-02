@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TabTransformer: Tabular Data Modeling Using Contextual Embeddings.
 
 TabTransformer uses Transformer-based attention mechanism to model
@@ -195,7 +197,7 @@ class TabTransformerClassifier(ClassifierMixin, BaseEstimator):
         cat_cols: list[str] | None = None,
         eval_set: tuple | None = None,
         **fit_params,
-    ) -> "TabTransformerClassifier":
+    ) -> TabTransformerClassifier:
         """Fit the TabTransformer classifier.
 
         Parameters
@@ -452,7 +454,7 @@ class TabTransformerRegressor(RegressorMixin, BaseEstimator):
         cat_cols: list[str] | None = None,
         eval_set: tuple | None = None,
         **fit_params,
-    ) -> "TabTransformerRegressor":
+    ) -> TabTransformerRegressor:
         """Fit the TabTransformer regressor.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Portfolio-based search strategy.
 
 The default search strategy that trains a diverse portfolio of models

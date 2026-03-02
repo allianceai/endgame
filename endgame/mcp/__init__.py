@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Endgame MCP Server — LLM-powered ML pipeline building.
 
 Exposes ~20 meta-tools over the Model Context Protocol so that any

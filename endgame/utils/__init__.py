@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Utils module: Metrics, submission helpers, and reproducibility."""
 
 from endgame.utils.metrics import (

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Preprocessing module: Feature engineering, encoding, transformations, and class balancing."""
 
 from endgame.preprocessing.aggregation import (

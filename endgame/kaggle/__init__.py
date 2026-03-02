@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Kaggle integration module for competition management.
 
 Provides utilities for downloading competition data, creating submissions,

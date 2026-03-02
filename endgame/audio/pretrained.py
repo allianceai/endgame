@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Pre-trained audio model wrappers for transfer learning.
 
 Provides sklearn-compatible wrappers around HuggingFace audio models
@@ -264,7 +266,7 @@ class PretrainedAudioClassifier(BaseEstimator, ClassifierMixin):
         X,
         y,
         val_data: tuple | None = None,
-    ) -> "PretrainedAudioClassifier":
+    ) -> PretrainedAudioClassifier:
         """Fine-tune the pre-trained model.
 
         Parameters

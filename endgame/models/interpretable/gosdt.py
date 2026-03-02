@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """GOSDT: Generalized and Scalable Optimal Sparse Decision Trees.
 
 GOSDT produces globally optimal decision trees that are provably optimal
@@ -150,7 +152,7 @@ class GOSDTClassifier(ClassifierMixin, BaseEstimator):
         y,
         feature_names: list[str] | None = None,
         sample_weight: np.ndarray | None = None,
-    ) -> "GOSDTClassifier":
+    ) -> GOSDTClassifier:
         """Fit the GOSDT classifier.
 
         Parameters

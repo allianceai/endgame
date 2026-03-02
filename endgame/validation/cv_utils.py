@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Cross-validation utilities and helpers."""
 
 from collections.abc import Callable

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Validation module: CV strategies, drift detection, and trust-cv utilities."""
 
 from endgame.validation.adversarial import AdversarialValidator

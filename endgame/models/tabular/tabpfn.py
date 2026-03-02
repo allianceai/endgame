@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TabPFN: Tabular Prior-Data Fitted Network.
 
 TabPFN is a transformer that performs in-context learning for tabular data.
@@ -303,7 +305,7 @@ class TabPFNClassifier(ClassifierMixin, BaseEstimator):
 
         return X_transformed.astype(np.float32)
 
-    def fit(self, X, y) -> "TabPFNClassifier":
+    def fit(self, X, y) -> TabPFNClassifier:
         """Store training data for in-context learning.
 
         Note: TabPFN doesn't actually train - it performs in-context learning
@@ -687,7 +689,7 @@ class TabPFNv2Classifier(ClassifierMixin, BaseEstimator):
 
     # ----- sklearn interface -------------------------------------------------
 
-    def fit(self, X, y) -> "TabPFNv2Classifier":
+    def fit(self, X, y) -> TabPFNv2Classifier:
         """Store training data and initialise the underlying TabPFN v2 model.
 
         Parameters
@@ -960,7 +962,7 @@ class TabPFNv2Regressor(RegressorMixin, BaseEstimator):
 
     # ----- sklearn interface -------------------------------------------------
 
-    def fit(self, X, y) -> "TabPFNv2Regressor":
+    def fit(self, X, y) -> TabPFNv2Regressor:
         """Store training data and initialise the underlying TabPFN v2 model.
 
         Parameters
@@ -1243,7 +1245,7 @@ class TabPFN25Classifier(ClassifierMixin, BaseEstimator):
 
     # ----- sklearn interface -------------------------------------------------
 
-    def fit(self, X, y) -> "TabPFN25Classifier":
+    def fit(self, X, y) -> TabPFN25Classifier:
         """Store training data and initialise the underlying TabPFN 2.5 model.
 
         Parameters
@@ -1523,7 +1525,7 @@ class TabPFN25Regressor(RegressorMixin, BaseEstimator):
 
     # ----- sklearn interface -------------------------------------------------
 
-    def fit(self, X, y) -> "TabPFN25Regressor":
+    def fit(self, X, y) -> TabPFN25Regressor:
         """Store training data and initialise the underlying TabPFN 2.5 model.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Hill Climbing Ensemble: Forward selection with replacement."""
 
 from collections.abc import Callable
@@ -140,7 +142,7 @@ class HillClimbingEnsemble(BaseEnsemble):
         self,
         predictions: list[np.ndarray],
         y_true: np.ndarray,
-    ) -> "HillClimbingEnsemble":
+    ) -> HillClimbingEnsemble:
         """Find optimal ensemble weights via hill climbing.
 
         Parameters

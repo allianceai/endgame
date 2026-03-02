@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Time series forecasting and classification module.
 
 This module provides sklearn-compatible time series models for both

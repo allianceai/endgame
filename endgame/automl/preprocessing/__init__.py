@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Preprocessing utilities for AutoML.
 
 This module provides automatic preprocessing selection and feature engineering.

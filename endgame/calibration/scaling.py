@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Probability calibration methods.
 
 Methods for calibrating classifier probabilities to be more reliable.
@@ -57,7 +59,7 @@ class TemperatureScaling(BaseEstimator, TransformerMixin):
         self.max_iter = max_iter
         self.temperature_: float = 1.0
 
-    def fit(self, logits, y) -> "TemperatureScaling":
+    def fit(self, logits, y) -> TemperatureScaling:
         """Fit temperature parameter on validation data.
 
         Parameters
@@ -181,7 +183,7 @@ class PlattScaling(BaseEstimator, TransformerMixin):
         self.A_: float = 0.0
         self.B_: float = 0.0
 
-    def fit(self, scores, y) -> "PlattScaling":
+    def fit(self, scores, y) -> PlattScaling:
         """Fit Platt scaling parameters.
 
         Parameters
@@ -287,7 +289,7 @@ class BetaCalibration(BaseEstimator, TransformerMixin):
         self.b_: float = 0.0
         self.m_: float = 0.5
 
-    def fit(self, proba, y) -> "BetaCalibration":
+    def fit(self, proba, y) -> BetaCalibration:
         """Fit beta calibration parameters.
 
         Parameters
@@ -388,7 +390,7 @@ class IsotonicCalibration(BaseEstimator, TransformerMixin):
         self.out_of_bounds = out_of_bounds
         self.isotonic_: IsotonicRegression | None = None
 
-    def fit(self, proba, y) -> "IsotonicCalibration":
+    def fit(self, proba, y) -> IsotonicCalibration:
         """Fit isotonic regression.
 
         Parameters
@@ -479,7 +481,7 @@ class HistogramBinning(BaseEstimator, TransformerMixin):
         self.bin_edges_: np.ndarray | None = None
         self.bin_calibrations_: np.ndarray | None = None
 
-    def fit(self, proba, y) -> "HistogramBinning":
+    def fit(self, proba, y) -> HistogramBinning:
         """Fit histogram binning.
 
         Parameters

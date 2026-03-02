@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Connectivity and EEG-specific feature extraction.
 
 Provides sklearn-compatible feature extractors for:
@@ -350,7 +352,7 @@ class CoherenceFeatureExtractor(BaseFeatureExtractor):
         self.bands = bands if bands is not None else self.DEFAULT_BANDS.copy()
         self.nperseg = nperseg
 
-    def fit(self, X, y=None, **fit_params) -> "CoherenceFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> CoherenceFeatureExtractor:
         """Fit the extractor.
 
         Parameters
@@ -450,7 +452,7 @@ class PLVFeatureExtractor(BaseFeatureExtractor):
         super().__init__(fs=fs)
         self.bands = bands if bands is not None else self.DEFAULT_BANDS.copy()
 
-    def fit(self, X, y=None, **fit_params) -> "PLVFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> PLVFeatureExtractor:
         X = np.asarray(X)
         if X.ndim != 3:
             raise ValueError(f"Expected 3D array, got shape {X.shape}")
@@ -527,7 +529,7 @@ class BurstSuppressionFeatures(BaseFeatureExtractor):
         self.min_burst_ms = min_burst_ms
         self.min_suppression_ms = min_suppression_ms
 
-    def fit(self, X, y=None, **fit_params) -> "BurstSuppressionFeatures":
+    def fit(self, X, y=None, **fit_params) -> BurstSuppressionFeatures:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
 
@@ -642,7 +644,7 @@ class SpikeFeatures(BaseFeatureExtractor):
         self.threshold_std = threshold_std
         self.max_duration_ms = max_duration_ms
 
-    def fit(self, X, y=None, **fit_params) -> "SpikeFeatures":
+    def fit(self, X, y=None, **fit_params) -> SpikeFeatures:
         X = self._validate_signal(X)
         super().fit(X, y, **fit_params)
 
@@ -732,7 +734,7 @@ class ConnectivityFeatureExtractor(BaseFeatureExtractor):
         self.include_plv = include_plv
         self.bands = bands if bands is not None else self.DEFAULT_BANDS.copy()
 
-    def fit(self, X, y=None, **fit_params) -> "ConnectivityFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> ConnectivityFeatureExtractor:
         X = np.asarray(X)
         if X.ndim != 3:
             raise ValueError(f"Expected 3D array, got shape {X.shape}")

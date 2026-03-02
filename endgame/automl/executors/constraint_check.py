@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Deployment constraint checking for AutoML pipelines.
 
 Validates trained models against user-specified deployment constraints

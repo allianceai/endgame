@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Neural network forecasting models via Darts.
 
 This module wraps Darts' neural forecasting models with sklearn-compatible
@@ -116,7 +118,7 @@ class DartsForecasterWrapper(BaseForecaster):
         self._model = None
         self._series = None
 
-    def _to_timeseries(self, y: np.ndarray) -> "TimeSeries":
+    def _to_timeseries(self, y: np.ndarray) -> TimeSeries:
         """Convert numpy array to Darts TimeSeries."""
         _check_darts()
         return TimeSeries.from_values(y)
@@ -127,7 +129,7 @@ class DartsForecasterWrapper(BaseForecaster):
         X: Any | None = None,
         val_y: Any | None = None,
         **fit_params,
-    ) -> "DartsForecasterWrapper":
+    ) -> DartsForecasterWrapper:
         """Fit the neural forecaster.
 
         Parameters

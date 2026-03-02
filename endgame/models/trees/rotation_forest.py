@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Rotation Forest: Ensemble of trees trained on PCA-rotated feature subsets."""
 
 
@@ -220,7 +222,7 @@ class BaseRotationForest(EndgameEstimator):
 
         return tree, rotation_matrix, subsets
 
-    def fit(self, X, y, **fit_params) -> "BaseRotationForest":
+    def fit(self, X, y, **fit_params) -> BaseRotationForest:
         """Fit the rotation forest.
 
         Parameters
@@ -298,7 +300,7 @@ class RotationForestClassifier(ClassifierMixin, BaseRotationForest):
         """Get default decision tree classifier."""
         return DecisionTreeClassifier(random_state=self.random_state)
 
-    def fit(self, X, y, **fit_params) -> "RotationForestClassifier":
+    def fit(self, X, y, **fit_params) -> RotationForestClassifier:
         """Fit the classifier."""
         X, y = check_X_y(X, y)
         self.classes_ = np.unique(y)

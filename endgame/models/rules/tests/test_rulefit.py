@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Comprehensive tests for RuleFit implementation."""
 
 import numpy as np

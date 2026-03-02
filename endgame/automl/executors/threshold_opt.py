@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Threshold optimization executor for AutoML pipelines.
 
 Optimizes classification decision thresholds on OOF predictions to

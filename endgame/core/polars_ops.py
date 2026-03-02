@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Polars utility functions for efficient data processing."""
 
 from collections.abc import Sequence
@@ -23,9 +25,9 @@ OutputFormat = Literal["polars", "pandas", "numpy"]
 
 
 def to_lazyframe(
-    X: Union[np.ndarray, "pd.DataFrame", "pl.DataFrame", "pl.LazyFrame"],
+    X: Union[np.ndarray, pd.DataFrame, pl.DataFrame, pl.LazyFrame],
     column_names: list[str] | None = None,
-) -> "pl.LazyFrame":
+) -> pl.LazyFrame:
     """Convert input data to Polars LazyFrame for optimized processing.
 
     Parameters
@@ -108,9 +110,9 @@ def to_lazyframe(
 
 
 def from_lazyframe(
-    lf: "pl.LazyFrame",
+    lf: pl.LazyFrame,
     output_format: OutputFormat = "polars",
-) -> Union[np.ndarray, "pd.DataFrame", "pl.DataFrame"]:
+) -> Union[np.ndarray, pd.DataFrame, pl.DataFrame]:
     """Convert LazyFrame to requested output format.
 
     Parameters
@@ -159,7 +161,7 @@ def from_lazyframe(
 
 
 def detect_input_format(
-    X: Union[np.ndarray, "pd.DataFrame", "pl.DataFrame", "pl.LazyFrame"]
+    X: Union[np.ndarray, pd.DataFrame, pl.DataFrame, pl.LazyFrame]
 ) -> OutputFormat:
     """Detect the format of input data.
 
@@ -181,7 +183,7 @@ def detect_input_format(
 
 
 def infer_categorical_columns(
-    X: Union[np.ndarray, "pd.DataFrame", "pl.DataFrame", "pl.LazyFrame"],
+    X: Union[np.ndarray, pd.DataFrame, pl.DataFrame, pl.LazyFrame],
     max_cardinality: int = 50,
     include_string: bool = True,
 ) -> list[str]:
@@ -229,7 +231,7 @@ def infer_categorical_columns(
 
 
 def infer_numeric_columns(
-    X: Union[np.ndarray, "pd.DataFrame", "pl.DataFrame", "pl.LazyFrame"],
+    X: Union[np.ndarray, pd.DataFrame, pl.DataFrame, pl.LazyFrame],
     exclude_categorical: bool = True,
     max_cardinality: int = 50,
 ) -> list[str]:
@@ -277,10 +279,10 @@ def infer_numeric_columns(
 
 
 def safe_divide(
-    numerator: "pl.Expr",
-    denominator: "pl.Expr",
+    numerator: pl.Expr,
+    denominator: pl.Expr,
     fill_value: float = 0.0,
-) -> "pl.Expr":
+) -> pl.Expr:
     """Safe division that handles division by zero.
 
     Parameters
@@ -304,11 +306,11 @@ def safe_divide(
 
 
 def compute_statistics(
-    lf: "pl.LazyFrame",
+    lf: pl.LazyFrame,
     group_cols: list[str],
     agg_cols: list[str],
     methods: Sequence[str] = ("mean", "std", "min", "max"),
-) -> "pl.LazyFrame":
+) -> pl.LazyFrame:
     """Compute grouped statistics efficiently.
 
     Parameters

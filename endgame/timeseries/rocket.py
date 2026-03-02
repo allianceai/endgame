@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """ROCKET, MiniROCKET, and HYDRA time series transformers and classifiers.
 
 This module provides sklearn-compatible wrappers for the ROCKET family of

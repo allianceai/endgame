@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Sequential feature selection (forward/backward)."""
 
 from typing import Literal

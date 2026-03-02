@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Hyperparameter tuning executor for AutoML pipelines.
 
 Selects the top-N models from initial training and tunes them with

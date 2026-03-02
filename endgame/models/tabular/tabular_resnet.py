@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tabular ResNet implementation.
 
 Based on the ResNet architecture from:
@@ -49,7 +51,7 @@ class _ResidualBlock(nn.Module):
         self.linear2 = nn.Linear(d_hidden, d_in)
         self.dropout = nn.Dropout(dropout)
 
-    def forward(self, x: "torch.Tensor") -> "torch.Tensor":
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
         x = self.norm1(x)
         x = F.relu(x)
@@ -93,7 +95,7 @@ class _TabularResNetModule(nn.Module):
         self.output_norm = nn.BatchNorm1d(d_embedding)
         self.output_linear = nn.Linear(d_embedding, n_outputs)
 
-    def forward(self, x: "torch.Tensor") -> "torch.Tensor":
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         # Input embedding
         x = self.input_linear(x)
         x = self.input_norm(x)
@@ -180,7 +182,7 @@ class TabularResNetClassifier(BaseEstimator, ClassifierMixin):
         self.random_state = random_state
         self.verbose = verbose
 
-    def _get_device(self) -> "torch.device":
+    def _get_device(self) -> torch.device:
         _check_torch()
         if self.device == "auto":
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -191,7 +193,7 @@ class TabularResNetClassifier(BaseEstimator, ClassifierMixin):
         X: np.ndarray,
         y: np.ndarray,
         eval_set: tuple | None = None,
-    ) -> "TabularResNetClassifier":
+    ) -> TabularResNetClassifier:
         """Fit the classifier.
 
         Parameters
@@ -412,7 +414,7 @@ class TabularResNetRegressor(BaseEstimator, RegressorMixin):
         self.random_state = random_state
         self.verbose = verbose
 
-    def _get_device(self) -> "torch.device":
+    def _get_device(self) -> torch.device:
         _check_torch()
         if self.device == "auto":
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -423,7 +425,7 @@ class TabularResNetRegressor(BaseEstimator, RegressorMixin):
         X: np.ndarray,
         y: np.ndarray,
         eval_set: tuple | None = None,
-    ) -> "TabularResNetRegressor":
+    ) -> TabularResNetRegressor:
         """Fit the regressor.
 
         Parameters

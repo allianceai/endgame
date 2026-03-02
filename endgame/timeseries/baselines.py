@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Simple forecasting baselines.
 
 These baseline models are essential for:
@@ -67,7 +69,7 @@ class NaiveForecaster(BaseForecaster, UnivariateForecasterMixin):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "NaiveForecaster":
+    ) -> NaiveForecaster:
         """Fit the naive forecaster.
 
         Parameters
@@ -237,7 +239,7 @@ class SeasonalNaiveForecaster(BaseForecaster, UnivariateForecasterMixin):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "SeasonalNaiveForecaster":
+    ) -> SeasonalNaiveForecaster:
         """Fit the seasonal naive forecaster.
 
         Parameters
@@ -397,7 +399,7 @@ class MovingAverageForecaster(BaseForecaster, UnivariateForecasterMixin):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "MovingAverageForecaster":
+    ) -> MovingAverageForecaster:
         """Fit the moving average forecaster.
 
         Parameters
@@ -682,7 +684,7 @@ class ExponentialSmoothingForecaster(BaseForecaster, UnivariateForecasterMixin):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "ExponentialSmoothingForecaster":
+    ) -> ExponentialSmoothingForecaster:
         """Fit the exponential smoothing forecaster.
 
         Parameters
@@ -852,7 +854,7 @@ class DriftForecaster(BaseForecaster, UnivariateForecasterMixin):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "DriftForecaster":
+    ) -> DriftForecaster:
         """Fit the drift forecaster.
 
         Parameters
@@ -1063,7 +1065,7 @@ class ThetaForecaster(BaseForecaster, UnivariateForecasterMixin):
         y: Any,
         X: Any | None = None,
         **fit_params,
-    ) -> "ThetaForecaster":
+    ) -> ThetaForecaster:
         """Fit the Theta forecaster.
 
         Parameters

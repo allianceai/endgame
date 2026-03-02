@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Extreme Learning Machine implementation.
 
 ELM is a single-layer feedforward neural network where input weights are
@@ -155,7 +157,7 @@ class ELMClassifier(ClassifierMixin, BaseEstimator):
         H = activation(X @ self.input_weights_ + self.biases_)
         return H
 
-    def fit(self, X, y, **fit_params) -> "ELMClassifier":
+    def fit(self, X, y, **fit_params) -> ELMClassifier:
         """Fit the ELM classifier.
 
         Training is O(n * m * h) where n=samples, m=features, h=hidden.
@@ -363,7 +365,7 @@ class ELMRegressor(RegressorMixin, BaseEstimator):
         H = activation(X @ self.input_weights_ + self.biases_)
         return H
 
-    def fit(self, X, y, **fit_params) -> "ELMRegressor":
+    def fit(self, X, y, **fit_params) -> ELMRegressor:
         """Fit the ELM regressor.
 
         Parameters

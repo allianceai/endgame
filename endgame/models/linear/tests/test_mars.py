@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Comprehensive test suite for MARS (Multivariate Adaptive Regression Splines).
 
 Tests cover:

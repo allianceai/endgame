@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Optuna-based hyperparameter optimization."""
 
 from collections.abc import Callable

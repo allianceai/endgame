@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Dimensionality Reduction Module.
 
 This module provides unified interfaces for various dimensionality reduction

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Minimum Redundancy Maximum Relevance (MRMR) feature selection."""
 
 from typing import Literal

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """LLM utilities for inference and synthetic data generation.
 
 Provides wrappers for large language models with quantization support

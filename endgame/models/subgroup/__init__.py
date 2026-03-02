@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Subgroup discovery and rule induction methods.
 
 This module provides algorithms for finding interpretable subgroups

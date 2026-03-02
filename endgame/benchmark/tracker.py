@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Experiment tracking for benchmark runs.
 
 Records pipeline configurations, hyperparameters, metrics, and results
@@ -209,7 +211,7 @@ class ExperimentRecord:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ExperimentRecord":
+    def from_dict(cls, data: dict[str, Any]) -> ExperimentRecord:
         """Create from dictionary."""
         # Parse JSON fields if needed
         if isinstance(data.get("pipeline_config"), str):
@@ -543,7 +545,7 @@ class ExperimentTracker:
         else:
             raise ValueError(f"Unsupported format: {path}")
 
-    def load(self, path: str) -> "ExperimentTracker":
+    def load(self, path: str) -> ExperimentTracker:
         """Load results from file.
 
         Parameters
@@ -683,9 +685,9 @@ class ExperimentTracker:
 
     def merge(
         self,
-        other: "ExperimentTracker",
+        other: ExperimentTracker,
         deduplicate: bool = True,
-    ) -> "ExperimentTracker":
+    ) -> ExperimentTracker:
         """Merge another tracker into this one.
 
         Parameters
@@ -772,7 +774,7 @@ class ExperimentTracker:
     def load_master(
         cls,
         path: str | Path | None = None,
-    ) -> "ExperimentTracker":
+    ) -> ExperimentTracker:
         """Load the master meta-learning database.
 
         Parameters

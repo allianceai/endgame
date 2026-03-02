@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Pipeline persistence executor for AutoML.
 
 Auto-saves the best model, ensemble, and pipeline metadata at the end

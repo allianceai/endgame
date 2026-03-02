@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Wavelet transform module for signal processing.
 
 Provides sklearn-compatible wavelet transforms:
@@ -103,7 +105,7 @@ class CWTTransformer(BaseSignalTransformer):
                 f"got {output}"
             )
 
-    def fit(self, X, y=None, **fit_params) -> "CWTTransformer":
+    def fit(self, X, y=None, **fit_params) -> CWTTransformer:
         """Fit the transformer (compute scales).
 
         Parameters
@@ -254,7 +256,7 @@ class DWTTransformer(BaseSignalTransformer):
                 f"output must be 'coeffs', 'detail', or 'approx', got {output}"
             )
 
-    def fit(self, X, y=None, **fit_params) -> "DWTTransformer":
+    def fit(self, X, y=None, **fit_params) -> DWTTransformer:
         """Fit the transformer.
 
         Parameters
@@ -439,7 +441,7 @@ class WaveletPacketTransformer(BaseSignalTransformer):
         self.mode = mode
         self.order = order
 
-    def fit(self, X, y=None, **fit_params) -> "WaveletPacketTransformer":
+    def fit(self, X, y=None, **fit_params) -> WaveletPacketTransformer:
         """Fit the transformer.
 
         Parameters
@@ -594,7 +596,7 @@ class WaveletFeatureExtractor(BaseFeatureExtractor):
         self.features = features if features is not None else self.DEFAULT_FEATURES.copy()
         self.use_packet = use_packet
 
-    def fit(self, X, y=None, **fit_params) -> "WaveletFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> WaveletFeatureExtractor:
         """Fit the extractor.
 
         Parameters

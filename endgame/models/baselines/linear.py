@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Linear models for classification and regression.
 
 Linear models provide a fundamentally different inductive bias from
@@ -118,7 +120,7 @@ class LinearClassifier(ClassifierMixin, BaseEstimator):
         self._label_encoder: LabelEncoder | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, sample_weight=None, **fit_params) -> "LinearClassifier":
+    def fit(self, X, y, sample_weight=None, **fit_params) -> LinearClassifier:
         """Fit the linear classifier.
 
         Parameters
@@ -314,7 +316,7 @@ class LinearRegressor(RegressorMixin, BaseEstimator):
         self._scaler: StandardScaler | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, sample_weight=None, **fit_params) -> "LinearRegressor":
+    def fit(self, X, y, sample_weight=None, **fit_params) -> LinearRegressor:
         """Fit the linear regressor.
 
         Parameters

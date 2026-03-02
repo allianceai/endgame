@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Time-domain feature extraction for signal processing.
 
 Provides sklearn-compatible feature extractors for time-domain analysis:
@@ -83,7 +85,7 @@ class StatisticalFeatures(BaseFeatureExtractor):
             if f not in self.ALL_FEATURES:
                 raise ValueError(f"Unknown feature: {f}")
 
-    def fit(self, X, y=None, **fit_params) -> "StatisticalFeatures":
+    def fit(self, X, y=None, **fit_params) -> StatisticalFeatures:
         """Fit the extractor.
 
         Parameters
@@ -204,7 +206,7 @@ class HjorthParameters(BaseFeatureExtractor):
         super().__init__(fs=fs)
         self.normalize = normalize
 
-    def fit(self, X, y=None, **fit_params) -> "HjorthParameters":
+    def fit(self, X, y=None, **fit_params) -> HjorthParameters:
         """Fit the extractor.
 
         Parameters
@@ -306,7 +308,7 @@ class ZeroCrossingFeatures(BaseFeatureExtractor):
         self.threshold = threshold
         self.compute_rate = compute_rate
 
-    def fit(self, X, y=None, **fit_params) -> "ZeroCrossingFeatures":
+    def fit(self, X, y=None, **fit_params) -> ZeroCrossingFeatures:
         """Fit the extractor.
 
         Parameters
@@ -435,7 +437,7 @@ class PeakFeatures(BaseFeatureExtractor):
         self.prominence = prominence
         self.width = width
 
-    def fit(self, X, y=None, **fit_params) -> "PeakFeatures":
+    def fit(self, X, y=None, **fit_params) -> PeakFeatures:
         """Fit the extractor.
 
         Parameters
@@ -607,7 +609,7 @@ class TimeDomainFeatures(BaseFeatureExtractor):
         self.statistical_features = statistical_features
         self.peak_params = peak_params or {}
 
-    def fit(self, X, y=None, **fit_params) -> "TimeDomainFeatures":
+    def fit(self, X, y=None, **fit_params) -> TimeDomainFeatures:
         """Fit all feature extractors.
 
         Parameters

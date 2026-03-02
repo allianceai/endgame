@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Benchmark runner for systematic model evaluation.
 
 Orchestrates experiments across multiple datasets and models/pipelines.
@@ -320,7 +322,7 @@ class BenchmarkRunner:
         if self.verbose:
             print(f"[BenchmarkRunner] {message}")
 
-    def _get_dataset_cache_key(self, dataset: "DatasetInfo") -> str:
+    def _get_dataset_cache_key(self, dataset: DatasetInfo) -> str:
         """Generate a cache key for a dataset based on its properties.
 
         The key includes dataset name, shape, and a hash of the data to detect changes.
@@ -345,7 +347,7 @@ class BenchmarkRunner:
         cache_key = hashlib.md5(fingerprint_str.encode()).hexdigest()
         return f"{dataset.name}_{cache_key[:12]}"
 
-    def _get_cached_meta_features(self, dataset: "DatasetInfo") -> MetaFeatureSet | None:
+    def _get_cached_meta_features(self, dataset: DatasetInfo) -> MetaFeatureSet | None:
         """Try to load cached meta-features for a dataset.
 
         Returns None if not cached or cache is disabled.
@@ -378,7 +380,7 @@ class BenchmarkRunner:
                 pass
             return None
 
-    def _cache_meta_features(self, dataset: "DatasetInfo", meta_features: MetaFeatureSet) -> None:
+    def _cache_meta_features(self, dataset: DatasetInfo, meta_features: MetaFeatureSet) -> None:
         """Cache meta-features for a dataset to disk."""
         if not self.config.cache_meta_features:
             return

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Metadata collection for model persistence."""
 
 import platform
@@ -72,7 +74,7 @@ class ModelMetadata:
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "ModelMetadata":
+    def from_dict(cls, d: dict) -> ModelMetadata:
         """Create from a dictionary."""
         return cls(**{k: v for k, v in d.items() if k in cls.__dataclass_fields__})
 

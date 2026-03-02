@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Time budget management for AutoML pipelines.
 
 This module provides utilities for managing time allocation across
@@ -118,7 +120,7 @@ class TimeBudgetManager:
                     total_budget * frac, min_stage_time
                 )
 
-    def start(self) -> "TimeBudgetManager":
+    def start(self) -> TimeBudgetManager:
         """Start the overall timer.
 
         Returns
@@ -421,7 +423,7 @@ class TimeoutContext:
         self._start_time: float | None = None
         self._timed_out = False
 
-    def __enter__(self) -> "TimeoutContext":
+    def __enter__(self) -> TimeoutContext:
         self._start_time = time.time()
         self._timed_out = False
         return self

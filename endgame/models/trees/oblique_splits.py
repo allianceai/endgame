@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Oblique split direction finding methods for Oblique Random Forests.
 
 This module provides multiple methods for finding linear combination split

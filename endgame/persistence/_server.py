@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Lightweight ONNX Runtime inference server.
 
 Wraps an ONNX model in an sklearn-like ``predict`` / ``predict_proba``

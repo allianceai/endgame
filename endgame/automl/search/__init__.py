@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Search strategies for AutoML pipeline configuration.
 
 This module provides various search strategies for finding optimal

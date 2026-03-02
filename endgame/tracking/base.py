@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Abstract base class for experiment loggers."""
 
 from abc import ABC, abstractmethod
@@ -103,7 +105,7 @@ class ExperimentLogger(ABC):
             Experiment name.
         """
 
-    def __enter__(self) -> "ExperimentLogger":
+    def __enter__(self) -> ExperimentLogger:
         self.start_run()
         return self
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Explainability executor for AutoML pipelines.
 
 Computes SHAP feature importances and optionally feature interactions

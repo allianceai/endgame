@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Core module: Base classes, configuration, and utilities."""
 
 from endgame.core.base import (

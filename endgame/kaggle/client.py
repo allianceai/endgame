@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Kaggle API client wrapper.
 
 Provides a simplified interface to the Kaggle API for competition management.
@@ -255,7 +257,7 @@ class KaggleClient:
         self._authenticated = False
 
     @property
-    def legacy_api(self) -> "KaggleApi":
+    def legacy_api(self) -> KaggleApi:
         """Get authenticated legacy API instance (for submissions)."""
         _ensure_kaggle_legacy()
         if self._legacy_api is None:

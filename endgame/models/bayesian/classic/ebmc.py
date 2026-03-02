@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Efficient Bayesian Multivariate Classifier (EBMC).
 
 EBMC is a Bayesian Network Classifier that performs automatic

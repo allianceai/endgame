@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Model registry for AutoML.
 
 This module provides a centralized registry of all available models

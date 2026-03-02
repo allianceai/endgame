@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Experiment tracking for Endgame.
 
 Provides pluggable experiment logging backends for tracking

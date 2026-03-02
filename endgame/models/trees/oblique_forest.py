@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Oblique Random Forest: Random Forest with linear combination splits.
 
 Standard Random Forests use axis-aligned splits — each split considers only a
@@ -284,7 +286,7 @@ class ObliqueRandomForestClassifier(ClassifierMixin, BaseEstimator):
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-    ) -> "ObliqueRandomForestClassifier":
+    ) -> ObliqueRandomForestClassifier:
         """Build an oblique random forest from the training data.
 
         Parameters
@@ -654,7 +656,7 @@ class ObliqueRandomForestRegressor(BaseEstimator, RegressorMixin):
         X: np.ndarray,
         y: np.ndarray,
         sample_weight: np.ndarray | None = None,
-    ) -> "ObliqueRandomForestRegressor":
+    ) -> ObliqueRandomForestRegressor:
         """Build an oblique random forest from the training data.
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """AutoML pipeline stage executors.
 
 New executors are placed here to avoid further bloating orchestrator.py.

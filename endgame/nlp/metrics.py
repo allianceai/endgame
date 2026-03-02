@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """NLP-specific metrics for text generation and translation."""
 
 import warnings

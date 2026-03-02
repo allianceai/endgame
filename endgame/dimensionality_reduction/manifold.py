@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Manifold Learning Dimensionality Reduction Methods.
 
 This module provides sklearn-compatible wrappers for modern manifold learning

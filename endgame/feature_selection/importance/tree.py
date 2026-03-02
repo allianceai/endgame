@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Tree-based feature importance selection."""
 
 from typing import Literal

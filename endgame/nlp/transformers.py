@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Transformer-based models for NLP tasks."""
 
 
@@ -94,7 +96,7 @@ class TransformerClassifier(EndgameEstimator, ClassifierMixin):
         y: np.ndarray,
         eval_set: tuple | None = None,
         **fit_params,
-    ) -> "TransformerClassifier":
+    ) -> TransformerClassifier:
         """Fit the transformer classifier.
 
         Parameters
@@ -325,7 +327,7 @@ class TransformerRegressor(EndgameEstimator, RegressorMixin):
         self._model = None
         self._tokenizer = None
 
-    def fit(self, X, y, **fit_params) -> "TransformerRegressor":
+    def fit(self, X, y, **fit_params) -> TransformerRegressor:
         """Fit the transformer regressor."""
         # Similar implementation to TransformerClassifier
         # but with num_labels=1 and different loss

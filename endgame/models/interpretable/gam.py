@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """pyGAM: Generalized Additive Models wrapper.
 
 pyGAM provides fast and flexible GAM fitting with various spline types
@@ -136,7 +138,7 @@ class GAMClassifier(ClassifierMixin, BaseEstimator):
         y,
         feature_names: list[str] | None = None,
         sample_weight: np.ndarray | None = None,
-    ) -> "GAMClassifier":
+    ) -> GAMClassifier:
         """Fit the GAM classifier.
 
         Parameters
@@ -478,7 +480,7 @@ class GAMRegressor(RegressorMixin, BaseEstimator):
         y,
         feature_names: list[str] | None = None,
         sample_weight: np.ndarray | None = None,
-    ) -> "GAMRegressor":
+    ) -> GAMRegressor:
         """Fit the GAM regressor."""
         _check_pygam()
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Time series feature extraction.
 
 This module provides feature extraction utilities for time series data,
@@ -161,7 +163,7 @@ class TSFreshFeatureExtractor(BaseEstimator, TransformerMixin):
         X,
         y=None,
         **fit_params,
-    ) -> "TSFreshFeatureExtractor":
+    ) -> TSFreshFeatureExtractor:
         """Fit the feature extractor.
 
         Parameters
@@ -502,7 +504,7 @@ class TimeSeriesFeatureExtractor(BaseEstimator, TransformerMixin):
         sorted_features = dict(sorted(all_features.items()))
         return np.array(list(sorted_features.values())), list(sorted_features.keys())
 
-    def fit(self, X, y=None, **fit_params) -> "TimeSeriesFeatureExtractor":
+    def fit(self, X, y=None, **fit_params) -> TimeSeriesFeatureExtractor:
         """Fit the extractor (learn feature names).
 
         Parameters

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Discriminant Analysis classifiers.
 
 Linear Discriminant Analysis (LDA), Quadratic Discriminant Analysis (QDA),
@@ -95,7 +97,7 @@ class LDAClassifier(ClassifierMixin, BaseEstimator):
         self._label_encoder: LabelEncoder | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, **fit_params) -> "LDAClassifier":
+    def fit(self, X, y, **fit_params) -> LDAClassifier:
         """Fit the LDA classifier.
 
         Parameters
@@ -270,7 +272,7 @@ class QDAClassifier(ClassifierMixin, BaseEstimator):
         self._label_encoder: LabelEncoder | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, **fit_params) -> "QDAClassifier":
+    def fit(self, X, y, **fit_params) -> QDAClassifier:
         """Fit the QDA classifier."""
         X = np.asarray(X, dtype=np.float64)
         y = np.asarray(y)
@@ -406,7 +408,7 @@ class RDAClassifier(ClassifierMixin, BaseEstimator):
         self._pooled_cov: np.ndarray | None = None
         self._is_fitted: bool = False
 
-    def fit(self, X, y, **fit_params) -> "RDAClassifier":
+    def fit(self, X, y, **fit_params) -> RDAClassifier:
         """Fit the RDA classifier."""
         X = np.asarray(X, dtype=np.float64)
         y = np.asarray(y)

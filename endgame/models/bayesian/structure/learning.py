@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Structure learning algorithms for Bayesian Network Classifiers.
 
 This module provides:

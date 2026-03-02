@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Feature selection methods for competitive ML."""
 
 from typing import Any
@@ -61,7 +63,7 @@ class AdversarialFeatureSelector(PolarsTransformer):
         y=None,
         X_test: Any | None = None,
         **fit_params,
-    ) -> "AdversarialFeatureSelector":
+    ) -> AdversarialFeatureSelector:
         """Identify features to remove based on adversarial validation.
 
         Parameters
@@ -175,7 +177,7 @@ class PermutationImportanceSelector(PolarsTransformer):
         self._selected_features: list[str] = []
         self._importances: dict[str, float] = {}
 
-    def fit(self, X, y, **fit_params) -> "PermutationImportanceSelector":
+    def fit(self, X, y, **fit_params) -> PermutationImportanceSelector:
         """Compute permutation importances and select features.
 
         Parameters
@@ -310,7 +312,7 @@ class NullImportanceSelector(PolarsTransformer):
                 random_state=self.random_state,
             )
 
-    def fit(self, X, y, **fit_params) -> "NullImportanceSelector":
+    def fit(self, X, y, **fit_params) -> NullImportanceSelector:
         """Compute actual and null importances.
 
         Parameters

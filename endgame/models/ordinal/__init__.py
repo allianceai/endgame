@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Ordinal regression models for ordered categorical targets."""
 
 from endgame.models.ordinal.ordinal import (

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Correlation-based feature selection."""
 
 from typing import Literal

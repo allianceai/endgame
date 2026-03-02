@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Audio module: Spectrogram processing, SED models, augmentation, features."""
 
 from endgame.audio.augmentation import AudioAugmentation

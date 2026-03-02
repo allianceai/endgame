@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """
 NEAT (NeuroEvolution of Augmenting Topologies) sklearn-compatible classifiers and regressors.
 

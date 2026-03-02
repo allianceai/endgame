@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Pseudo-labeling for semi-supervised learning."""
 
 from typing import Any
@@ -71,7 +73,7 @@ class PseudoLabelTrainer(EndgameEstimator):
         y_labeled: np.ndarray,
         X_unlabeled: Any | None = None,
         **fit_params,
-    ) -> "PseudoLabelTrainer":
+    ) -> PseudoLabelTrainer:
         """Train with pseudo-labeling.
 
         Parameters

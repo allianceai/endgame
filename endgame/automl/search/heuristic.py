@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Heuristic-based search strategy.
 
 This module provides a search strategy that uses data-driven heuristics

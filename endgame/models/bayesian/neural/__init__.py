@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Neural Bayesian Network Classifiers using learned embeddings."""
 
 # Neural components require PyTorch

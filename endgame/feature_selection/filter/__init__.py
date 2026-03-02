@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Filter-based feature selection methods."""
 
 from endgame.feature_selection.filter.correlation import CorrelationSelector

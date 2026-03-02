@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """RuleFit++: Enhanced rule-based models.
 
 Improvements over classic RuleFit (Friedman & Popescu, 2008):

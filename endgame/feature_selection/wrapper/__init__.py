@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Wrapper-based feature selection methods."""
 
 from endgame.feature_selection.wrapper.boruta import BorutaSelector

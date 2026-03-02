@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """NODE: Neural Oblivious Decision Ensembles.
 
 NODE is a differentiable ensemble of oblivious decision trees (ODTs).
@@ -381,7 +383,7 @@ class NODEClassifier(ClassifierMixin, BaseEstimator):
         y,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "NODEClassifier":
+    ) -> NODEClassifier:
         """Fit the NODE classifier.
 
         Parameters
@@ -637,7 +639,7 @@ class NODERegressor(BaseEstimator, RegressorMixin):
         self.history_ = {"train_loss": [], "val_loss": []}
         self._is_fitted = False
 
-    def fit(self, X, y, eval_set=None, **fit_params) -> "NODERegressor":
+    def fit(self, X, y, eval_set=None, **fit_params) -> NODERegressor:
         """Fit NODE regressor."""
         _check_torch()
 

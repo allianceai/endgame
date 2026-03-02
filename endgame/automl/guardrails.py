@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Quality guardrails for AutoML pipelines.
 
 This module provides data quality checks that run early in the pipeline

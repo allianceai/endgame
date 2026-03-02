@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Modern Neighborhood Component Analysis.
 
 A kNN-based approach with learned distance metric that's surprisingly
@@ -246,7 +248,7 @@ class ModernNCAClassifier(ClassifierMixin, BaseEstimator):
         y,
         eval_set: tuple[Any, Any] | None = None,
         **fit_params,
-    ) -> "ModernNCAClassifier":
+    ) -> ModernNCAClassifier:
         """Fit the ModernNCA classifier.
 
         Parameters

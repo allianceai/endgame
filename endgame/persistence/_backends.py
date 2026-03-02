@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Persistence backends for saving and loading estimators."""
 
 import json

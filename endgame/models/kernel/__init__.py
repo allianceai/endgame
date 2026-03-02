@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Kernel-based models for ensemble diversity.
 
 This module provides kernel method wrappers with competition-tuned defaults:

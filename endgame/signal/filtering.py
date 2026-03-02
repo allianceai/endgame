@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Digital filtering for signal processing.
 
 Provides sklearn-compatible wrappers around scipy.signal filters
@@ -130,7 +132,7 @@ class ButterworthFilter(BaseSignalTransformer):
         sos = scipy_signal.butter(self.order, Wn, btype=btype, output="sos")
         return sos
 
-    def fit(self, X, y=None, **fit_params) -> "ButterworthFilter":
+    def fit(self, X, y=None, **fit_params) -> ButterworthFilter:
         """Fit the filter (designs the filter coefficients)."""
         super().fit(X, y, **fit_params)
         self._sos = self._design_filter()
@@ -274,7 +276,7 @@ class FIRFilter(BaseSignalTransformer):
         )
         return b
 
-    def fit(self, X, y=None, **fit_params) -> "FIRFilter":
+    def fit(self, X, y=None, **fit_params) -> FIRFilter:
         """Fit the filter."""
         super().fit(X, y, **fit_params)
         self._b = self._design_filter()
@@ -349,7 +351,7 @@ class SavgolFilter(BaseSignalTransformer):
         self.delta = delta
         self.mode = mode
 
-    def fit(self, X, y=None, **fit_params) -> "SavgolFilter":
+    def fit(self, X, y=None, **fit_params) -> SavgolFilter:
         """Fit the filter."""
         super().fit(X, y, **fit_params)
 
@@ -429,7 +431,7 @@ class NotchFilter(BaseSignalTransformer):
 
         self._filters = []
 
-    def fit(self, X, y=None, **fit_params) -> "NotchFilter":
+    def fit(self, X, y=None, **fit_params) -> NotchFilter:
         """Design notch filter(s)."""
         super().fit(X, y, **fit_params)
 
@@ -502,7 +504,7 @@ class MedianFilter(BaseSignalTransformer):
         super().__init__(fs=fs)
         self.kernel_size = kernel_size
 
-    def fit(self, X, y=None, **fit_params) -> "MedianFilter":
+    def fit(self, X, y=None, **fit_params) -> MedianFilter:
         """Fit the filter."""
         super().fit(X, y, **fit_params)
 
@@ -578,7 +580,7 @@ class FilterBank(BaseSignalTransformer):
 
         self._filters = {}
 
-    def fit(self, X, y=None, **fit_params) -> "FilterBank":
+    def fit(self, X, y=None, **fit_params) -> FilterBank:
         """Design all bandpass filters."""
         super().fit(X, y, **fit_params)
 

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Base classes for all Endgame estimators."""
 
 from abc import abstractmethod
@@ -229,7 +231,7 @@ class PolarsTransformer(EndgameEstimator, TransformerMixin):
         self,
         X: Any,
         store_metadata: bool = False,
-    ) -> "pl.LazyFrame":
+    ) -> pl.LazyFrame:
         """Convert input to Polars LazyFrame.
 
         Parameters
@@ -260,7 +262,7 @@ class PolarsTransformer(EndgameEstimator, TransformerMixin):
 
     def _from_lazyframe(
         self,
-        lf: "pl.LazyFrame",
+        lf: pl.LazyFrame,
         output_format: str | None = None,
     ) -> Any:
         """Convert LazyFrame back to requested format.

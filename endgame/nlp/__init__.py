@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """NLP module: Transformers, translation, DAPT, pseudo-labeling, tokenizer utilities, LLM."""
 
 from endgame.nlp.dapt import DomainAdaptivePretrainer

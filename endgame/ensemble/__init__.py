@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Ensemble module: Classic and SOTA ensemble methods.
 
 Classic: Voting, Bagging, Boosting, Stacking, Blending, Hill Climbing.
