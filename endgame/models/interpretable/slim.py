@@ -32,6 +32,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import KBinsDiscretizer, LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+
 def _round_to_integers(
     coefficients: np.ndarray,
     max_coef: int = 5,
