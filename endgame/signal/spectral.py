@@ -21,6 +21,9 @@ import numpy as np
 from scipy import signal
 from scipy.fft import fft, fftfreq, rfft, rfftfreq
 
+# np.trapz was removed in NumPy 2.0, replaced by np.trapezoid (added in 1.25)
+_trapz = getattr(np, "trapezoid", None) or np.trapz
+
 from endgame.signal.base import (
     BaseFeatureExtractor,
     BaseSignalTransformer,
@@ -684,13 +687,13 @@ class BandPowerExtractor(BaseFeatureExtractor):
             sig_features = []
 
             # Total power for relative calculation
-            total_power = np.trapz(sig_psd, dx=freq_res)
+            total_power = _trapz(sig_psd, dx=freq_res)
 
             # Absolute band powers
             abs_powers = {}
             for band_name, (low, high) in self.bands.items():
                 mask = (freqs >= low) & (freqs <= high)
-                band_power = np.trapz(sig_psd[mask], dx=freq_res)
+                band_power = _trapz(sig_psd[mask], dx=freq_res)
                 abs_powers[band_name] = band_power
 
                 if self.log_power:
@@ -981,10 +984,10 @@ def compute_band_power(
 
     freq_res = freqs[1] - freqs[0]
     mask = (freqs >= band[0]) & (freqs <= band[1])
-    band_power = np.trapz(psd[mask], dx=freq_res)
+    band_power = _trapz(psd[mask], dx=freq_res)
 
     if relative:
-        total_power = np.trapz(psd, dx=freq_res)
+        total_power = _trapz(psd, dx=freq_res)
         return band_power / (total_power + 1e-10)
 
     return band_power

@@ -24,6 +24,9 @@ warnings.filterwarnings(
 
 import numpy as np
 from sklearn.base import BaseEstimator, clone, is_classifier
+
+# np.trapz was removed in NumPy 2.0, replaced by np.trapezoid (added in 1.25)
+_trapz = getattr(np, "trapezoid", None) or np.trapz
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -286,7 +289,7 @@ class LearningCurveResults:
             return 0.0
 
         # Trapezoidal integration
-        aulc = np.trapz(means, anchors)
+        aulc = _trapz(means, anchors)
 
         # Normalize by max possible area (1.0 * anchor range)
         max_area = anchors[-1] - anchors[0]
