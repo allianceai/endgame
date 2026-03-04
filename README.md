@@ -14,11 +14,13 @@
     <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
     <a href="https://github.com/allianceai/endgame/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue.svg" alt="License"></a>
     <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.10%2B-blue.svg" alt="Python"></a>
+    <a href="https://colab.research.google.com/github/allianceai/endgame/blob/main/examples/colab_quickstart.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab"></a>
     <a href="https://github.com/allianceai/endgame/stargazers"><img src="https://img.shields.io/github/stars/allianceai/endgame" alt="Stars"></a>
   </p>
   <p align="center">
     <a href="#quick-start">Quick Start</a> &middot;
     <a href="#why-endgame">Why Endgame</a> &middot;
+    <a href="#agent-ready-build-ml-pipelines-with-ai">MCP</a> &middot;
     <a href="#benchmark-results">Benchmarks</a> &middot;
     <a href="#installation">Installation</a> &middot;
     <a href="#modules">Modules</a> &middot;
@@ -34,28 +36,43 @@
 
 Endgame is a production-aware ML framework built for high-stakes domains where interpretability and calibration are non-negotiable. It powers clinical analytics at the Michael J. Fox Foundation and production ML infrastructure at Alliance AI.
 
-- **Battle-tested in clinical ML** --- serves as the modeling backbone for [PIE](https://github.com/MJFF-ResearchCommunity/PIE/tree/main/pie) (Parkinson's Insight Engine, Michael J. Fox Foundation)
+- **Battle-tested in clinical ML** --- Used in clinical analytics at the Michael J. Fox Foundation through the Parkinson's Insight Engine [PIE](https://github.com/MJFF-ResearchCommunity/PIE/tree/main/pie)
 - **Natively agent-ready** --- one of the first ML frameworks with a built-in [MCP](docs/guides/mcp_server.md) server, letting AI agents build, evaluate, and deploy pipelines through natural language
 - **Extends scikit-learn** with calibrated, interpretable models across every major family
 - **Adds deployment guardrails** --- conformal prediction, leakage detection, latency constraints
 - **Provides unified benchmarking** --- glass-box models match GBDT accuracy while remaining fully auditable
 
 ```bash
-pip install endgame-ml
+pip install endgame-ml[tabular]
 ```
 
 ```python
 import endgame as eg
+from sklearn.datasets import fetch_openml
+from sklearn.model_selection import train_test_split
 
-result = eg.quick.classify(X, y, preset="competition")
-print(result)  # QuickResult(cv_score=0.923, metric='roc_auc')
+# "What predicts a match?" --- 8,378 speed dates, 120 features
+X, y = fetch_openml(data_id=40536, return_X_y=True, as_frame=True, parser="auto")
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+result = eg.quick.classify(X_train, y_train, preset="default")
+result.report(X_test, y_test, save_path="report.html", dataset_name="SpeedDating")
 ```
+
+<p align="center">
+  <a href="https://allianceai.github.io/endgame/speeddating_report.html">
+    <img src="assets/speeddating_report_screenshot.png" width="800" alt="Interactive Classification Report">
+  </a>
+</p>
+<p align="center">
+  <strong><a href="https://allianceai.github.io/endgame/speeddating_report.html">Open the full interactive report &rarr;</a></strong>
+</p>
 
 ## Why Endgame
 
-Most ML libraries optimize for leaderboard accuracy. Endgame optimizes for **deployment integrity** --- calibrated probabilities, interpretable models, and guardrails against leakage --- all under the scikit-learn API you already know. It grew out of production work in financial ML, healthcare modeling, and competition pipelines --- systems where getting predictions wrong has real consequences.
+Most ML libraries optimize for leaderboard accuracy. Endgame optimizes for **deployment integrity** --- calibrated probabilities, interpretable models, and guardrails against leakage --- all under the scikit-learn API you already know.
 
-Endgame is also **agent-ready**: its built-in [Model Context Protocol](docs/guides/mcp_server.md) (MCP) server lets AI agents like Claude build, evaluate, and deploy production-grade ML pipelines through natural language --- no glue code required. MCP is the emerging open standard for tool integration with LLMs, and Endgame is one of the first ML frameworks to support it natively.
+Extracted from production systems in financial ML, healthcare modeling, and competition pipelines, the framework consolidates SOTA deep tabular models, competition-winning ensemble techniques, uncommon methods like Bayesian network classifiers, rule learners, and symbolic regression, and rigorous tools like conformal prediction and Venn-ABERS calibration under a single, tested API.
 
 Every estimator is a scikit-learn estimator. If you know `fit` and `predict`, you already know Endgame.
 
@@ -65,20 +82,132 @@ Data -> Validation -> Preprocessing -> Models -> Ensemble -> Calibration -> Depl
                           Vision / NLP / Audio / Signal / TimeSeries
 ```
 
-```python
-import endgame as eg
-```
-
 ### Used By
 
 - **[PIE](https://github.com/MJFF-ResearchCommunity/PIE/tree/main/pie)** --- Parkinson's Insight Engine (Michael J. Fox Foundation)
 - **[Alliance AI](https://github.com/allianceai)** --- Production ML infrastructure
 
-## About
-
-Endgame was extracted from production systems built for financial ML, healthcare modeling, and competition pipelines --- domains where interpretability, calibration, and deployment constraints matter as much as raw accuracy. The framework consolidates SOTA deep tabular models, competition-winning ensemble techniques, uncommon methods like Bayesian network classifiers, rule learners, and symbolic regression, and rigorous tools like conformal prediction and Venn-ABERS calibration under a single, tested API.
-
 Built and maintained by [Cameron Hamilton](https://github.com/allianceai). Several novel methods developed alongside Endgame are currently under peer review and will be integrated upon publication.
+
+## Agent-Ready: Build ML Pipelines with AI
+
+Endgame's built-in [Model Context Protocol](docs/guides/mcp_server.md) (MCP) server turns any compatible AI agent --- Claude Code, Claude Desktop, VS Code Copilot --- into a full ML engineering assistant. The agent can load data from any source, discover and train models, evaluate performance, generate explanations, and export reproducible scripts.
+
+<!-- GIF of MCP agent session will be added here -->
+<!-- <p align="center"><img src="assets/mcp_agent_demo.gif" width="800" alt="MCP Agent Demo"></p> -->
+
+**Quick start** --- train, evaluate, and export in one conversation:
+
+```
+You: Load the German Credit dataset and build me the best classifier you can.
+
+Agent -> load_data(source="openml:credit-g", target_column="class")
+      -> recommend_models(dataset_id="ds_a1b2c3d4", time_budget="medium")
+      -> train_model(dataset_id="ds_a1b2c3d4", model_name="lgbm")
+      -> train_model(dataset_id="ds_a1b2c3d4", model_name="xgb")
+      -> evaluate_model(model_id="model_e5f6g7h8")
+      -> create_report(model_id="model_e5f6g7h8")
+      -> export_script(model_id="model_e5f6g7h8")
+```
+
+Setup takes one line in your project:
+
+```json
+// .mcp.json
+{
+  "mcpServers": {
+    "endgame": {
+      "command": "python",
+      "args": ["-m", "endgame.mcp"]
+    }
+  }
+}
+```
+
+<details>
+<summary><strong>Example: Competition-style model bakeoff with preprocessing</strong></summary>
+
+```
+You: I have a messy healthcare dataset with missing values and class imbalance.
+     Clean it up, compare interpretable models, and give me the best one
+     with a full explanation of what's driving predictions.
+
+Agent -> load_data(source="patient_outcomes.csv", target_column="readmitted")
+      -> inspect_data(dataset_id="ds_...", operation="summary")
+      -> inspect_data(dataset_id="ds_...", operation="missing")
+      -> preprocess(dataset_id="ds_...", operations=[
+           {"type": "impute", "strategy": "median"},
+           {"type": "encode", "method": "target"},
+           {"type": "balance", "method": "smote"},
+           {"type": "select_features", "method": "mutual_info", "top_k": 20}
+         ])
+      -> split_data(dataset_id="ds_...", test_size=0.2, stratify=true)
+      -> train_model(dataset_id="ds_train_...", model_name="ebm")
+      -> train_model(dataset_id="ds_train_...", model_name="catboost")
+      -> train_model(dataset_id="ds_train_...", model_name="tabpfn")
+      -> evaluate_model(model_id="model_ebm_...", dataset_id="ds_test_...")
+      -> evaluate_model(model_id="model_cat_...", dataset_id="ds_test_...")
+      -> evaluate_model(model_id="model_pfn_...", dataset_id="ds_test_...")
+      -> explain_model(model_id="model_ebm_...", method="permutation", top_n=15)
+      -> create_visualization(chart_type="roc_curve", model_id="model_ebm_...", dataset_id="ds_test_...")
+      -> create_visualization(chart_type="calibration_plot", model_id="model_ebm_...", dataset_id="ds_test_...")
+      -> create_report(model_id="model_ebm_...")
+      -> export_script(model_id="model_ebm_...", include_preprocessing=true)
+
+Agent: EBM wins (AUC 0.847, ECE 0.012) --- fully interpretable with well-calibrated
+       probabilities. Top drivers: prior_emergency_visits (+0.31), discharge_disposition
+       (+0.24), num_medications (+0.18). Full report saved to evaluation_report.html.
+       Standalone Python script exported to pipeline_ebm.py.
+```
+</details>
+
+<details>
+<summary><strong>Example: End-to-end AutoML with deployment constraints</strong></summary>
+
+```
+You: I need a production fraud detection model. Run AutoML with the best
+     quality preset, explain the results, and give me everything I need to deploy.
+
+Agent -> load_data(source="transactions.parquet", target_column="is_fraud")
+      -> inspect_data(dataset_id="ds_...", operation="describe")
+      -> inspect_data(dataset_id="ds_...", operation="distribution", column="is_fraud")
+      -> automl(dataset_id="ds_...", preset="best_quality", time_limit=3600)
+      -> evaluate_model(model_id="model_...", metrics="roc_auc,f1,precision,recall,matthews_corrcoef")
+      -> explain_model(model_id="model_...", method="permutation", top_n=20)
+      -> create_visualization(chart_type="pr_curve", model_id="model_...", dataset_id="ds_...")
+      -> create_visualization(chart_type="lift_chart", model_id="model_...", dataset_id="ds_...")
+      -> create_visualization(chart_type="confusion_matrix", model_id="model_...", dataset_id="ds_...")
+      -> create_report(model_id="model_...", report_type="classification")
+      -> save_model(model_id="model_...")
+      -> export_script(model_id="model_...", include_preprocessing=true)
+
+Agent: AutoML trained 12 models in 48 min. Best: CatBoost ensemble (AUC 0.964,
+       precision 0.91 at 0.85 recall). Top fraud signals: transaction_velocity,
+       merchant_category_mismatch, amount_zscore. Model saved to fraud_model.egm,
+       deployment script at pipeline_catboost.py, full report at evaluation_report.html.
+```
+</details>
+
+<details>
+<summary><strong>Example: Anomaly detection + clustering</strong></summary>
+
+```
+You: I have IoT sensor data with no labels. Find anomalies, segment the data
+     into operational modes, and visualize everything.
+
+Agent -> load_data(source="sensor_readings.csv", target_column="temperature")
+      -> inspect_data(dataset_id="ds_...", operation="summary")
+      -> detect_anomalies(dataset_id="ds_...", method="isolation_forest", contamination=0.02)
+      -> cluster(dataset_id="ds_clean_...", method="hdbscan")
+      -> create_visualization(chart_type="scatterplot", dataset_id="ds_clustered_...",
+           params={"x": "pressure", "y": "temperature"}, title="Operational Modes")
+
+Agent: Found 847 anomalies (2.1%). HDBSCAN identified 4 operational modes: idle (38%),
+       normal load (31%), high load (24%), and startup transient (7%).
+```
+</details>
+
+See the [MCP Server Guide](docs/guides/mcp_server.md) for full documentation.
 
 ## Quick Start
 
@@ -184,205 +313,6 @@ print(slim.get_scorecard())
 # intercept:   -2
 # Score >= 3 -> high risk
 ```
-
-### Agent-Ready: Build ML Pipelines with AI
-
-Endgame's built-in [Model Context Protocol](docs/guides/mcp_server.md) (MCP) server turns any compatible AI agent --- Claude Code, Claude Desktop, VS Code Copilot --- into a full ML engineering assistant. The agent can load data from any source, discover and train models, evaluate performance, generate explanations, and export reproducible scripts.
-
-**Quick start** --- train, evaluate, and export in one conversation:
-
-```
-You: Load the German Credit dataset and build me the best classifier you can.
-
-Agent -> load_data(source="openml:credit-g", target_column="class")
-      -> recommend_models(dataset_id="ds_a1b2c3d4", time_budget="medium")
-      -> train_model(dataset_id="ds_a1b2c3d4", model_name="lgbm")
-      -> train_model(dataset_id="ds_a1b2c3d4", model_name="xgb")
-      -> evaluate_model(model_id="model_e5f6g7h8")
-      -> create_report(model_id="model_e5f6g7h8")
-      -> export_script(model_id="model_e5f6g7h8")
-```
-
-<details>
-<summary><strong>Example: Competition-style model bakeoff with preprocessing</strong></summary>
-
-```
-You: I have a messy healthcare dataset with missing values and class imbalance.
-     Clean it up, compare interpretable models, and give me the best one
-     with a full explanation of what's driving predictions.
-
-Agent -> load_data(source="patient_outcomes.csv", target_column="readmitted")
-      -> inspect_data(dataset_id="ds_...", operation="summary")
-      -> inspect_data(dataset_id="ds_...", operation="missing")
-      -> preprocess(dataset_id="ds_...", operations=[
-           {"type": "impute", "strategy": "median"},
-           {"type": "encode", "method": "target"},
-           {"type": "balance", "method": "smote"},
-           {"type": "select_features", "method": "mutual_info", "top_k": 20}
-         ])
-      -> split_data(dataset_id="ds_...", test_size=0.2, stratify=true)
-      -> train_model(dataset_id="ds_train_...", model_name="ebm")
-      -> train_model(dataset_id="ds_train_...", model_name="catboost")
-      -> train_model(dataset_id="ds_train_...", model_name="tabpfn")
-      -> evaluate_model(model_id="model_ebm_...", dataset_id="ds_test_...")
-      -> evaluate_model(model_id="model_cat_...", dataset_id="ds_test_...")
-      -> evaluate_model(model_id="model_pfn_...", dataset_id="ds_test_...")
-      -> explain_model(model_id="model_ebm_...", method="permutation", top_n=15)
-      -> create_visualization(chart_type="roc_curve", model_id="model_ebm_...", dataset_id="ds_test_...")
-      -> create_visualization(chart_type="calibration_plot", model_id="model_ebm_...", dataset_id="ds_test_...")
-      -> create_report(model_id="model_ebm_...")
-      -> export_script(model_id="model_ebm_...", include_preprocessing=true)
-
-Agent: EBM wins (AUC 0.847, ECE 0.012) --- fully interpretable with well-calibrated
-       probabilities. Top drivers: prior_emergency_visits (+0.31), discharge_disposition
-       (+0.24), num_medications (+0.18). Full report saved to evaluation_report.html.
-       Standalone Python script exported to pipeline_ebm.py.
-```
-</details>
-
-<details>
-<summary><strong>Example: End-to-end AutoML with deployment constraints</strong></summary>
-
-```
-You: I need a production fraud detection model. Run AutoML with the best
-     quality preset, explain the results, and give me everything I need to deploy.
-
-Agent -> load_data(source="transactions.parquet", target_column="is_fraud")
-      -> inspect_data(dataset_id="ds_...", operation="describe")
-      -> inspect_data(dataset_id="ds_...", operation="distribution", column="is_fraud")
-      -> automl(dataset_id="ds_...", preset="best_quality", time_limit=3600)
-      -> evaluate_model(model_id="model_...", metrics="roc_auc,f1,precision,recall,matthews_corrcoef")
-      -> explain_model(model_id="model_...", method="permutation", top_n=20)
-      -> create_visualization(chart_type="pr_curve", model_id="model_...", dataset_id="ds_...")
-      -> create_visualization(chart_type="lift_chart", model_id="model_...", dataset_id="ds_...")
-      -> create_visualization(chart_type="confusion_matrix", model_id="model_...", dataset_id="ds_...")
-      -> create_report(model_id="model_...", report_type="classification")
-      -> save_model(model_id="model_...")
-      -> export_script(model_id="model_...", include_preprocessing=true)
-
-Agent: AutoML trained 12 models in 48 min. Best: CatBoost ensemble (AUC 0.964,
-       precision 0.91 at 0.85 recall). Top fraud signals: transaction_velocity,
-       merchant_category_mismatch, amount_zscore. Model saved to fraud_model.egm,
-       deployment script at pipeline_catboost.py, full report at evaluation_report.html.
-```
-</details>
-
-<details>
-<summary><strong>Example: Anomaly detection + clustering for unsupervised exploration</strong></summary>
-
-```
-You: I have IoT sensor data with no labels. Find anomalies, segment the data
-     into operational modes, and visualize everything.
-
-Agent -> load_data(source="sensor_readings.csv", target_column="temperature")
-      -> inspect_data(dataset_id="ds_...", operation="summary")
-      -> inspect_data(dataset_id="ds_...", operation="correlations")
-      -> detect_anomalies(dataset_id="ds_...", method="isolation_forest", contamination=0.02)
-      -> create_visualization(chart_type="histogram", dataset_id="ds_anomalies_...",
-           params={"column": "temperature"}, title="Temperature Distribution with Anomalies")
-      -> cluster(dataset_id="ds_clean_...", method="hdbscan")
-      -> create_visualization(chart_type="scatterplot", dataset_id="ds_clustered_...",
-           params={"x": "pressure", "y": "temperature"}, title="Operational Modes")
-      -> create_visualization(chart_type="box_plot", dataset_id="ds_clustered_...",
-           params={"column": "vibration"}, title="Vibration by Cluster")
-
-Agent: Found 847 anomalies (2.1%) --- concentrated during nighttime readings with
-       temperature spikes >3σ. HDBSCAN identified 4 operational modes: idle (38%),
-       normal load (31%), high load (24%), and startup transient (7%). Visualizations
-       saved --- the scatterplot shows clean separation between modes on the
-       pressure-temperature plane.
-```
-</details>
-
-<details>
-<summary><strong>Example: Time series forecasting with data quality checks</strong></summary>
-
-```
-You: Forecast next quarter's revenue from this sales data. Check for data quality
-     issues first and tell me how confident the forecast is.
-
-Agent -> load_data(source="quarterly_sales.csv", target_column="revenue")
-      -> inspect_data(dataset_id="ds_...", operation="summary")
-      -> inspect_data(dataset_id="ds_...", operation="missing")
-      -> inspect_data(dataset_id="ds_...", operation="describe")
-      -> detect_anomalies(dataset_id="ds_...", method="isolation_forest", contamination=0.03)
-      -> create_visualization(chart_type="line_chart", dataset_id="ds_...",
-           params={"column": "revenue"}, title="Historical Revenue")
-      -> forecast(dataset_id="ds_...", target_column="revenue", horizon=3,
-           method="arima", seasonal_period=4)
-
-Agent: Data quality: 2 missing values imputed, 4 anomalous quarters flagged (Q2 2020 ---
-       likely COVID impact). ARIMA(1,1,1)(1,1,0)[4] forecast: Q1 $4.2M, Q2 $4.7M,
-       Q3 $4.5M. The model captures both the upward trend and seasonal Q2 peak.
-       Historical pattern and forecast plotted in revenue_forecast.html.
-```
-</details>
-
-<details>
-<summary><strong>Example: Full analysis of a real dataset from OpenML</strong></summary>
-
-```
-You: Load the SpeedDating dataset from OpenML. It has 121 features with lots of
-     missing values and class imbalance. Clean it up, find the best model, and
-     tell me what actually predicts a match.
-
-Agent -> load_data(source="openml:SpeedDating", target_column="match")
-      -> inspect_data(dataset_id="ds_...", operation="summary")
-      -> inspect_data(dataset_id="ds_...", operation="missing")
-      -> inspect_data(dataset_id="ds_...", operation="distribution", column="match")
-      -> preprocess(dataset_id="ds_...", operations=[
-           {"type": "impute", "strategy": "median"},
-           {"type": "encode", "method": "label"},
-           {"type": "select_features", "method": "mutual_info", "top_k": 30}
-         ])
-      -> split_data(dataset_id="ds_...", test_size=0.2, stratify=true)
-      -> train_model(dataset_id="ds_train_...", model_name="ebm")
-      -> train_model(dataset_id="ds_train_...", model_name="rf")
-      -> evaluate_model(model_id="model_ebm_...", dataset_id="ds_test_...",
-           metrics="roc_auc,f1,balanced_accuracy,log_loss")
-      -> evaluate_model(model_id="model_rf_...", dataset_id="ds_test_...",
-           metrics="roc_auc,f1,balanced_accuracy,log_loss")
-      -> explain_model(model_id="model_ebm_...", method="importance", top_n=10)
-      -> create_visualization(chart_type="roc_curve", model_id="model_ebm_...", dataset_id="ds_test_...")
-      -> create_visualization(chart_type="feature_importance", model_id="model_ebm_...", dataset_id="ds_test_...")
-      -> create_visualization(chart_type="confusion_matrix", model_id="model_ebm_...", dataset_id="ds_test_...")
-      -> export_script(model_id="model_ebm_...", include_preprocessing=true)
-
-Agent: 8,378 samples, 121 features, 16.5% match rate (imbalanced). After median
-       imputation, label encoding, and mutual-info selection down to 30 features ---
-       EBM and Random Forest are neck-and-neck on AUC (0.856 vs 0.860), but EBM
-       achieves higher F1 (0.845 vs 0.831) and much better balanced accuracy (0.666
-       vs 0.627) while remaining fully interpretable. Top match predictors: like (0.10),
-       attractive_o (0.09), attractive_partner (0.08), funny_o (0.05), shared_interests_o
-       (0.04). Ambition had near-zero effect. Visualizations and reproducible script
-       exported.
-```
-
-<p align="center">
-  <img src="assets/speeddating_roc_curve.png" width="270" alt="ROC Curve">
-  <img src="assets/speeddating_feature_importance.png" width="270" alt="Feature Importance">
-  <img src="assets/speeddating_confusion_matrix.png" width="270" alt="Confusion Matrix">
-</p>
-
-*All visualizations generated by the MCP agent via `create_visualization` --- self-contained interactive HTML files.*
-
-</details>
-
-Setup takes one line in your project:
-
-```json
-// .mcp.json
-{
-  "mcpServers": {
-    "endgame": {
-      "command": "python",
-      "args": ["-m", "endgame.mcp"]
-    }
-  }
-}
-```
-
-See the [MCP Server Guide](docs/guides/mcp_server.md) for full documentation.
 
 ## What You Get
 

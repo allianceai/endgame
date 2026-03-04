@@ -432,12 +432,20 @@ class GBDTWrapper(EndgameEstimator):
         If the model was fitted on a DataFrame (has ``feature_names_in_``),
         convert X to a DataFrame with matching column names so sklearn's
         feature-name validation is satisfied.  Otherwise return numpy.
+
+        When the fitted model used categorical features (LightGBM), pass
+        numpy directly to the booster to avoid categorical dtype mismatch.
         """
         import pandas as pd
         if isinstance(X, pd.DataFrame):
             return X
         fitted_names = getattr(self.model_, "feature_names_in_", None)
-        if fitted_names is not None and not isinstance(X, pd.DataFrame):
+        if fitted_names is not None:
+            booster = getattr(self.model_, "_Booster", None)
+            has_cats = (booster is not None and
+                        getattr(booster, "pandas_categorical", None))
+            if has_cats:
+                return self._to_numpy(X)
             return pd.DataFrame(self._to_numpy(X), columns=fitted_names)
         return self._to_numpy(X)
 

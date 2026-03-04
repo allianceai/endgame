@@ -102,11 +102,22 @@ def _build_feature_importances(
 _TABPFN25_MAX_SAMPLES = 50_000
 
 
+def _has_non_numeric(X) -> bool:
+    """Check if X contains non-numeric columns (object/category dtypes)."""
+    if isinstance(X, pd.DataFrame):
+        return any(X[c].dtype.kind in ("O", "S", "U") or
+                   isinstance(X[c].dtype, pd.CategoricalDtype)
+                   for c in X.columns)
+    return False
+
+
 def _maybe_prepend_tabpfn25(
-    models: list[str], n_samples: int
+    models: list[str], n_samples: int, X=None
 ) -> list[str]:
     """Prepend TabPFN v2.5 to the model list when the dataset fits."""
     if n_samples <= _TABPFN25_MAX_SAMPLES and "tabpfn25" not in models:
+        if X is not None and _has_non_numeric(X):
+            return models
         return ["tabpfn25"] + models
     return models
 
@@ -212,6 +223,8 @@ class QuickResult:
         Metric used for scoring.
     feature_importances : Dict[str, float]
         Feature importance dictionary (if available).
+    feature_names : list[str] | None
+        Feature names from training data (if available).
     """
 
     model: Any
@@ -219,9 +232,70 @@ class QuickResult:
     cv_score: float
     metric: str
     feature_importances: dict[str, float] = field(default_factory=dict)
+    feature_names: list[str] | None = None
+    _label_encoder: LabelEncoder | None = field(default=None, repr=False)
 
     def __repr__(self) -> str:
         return f"QuickResult(cv_score={self.cv_score:.4f}, metric='{self.metric}')"
+
+    def report(
+        self,
+        X_test,
+        y_test,
+        *,
+        save_path: str | None = None,
+        model_name: str | None = None,
+        dataset_name: str | None = None,
+        theme: str = "dark",
+    ):
+        """Generate an interactive classification report.
+
+        Parameters
+        ----------
+        X_test : array-like
+            Test features.
+        y_test : array-like
+            True test labels.
+        save_path : str, optional
+            Path to save the HTML report.
+        model_name : str, optional
+            Display name for the model.
+        dataset_name : str, optional
+            Display name for the dataset.
+        theme : str, default='dark'
+            Report theme: 'dark' or 'light'.
+
+        Returns
+        -------
+        ClassificationReport
+            Interactive report object.
+        """
+        from endgame.visualization import ClassificationReport
+
+        y_test_enc = self._label_encoder.transform(y_test) if self._label_encoder else y_test
+        # Encode categorical/object columns to numeric so that
+        # np.asarray (used by ClassificationReport) produces a float array
+        if isinstance(X_test, pd.DataFrame):
+            X_report = X_test.copy()
+            for col in X_report.columns:
+                if hasattr(X_report[col], "cat"):
+                    X_report[col] = X_report[col].cat.codes.replace(-1, np.nan).astype("float")
+                elif X_report[col].dtype == object:
+                    X_report[col] = pd.Categorical(X_report[col]).codes
+                    X_report[col] = X_report[col].replace(-1, np.nan).astype("float")
+            X_test = X_report
+        report = ClassificationReport(
+            self.model,
+            X_test,
+            y_test_enc,
+            feature_names=self.feature_names,
+            model_name=model_name,
+            dataset_name=dataset_name,
+            theme=theme,
+        )
+        if save_path:
+            report.save(save_path)
+        return report
 
 
 @dataclass
@@ -329,8 +403,8 @@ def classify(
     preset_config = PRESETS[preset].copy()
     n_folds = cv_folds or preset_config["cv_folds"]
 
-    # Use first model from preset; prepend TabPFN v2.5 for small datasets
-    models = _maybe_prepend_tabpfn25(preset_config["models"], len(X))
+    # Use first model from preset; prepend TabPFN v2.5 for small numeric datasets
+    models = _maybe_prepend_tabpfn25(preset_config["models"], len(X), X)
     model_key = models[0]
 
     if verbose:
@@ -428,6 +502,8 @@ def classify(
         cv_score=cv_score,
         metric=metric,
         feature_importances=feature_importances,
+        feature_names=feature_names,
+        _label_encoder=le,
     )
 
 
@@ -485,8 +561,8 @@ def regress(
     preset_config = PRESETS[preset].copy()
     n_folds = cv_folds or preset_config["cv_folds"]
 
-    # Use first model from preset; prepend TabPFN v2.5 for small datasets
-    models = _maybe_prepend_tabpfn25(preset_config["models"], len(X))
+    # Use first model from preset; prepend TabPFN v2.5 for small numeric datasets
+    models = _maybe_prepend_tabpfn25(preset_config["models"], len(X), X)
     model_key = models[0]
 
     if verbose:
@@ -561,6 +637,7 @@ def regress(
         cv_score=cv_score,
         metric=metric,
         feature_importances=feature_importances,
+        feature_names=feature_names,
     )
 
 
@@ -626,8 +703,8 @@ def compare(
     if metric is None:
         metric = "roc_auc" if task == "classification" else "rmse"
 
-    # Prepend TabPFN v2.5 for small datasets
-    models = _maybe_prepend_tabpfn25(preset_config["models"], len(X))
+    # Prepend TabPFN v2.5 for small numeric datasets
+    models = _maybe_prepend_tabpfn25(preset_config["models"], len(X), X)
 
     # Prepare data
     if task == "classification":
