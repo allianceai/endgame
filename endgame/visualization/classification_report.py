@@ -244,31 +244,51 @@ class ClassificationReport:
         hero_html = self._build_hero_metric(m)
 
         # Metrics panel with gradient coloring
+        # Each tuple: (label, display_value, score_for_grading, tooltip_description)
         metrics_cards = [
-            ("Accuracy", f"{m['accuracy']:.2%}", m["accuracy"]),
-            ("Balanced Acc", f"{m['balanced_accuracy']:.2%}", m["balanced_accuracy"]),
-            ("Precision", f"{m['precision']:.4f}", m["precision"]),
-            ("Recall", f"{m['recall']:.4f}", m["recall"]),
-            ("F1 Score", f"{m['f1']:.4f}", m["f1"]),
-            ("MCC", f"{m['mcc']:.4f}", (m["mcc"] + 1) / 2),  # normalize -1..1 to 0..1
-            ("Cohen κ", f"{m['cohen_kappa']:.4f}", (m["cohen_kappa"] + 1) / 2),
+            ("Accuracy", f"{m['accuracy']:.2%}", m["accuracy"],
+             "Fraction of all predictions that are correct: (TP+TN) / Total"),
+            ("Balanced Acc", f"{m['balanced_accuracy']:.2%}", m["balanced_accuracy"],
+             "Average per-class recall, correcting for class imbalance"),
+            ("Precision", f"{m['precision']:.4f}", m["precision"],
+             "Of predicted positives, how many are correct: TP / (TP+FP)"),
+            ("Recall", f"{m['recall']:.4f}", m["recall"],
+             "Of actual positives, how many are found: TP / (TP+FN). Also called sensitivity"),
+            ("F1 Score", f"{m['f1']:.4f}", m["f1"],
+             "Harmonic mean of precision and recall: 2·P·R / (P+R)"),
+            ("MCC", f"{m['mcc']:.4f}", (m["mcc"] + 1) / 2,
+             "Matthews Correlation Coefficient: balanced measure even with imbalanced classes. Range [-1, 1]"),
+            ("Cohen κ", f"{m['cohen_kappa']:.4f}", (m["cohen_kappa"] + 1) / 2,
+             "Agreement beyond chance between predictions and true labels. Range [-1, 1]"),
         ]
         if "auc" in m:
-            metrics_cards.append(("AUC", f"{m['auc']:.4f}", m["auc"]))
+            metrics_cards.append(("AUC", f"{m['auc']:.4f}", m["auc"],
+                                  "Area Under the ROC Curve: probability that a random positive ranks above a random negative"))
         if "log_loss" in m:
-            metrics_cards.append(("Log Loss", f"{m['log_loss']:.4f}", max(0, 1 - m["log_loss"])))
+            metrics_cards.append(("Log Loss", f"{m['log_loss']:.4f}", max(0, 1 - m["log_loss"]),
+                                  "Negative log-likelihood of predicted probabilities. Lower is better"))
         if "brier" in m:
-            metrics_cards.append(("Brier Score", f"{m['brier']:.4f}", 1 - m["brier"]))
+            metrics_cards.append(("Brier Score", f"{m['brier']:.4f}", 1 - m["brier"],
+                                  "Mean squared error of predicted probabilities. Lower is better. Range [0, 1]"))
         if "specificity" in m:
-            metrics_cards.append(("Specificity", f"{m['specificity']:.4f}", m["specificity"]))
+            metrics_cards.append(("Specificity", f"{m['specificity']:.4f}", m["specificity"],
+                                  "Of actual negatives, how many are correctly identified: TN / (TN+FP)"))
+        if "npv" in m:
+            metrics_cards.append(("NPV", f"{m['npv']:.4f}", m["npv"],
+                                  "Negative Predictive Value: of predicted negatives, how many are correct: TN / (TN+FN)"))
         if "informedness" in m:
-            metrics_cards.append(("Informedness", f"{m['informedness']:.4f}", (m["informedness"] + 1) / 2))
+            metrics_cards.append(("Informedness", f"{m['informedness']:.4f}", (m["informedness"] + 1) / 2,
+                                  "Recall + Specificity − 1. How much the model informs beyond chance. Also called Youden's J"))
+        if "markedness" in m:
+            metrics_cards.append(("Markedness", f"{m['markedness']:.4f}", (m["markedness"] + 1) / 2,
+                                  "Precision + NPV − 1. How marked the predictions are beyond chance"))
 
         metrics_html = "\n".join(
-            f'<div class="metric-card {_metric_grade(score)}">'
+            f'<div class="metric-card {_metric_grade(score)}" data-tip="{html_module.escape(tip)}">'
             f'<div class="metric-value">{val}</div>'
-            f'<div class="metric-label">{lbl}</div></div>'
-            for lbl, val, score in metrics_cards
+            f'<div class="metric-label">{lbl}</div>'
+            f'<div class="metric-tooltip">{html_module.escape(tip)}</div></div>'
+            for lbl, val, score, tip in metrics_cards
         )
 
         # Chart sections

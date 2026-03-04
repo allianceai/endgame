@@ -197,11 +197,48 @@ body {
   padding: 18px 16px;
   text-align: center;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  cursor: default;
 }
 
 .metric-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.metric-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary, #1e1e2e);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  white-space: normal;
+  width: 220px;
+  text-align: left;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.metric-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--border);
+}
+
+.metric-card:hover .metric-tooltip {
+  display: block;
 }
 
 .metric-card.metric-good {

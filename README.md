@@ -48,22 +48,31 @@ pip install endgame-ml[tabular]
 
 ```python
 import endgame as eg
+from endgame.visualization import ClassificationReport
 
-# "What predicts a match?" --- 8,378 speed dates, 120 features
-X, y = eg.utils.load_dataset(40536)  # SpeedDating
+# "Is this tumor malignant?" --- 569 biopsies, 30 cell nucleus features
+X, y, feature_names, class_names = eg.utils.load_dataset("breast_cancer", return_names=True)
 X_train, X_test, y_train, y_test = eg.utils.split(X, y)
 
-result = eg.quick.classify(X_train, y_train, explainable=True)
-result.report(X_test, y_test, save_path="report.html", dataset_name="SpeedDating")
+model = eg.models.EBMClassifier()  # fully interpretable glass-box model
+model.fit(X_train, y_train)
+
+ClassificationReport(
+    model, X_test, y_test,
+    feature_names=feature_names,
+    class_names=class_names,
+    model_name="EBM",
+    dataset_name="Breast Cancer Wisconsin",
+).save("report.html")
 ```
 
 <p align="center">
-  <a href="https://allianceai.github.io/endgame/speeddating_report.html">
-    <img src="assets/speeddating_report_screenshot.png" width="800" alt="Interactive Classification Report">
+  <a href="https://allianceai.github.io/endgame/breast_cancer_report.html">
+    <img src="assets/breast_cancer_report_screenshot.png" width="800" alt="Interactive Classification Report">
   </a>
 </p>
 <p align="center">
-  <strong><a href="https://allianceai.github.io/endgame/speeddating_report.html">Open the full interactive report &rarr;</a></strong>
+  <strong><a href="https://allianceai.github.io/endgame/breast_cancer_report.html">Open the full interactive report &rarr;</a></strong>
 </p>
 
 ## Why Endgame
