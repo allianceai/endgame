@@ -14,6 +14,7 @@ def render_report(
     title: str,
     subtitle: str,
     theme: str,
+    hero_html: str = "",
     metrics_html: str,
     sections: list[dict],
     footer_html: str = "",
@@ -28,6 +29,8 @@ def render_report(
         Subtitle (e.g., model name + dataset info).
     theme : str
         'dark' or 'light'.
+    hero_html : str
+        HTML for the hero metric card at top.
     metrics_html : str
         HTML for the metrics summary panel.
     sections : list of dict
@@ -77,6 +80,8 @@ def render_report(
     <p class="subtitle">{subtitle}</p>
   </header>
 
+  {hero_html}
+
   <div class="metrics-panel">
     {metrics_html}
   </div>
@@ -107,75 +112,155 @@ body {
 .report-container {
   max-width: 1400px;
   margin: 0 auto;
-  padding: 32px 24px;
+  padding: 40px 28px;
 }
 
 .report-header {
   text-align: center;
-  margin-bottom: 28px;
+  margin-bottom: 36px;
 }
 
 .report-header h1 {
-  font-size: 26px;
+  font-size: 30px;
   font-weight: 700;
   color: var(--text-primary);
-  margin-bottom: 6px;
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
 }
 
 .report-header .subtitle {
   font-size: 14px;
   color: var(--text-muted);
+  line-height: 1.6;
 }
 
+/* Hero metric card — the primary KPI */
+.hero-metric {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 28px 36px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.hero-metric .hero-ring {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.hero-metric .hero-ring svg { display: block; }
+
+.hero-metric .hero-info {
+  text-align: left;
+}
+
+.hero-metric .hero-value {
+  font-size: 38px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  line-height: 1.1;
+}
+
+.hero-metric .hero-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.hero-metric .hero-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+/* Metric cards grid */
 .metrics-panel {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-  margin-bottom: 32px;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 36px;
 }
 
 .metric-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 16px;
+  border-radius: 12px;
+  padding: 18px 16px;
   text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.metric-card.metric-good {
+  border-color: rgba(76, 175, 80, 0.3);
+  background: linear-gradient(135deg, var(--bg-card), rgba(76, 175, 80, 0.05));
+}
+
+.metric-card.metric-ok {
+  border-color: rgba(255, 193, 7, 0.3);
+  background: linear-gradient(135deg, var(--bg-card), rgba(255, 193, 7, 0.04));
+}
+
+.metric-card.metric-poor {
+  border-color: rgba(244, 67, 54, 0.3);
+  background: linear-gradient(135deg, var(--bg-card), rgba(244, 67, 54, 0.04));
 }
 
 .metric-card .metric-value {
-  font-size: 26px;
+  font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);
   font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  line-height: 1.2;
 }
 
 .metric-card .metric-label {
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 4px;
+  margin-top: 6px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
+/* Charts grid */
 .charts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
-  gap: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(580px, 1fr));
+  gap: 20px;
 }
 
 .report-section {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
+  border-radius: 12px;
+  padding: 22px;
   overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+
+.report-section:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
 }
 
 .section-title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
   color: var(--text-primary);
-  margin-bottom: 12px;
+  margin-bottom: 14px;
+  letter-spacing: -0.2px;
 }
 
 .chart-panel {
@@ -188,30 +273,31 @@ body {
 }
 
 .chart-panel .legend {
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
+/* Footer & interpretability */
 .report-footer {
   margin-top: 28px;
-  padding: 16px 20px;
+  padding: 18px 22px;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
   font-size: 12px;
   color: var(--text-muted);
   line-height: 1.6;
 }
 
 .report-footer h3 {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--text-primary);
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .report-footer pre {
   background: var(--bg-secondary);
-  padding: 10px;
-  border-radius: 6px;
+  padding: 12px;
+  border-radius: 8px;
   overflow-x: auto;
   font-size: 11px;
   line-height: 1.5;
@@ -223,14 +309,14 @@ body {
   margin-top: 24px;
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 20px;
+  border-radius: 12px;
+  padding: 22px;
 }
 
 .interp-section h2 {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
   color: var(--text-primary);
 }
 

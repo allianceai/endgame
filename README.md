@@ -48,14 +48,12 @@ pip install endgame-ml[tabular]
 
 ```python
 import endgame as eg
-from sklearn.datasets import fetch_openml
-from sklearn.model_selection import train_test_split
 
 # "What predicts a match?" --- 8,378 speed dates, 120 features
-X, y = fetch_openml(data_id=40536, return_X_y=True, as_frame=True, parser="auto")
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+X, y = eg.utils.load_dataset(40536)  # SpeedDating
+X_train, X_test, y_train, y_test = eg.utils.split(X, y)
 
-result = eg.quick.classify(X_train, y_train, preset="default")
+result = eg.quick.classify(X_train, y_train, explainable=True)
 result.report(X_test, y_test, save_path="report.html", dataset_name="SpeedDating")
 ```
 
@@ -99,12 +97,12 @@ Endgame's built-in [Model Context Protocol](docs/guides/mcp_server.md) (MCP) ser
 **Quick start** --- train, evaluate, and export in one conversation:
 
 ```
-You: Load the German Credit dataset and build me the best classifier you can.
+You: Load the Adult Income dataset and build me the best classifier you can.
 
-Agent -> load_data(source="openml:credit-g", target_column="class")
+Agent -> load_data(source="openml:adult", target_column="class")
       -> recommend_models(dataset_id="ds_a1b2c3d4", time_budget="medium")
       -> train_model(dataset_id="ds_a1b2c3d4", model_name="lgbm")
-      -> train_model(dataset_id="ds_a1b2c3d4", model_name="xgb")
+      -> train_model(dataset_id="ds_a1b2c3d4", model_name="ebm")
       -> evaluate_model(model_id="model_e5f6g7h8")
       -> create_report(model_id="model_e5f6g7h8")
       -> export_script(model_id="model_e5f6g7h8")
@@ -215,14 +213,10 @@ See the [MCP Server Guide](docs/guides/mcp_server.md) for full documentation.
 
 ```python
 import endgame as eg
-from sklearn.datasets import fetch_openml
-from sklearn.model_selection import train_test_split
 
-# Load data
-credit = fetch_openml(data_id=31, as_frame=False, parser="auto")
-X_train, X_test, y_train, y_test = train_test_split(
-    credit.data, credit.target, test_size=0.3, random_state=42
-)
+# Load data — Adult Income (48,842 samples, 14 features)
+X, y = eg.utils.load_dataset(1590)  # Adult
+X_train, X_test, y_train, y_test = eg.utils.split(X, y)
 
 # Train with competition-winning defaults
 model = eg.models.LGBMWrapper(preset="endgame")
@@ -255,28 +249,27 @@ from endgame.visualization import ClassificationReport
 
 report = ClassificationReport(
     model, X_test, y_test,
-    feature_names=credit.feature_names,
     model_name="LightGBM",
-    dataset_name="German Credit",
+    dataset_name="Adult Income",
 )
 report.save("evaluation_report.html")
 ```
 
-Self-contained HTML with metrics, confusion matrix, ROC curve, precision-recall curve, calibration plot, feature importances, and prediction histograms.
+Self-contained HTML with metrics, confusion matrix, ROC/PR curves, calibration plot, threshold analysis, cumulative gains, feature importances, and prediction histograms.
 
 ### Build an optimized ensemble
 
 ```python
 from endgame.ensemble import SuperLearner
-from sklearn.linear_model import LogisticRegression
-from sklearn.ensemble import RandomForestClassifier
+from endgame.models import LGBMWrapper, XGBWrapper, EBMClassifier
+from endgame.models.baselines import LinearClassifier
 
 sl = SuperLearner(
     base_estimators=[
-        ("lgbm", eg.models.LGBMWrapper(preset="endgame")),
-        ("xgb", eg.models.XGBWrapper(preset="endgame")),
-        ("rf", RandomForestClassifier(n_estimators=200)),
-        ("lr", LogisticRegression(max_iter=1000)),
+        ("lgbm", LGBMWrapper(preset="endgame")),
+        ("xgb", XGBWrapper(preset="endgame")),
+        ("ebm", EBMClassifier()),
+        ("lr", LinearClassifier()),
     ],
     meta_learner="nnls",  # non-negative least squares (convex combination)
     cv=5,

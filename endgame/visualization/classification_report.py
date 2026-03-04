@@ -134,6 +134,16 @@ class ClassificationReport:
         m["mcc"] = round(matthews_corrcoef(self.y, self.y_pred), 4)
         m["cohen_kappa"] = round(cohen_kappa_score(self.y, self.y_pred), 4)
 
+        # Confusion-matrix derived metrics
+        cm = confusion_matrix(self.y, self.y_pred, labels=self.classes_)
+        if self.is_binary:
+            tn, fp_cnt, fn_cnt, tp_cnt = cm.ravel()
+            m["specificity"] = round(tn / (tn + fp_cnt) if (tn + fp_cnt) > 0 else 0, 4)
+            m["npv"] = round(tn / (tn + fn_cnt) if (tn + fn_cnt) > 0 else 0, 4)
+            m["informedness"] = round(m["recall"] + m["specificity"] - 1, 4)
+            m["markedness"] = round(m["precision"] + m["npv"] - 1, 4)
+        m["prevalence"] = round(float(np.mean(self.y == (self.classes_[1] if self.is_binary else self.classes_[0]))), 4)
+
         if self.has_proba:
             try:
                 if self.is_binary:
@@ -157,14 +167,17 @@ class ClassificationReport:
             tp = int((mask_true & mask_pred).sum())
             fp = int((~mask_true & mask_pred).sum())
             fn = int((mask_true & ~mask_pred).sum())
+            tn_c = int((~mask_true & ~mask_pred).sum())
             prec = tp / (tp + fp) if (tp + fp) > 0 else 0
             rec = tp / (tp + fn) if (tp + fn) > 0 else 0
             f1_c = 2 * prec * rec / (prec + rec) if (prec + rec) > 0 else 0
+            spec = tn_c / (tn_c + fp) if (tn_c + fp) > 0 else 0
             per_class.append({
                 "class": self.class_names[i],
                 "precision": round(prec, 4),
                 "recall": round(rec, 4),
                 "f1": round(f1_c, 4),
+                "specificity": round(spec, 4),
                 "support": int(mask_true.sum()),
             })
         m["per_class"] = per_class
@@ -227,27 +240,35 @@ class ClassificationReport:
         parts.append(f"{m['n_samples']} samples · {m['n_classes']} classes")
         subtitle = html_module.escape(" — ".join(parts))
 
-        # Metrics panel
+        # Hero metric — AUC for binary, balanced accuracy for multiclass
+        hero_html = self._build_hero_metric(m)
+
+        # Metrics panel with gradient coloring
         metrics_cards = [
-            ("Accuracy", f"{m['accuracy']:.2%}"),
-            ("Balanced Acc", f"{m['balanced_accuracy']:.2%}"),
-            ("Precision", f"{m['precision']:.4f}"),
-            ("Recall", f"{m['recall']:.4f}"),
-            ("F1 Score", f"{m['f1']:.4f}"),
-            ("MCC", f"{m['mcc']:.4f}"),
-            ("Cohen κ", f"{m['cohen_kappa']:.4f}"),
+            ("Accuracy", f"{m['accuracy']:.2%}", m["accuracy"]),
+            ("Balanced Acc", f"{m['balanced_accuracy']:.2%}", m["balanced_accuracy"]),
+            ("Precision", f"{m['precision']:.4f}", m["precision"]),
+            ("Recall", f"{m['recall']:.4f}", m["recall"]),
+            ("F1 Score", f"{m['f1']:.4f}", m["f1"]),
+            ("MCC", f"{m['mcc']:.4f}", (m["mcc"] + 1) / 2),  # normalize -1..1 to 0..1
+            ("Cohen κ", f"{m['cohen_kappa']:.4f}", (m["cohen_kappa"] + 1) / 2),
         ]
         if "auc" in m:
-            metrics_cards.append(("AUC", f"{m['auc']:.4f}"))
+            metrics_cards.append(("AUC", f"{m['auc']:.4f}", m["auc"]))
         if "log_loss" in m:
-            metrics_cards.append(("Log Loss", f"{m['log_loss']:.4f}"))
+            metrics_cards.append(("Log Loss", f"{m['log_loss']:.4f}", max(0, 1 - m["log_loss"])))
         if "brier" in m:
-            metrics_cards.append(("Brier Score", f"{m['brier']:.4f}"))
+            metrics_cards.append(("Brier Score", f"{m['brier']:.4f}", 1 - m["brier"]))
+        if "specificity" in m:
+            metrics_cards.append(("Specificity", f"{m['specificity']:.4f}", m["specificity"]))
+        if "informedness" in m:
+            metrics_cards.append(("Informedness", f"{m['informedness']:.4f}", (m["informedness"] + 1) / 2))
 
         metrics_html = "\n".join(
-            f'<div class="metric-card"><div class="metric-value">{val}</div>'
+            f'<div class="metric-card {_metric_grade(score)}">'
+            f'<div class="metric-value">{val}</div>'
             f'<div class="metric-label">{lbl}</div></div>'
-            for lbl, val in metrics_cards
+            for lbl, val, score in metrics_cards
         )
 
         # Chart sections
@@ -269,14 +290,25 @@ class ClassificationReport:
         if self.has_proba and self.is_binary:
             sections.append(self._section_calibration(chart_w, 500, colors))
 
-        # 5. Feature Importances (if available)
+        # 5. Threshold Analysis (if proba + binary)
+        if self.has_proba and self.is_binary:
+            sections.append(self._section_threshold_analysis(chart_w, chart_h, colors))
+
+        # 6. Per-Class Metrics Bar Chart
+        sections.append(self._section_per_class_bars(chart_w, chart_h, colors))
+
+        # 7. Cumulative Gains (if proba + binary)
+        if self.has_proba and self.is_binary:
+            sections.append(self._section_cumulative_gains(chart_w, chart_h, colors))
+
+        # 8. Feature Importances (if available)
         if hasattr(self.model, "feature_importances_"):
             sections.append(self._section_importances(chart_w, chart_h, colors))
 
-        # 6. Class Distribution
+        # 9. Class Distribution
         sections.append(self._section_class_distribution(chart_w, chart_h, colors))
 
-        # 7. Prediction Histogram (if proba + binary)
+        # 10. Confidence Histogram (if proba + binary)
         if self.has_proba and self.is_binary:
             sections.append(self._section_prediction_hist(chart_w, chart_h, colors))
 
@@ -287,9 +319,49 @@ class ClassificationReport:
             title="Classification Report",
             subtitle=subtitle,
             theme=self.theme,
+            hero_html=hero_html,
             metrics_html=metrics_html,
             sections=sections,
             footer_html=footer_html,
+        )
+
+    def _build_hero_metric(self, m: dict[str, Any]) -> str:
+        """Build the hero metric card with a ring gauge."""
+        if self.is_binary and "auc" in m:
+            value = m["auc"]
+            label = "AUC"
+            desc = "Area Under the ROC Curve"
+        else:
+            value = m["balanced_accuracy"]
+            label = "Balanced Accuracy"
+            desc = "Average per-class recall"
+
+        pct = max(0, min(1, value))
+        # SVG ring gauge
+        r, stroke_w = 38, 7
+        circ = 2 * 3.14159 * r
+        offset = circ * (1 - pct)
+        color = _ring_color(pct)
+
+        ring_svg = (
+            f'<svg width="96" height="96" viewBox="0 0 96 96">'
+            f'<circle cx="48" cy="48" r="{r}" fill="none" stroke="var(--border)" stroke-width="{stroke_w}"/>'
+            f'<circle cx="48" cy="48" r="{r}" fill="none" stroke="{color}" stroke-width="{stroke_w}" '
+            f'stroke-dasharray="{circ:.1f}" stroke-dashoffset="{offset:.1f}" '
+            f'stroke-linecap="round" transform="rotate(-90 48 48)"/>'
+            f'<text x="48" y="52" text-anchor="middle" fill="var(--text-primary)" '
+            f'font-size="16" font-weight="700" font-family="SF Mono,Fira Code,Consolas,monospace">'
+            f'{value:.3f}</text></svg>'
+        )
+
+        return (
+            f'<div class="hero-metric">'
+            f'<div class="hero-ring">{ring_svg}</div>'
+            f'<div class="hero-info">'
+            f'<div class="hero-value">{value:.4f}</div>'
+            f'<div class="hero-label">{label}</div>'
+            f'<div class="hero-desc">{desc}</div>'
+            f'</div></div>'
         )
 
     # ------------------------------------------------------------------
@@ -514,6 +586,100 @@ class ClassificationReport:
             "chart_js": _PREDHIST_SECTION_JS,
         }
 
+    def _section_threshold_analysis(self, w, h, colors):
+        """Precision, recall, F1 vs classification threshold (binary only)."""
+        from sklearn.metrics import f1_score as _f1, precision_score as _prec, recall_score as _rec
+
+        y_prob = self.y_proba[:, 1]
+        y_bin = (self.y == self.classes_[1]).astype(int)
+        thresholds = np.linspace(0.01, 0.99, 80)
+        precs, recs, f1s = [], [], []
+        best_f1, best_t = 0, 0.5
+        for t in thresholds:
+            preds = (y_prob >= t).astype(int)
+            p = _prec(y_bin, preds, zero_division=0)
+            r = _rec(y_bin, preds, zero_division=0)
+            f = _f1(y_bin, preds, zero_division=0)
+            precs.append(round(float(p), 4))
+            recs.append(round(float(r), 4))
+            f1s.append(round(float(f), 4))
+            if f > best_f1:
+                best_f1, best_t = f, t
+
+        data = {
+            "thresholds": [round(float(t), 4) for t in thresholds],
+            "precision": precs,
+            "recall": recs,
+            "f1": f1s,
+            "bestThreshold": round(float(best_t), 4),
+            "bestF1": round(float(best_f1), 4),
+        }
+        config = {"width": w, "height": h, "palette": colors}
+        return {
+            "title": "Threshold Analysis",
+            "chart_id": "thresh",
+            "width": w,
+            "height": h,
+            "data_json": json.dumps(data),
+            "config_json": json.dumps(config),
+            "chart_js": _THRESHOLD_SECTION_JS,
+        }
+
+    def _section_per_class_bars(self, w, h, colors):
+        """Grouped bar chart of precision, recall, F1 per class."""
+        per_class = self._metrics["per_class"]
+        data = {
+            "classes": [pc["class"] for pc in per_class],
+            "precision": [pc["precision"] for pc in per_class],
+            "recall": [pc["recall"] for pc in per_class],
+            "f1": [pc["f1"] for pc in per_class],
+        }
+        config = {"width": w, "height": h, "palette": colors}
+        return {
+            "title": "Per-Class Metrics",
+            "chart_id": "perclass",
+            "width": w,
+            "height": h,
+            "data_json": json.dumps(data),
+            "config_json": json.dumps(config),
+            "chart_js": _PERCLASS_SECTION_JS,
+        }
+
+    def _section_cumulative_gains(self, w, h, colors):
+        """Cumulative gains curve (binary only)."""
+        y_prob = self.y_proba[:, 1]
+        y_bin = (self.y == self.classes_[1]).astype(int)
+        n = len(y_bin)
+        n_pos = int(y_bin.sum())
+
+        # Sort by predicted probability descending
+        order = np.argsort(-y_prob)
+        y_sorted = y_bin[order]
+        cum_pos = np.cumsum(y_sorted)
+
+        # Normalize
+        pct_samples = np.arange(1, n + 1) / n
+        pct_captured = cum_pos / max(n_pos, 1)
+
+        # Downsample for JSON
+        step = max(1, n // 200)
+        data = {
+            "pctSamples": _ds(pct_samples[::step]),
+            "pctCaptured": _ds(pct_captured[::step]),
+            "nPos": n_pos,
+            "nTotal": n,
+        }
+        config = {"width": w, "height": h, "palette": colors}
+        return {
+            "title": "Cumulative Gains",
+            "chart_id": "gains",
+            "width": w,
+            "height": h,
+            "data_json": json.dumps(data),
+            "config_json": json.dumps(config),
+            "chart_js": _GAINS_SECTION_JS,
+        }
+
     # ------------------------------------------------------------------
     # Interpretability
     # ------------------------------------------------------------------
@@ -611,6 +777,28 @@ def _extract_linear_coefs(model, feature_names):
         return pairs
     except Exception:
         return []
+
+
+def _metric_grade(score: float) -> str:
+    """Return a CSS class based on metric quality."""
+    if score >= 0.8:
+        return "metric-good"
+    if score >= 0.6:
+        return "metric-ok"
+    return "metric-poor"
+
+
+def _ring_color(pct: float) -> str:
+    """Color for the hero ring gauge."""
+    if pct >= 0.9:
+        return "#4caf50"
+    if pct >= 0.8:
+        return "#66bb6a"
+    if pct >= 0.7:
+        return "#ffc107"
+    if pct >= 0.6:
+        return "#ff9800"
+    return "#f44336"
 
 
 # ===================================================================
@@ -861,5 +1049,125 @@ function renderChart_predhist(data, config, container) {
     g.appendChild(EG.svg('rect',{x:x+1,y:iH-hP,width:barW,height:Math.max(hP,0),fill:posColor,opacity:0.6,rx:2}));
   });
   EG.drawLegend(container,[{label:data.negLabel,color:negColor},{label:data.posLabel,color:posColor}]);
+}
+"""
+
+_THRESHOLD_SECTION_JS = r"""
+function renderChart_thresh(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'Classification Threshold');
+  EG.drawYAxis(g,yS,iW,'Score');
+
+  const series=[
+    {vals:data.precision, label:'Precision', color:config.palette[0]},
+    {vals:data.recall, label:'Recall', color:config.palette[1%config.palette.length]},
+    {vals:data.f1, label:'F1', color:config.palette[2%config.palette.length]},
+  ];
+
+  series.forEach(s=>{
+    let d='';
+    for(let i=0;i<data.thresholds.length;i++){
+      d+=(i===0?'M':' L')+xS(data.thresholds[i])+' '+yS(s.vals[i]);
+    }
+    const path=EG.svg('path',{d:d,fill:'none',stroke:s.color,'stroke-width':2.5});
+    path.addEventListener('mouseenter',e=>{path.setAttribute('stroke-width','4');EG.tooltip.show(e,'<b>'+s.label+'</b>');});
+    path.addEventListener('mouseleave',()=>{path.setAttribute('stroke-width','2.5');EG.tooltip.hide();});
+    g.appendChild(path);
+  });
+
+  // Mark optimal threshold
+  const bx=xS(data.bestThreshold),by=yS(data.bestF1);
+  g.appendChild(EG.svg('line',{x1:bx,y1:0,x2:bx,y2:iH,stroke:'var(--text-muted)','stroke-width':1,'stroke-dasharray':'4,3'}));
+  const dot=EG.svg('circle',{cx:bx,cy:by,r:6,fill:config.palette[2%config.palette.length],stroke:'var(--bg-card)','stroke-width':2});
+  dot.addEventListener('mouseenter',e=>{EG.tooltip.show(e,'<b>Best F1</b><br>Threshold: '+data.bestThreshold.toFixed(3)+'<br>F1: '+data.bestF1.toFixed(3));});
+  dot.addEventListener('mouseleave',()=>{EG.tooltip.hide();});
+  g.appendChild(dot);
+
+  EG.drawLegend(container,series.map(s=>({label:s.label,color:s.color})));
+}
+"""
+
+_PERCLASS_SECTION_JS = r"""
+function renderChart_perclass(data, config, container) {
+  const margin={top:10,right:20,bottom:60,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const n=data.classes.length;
+  const metrics=['precision','recall','f1'];
+  const colors=[config.palette[0],config.palette[1%config.palette.length],config.palette[2%config.palette.length]];
+  const groupW=iW/n;
+  const barW=groupW*0.25;
+  const yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawYAxis(g,yS,iW,'Score');
+
+  // Grid lines
+  [0,0.25,0.5,0.75,1.0].forEach(v=>{
+    g.appendChild(EG.svg('line',{x1:0,y1:yS(v),x2:iW,y2:yS(v),stroke:'var(--grid-line)'}));
+  });
+
+  for(let i=0;i<n;i++){
+    const gx=i*groupW+groupW*0.15;
+    metrics.forEach((m,mi)=>{
+      const v=data[m][i];
+      const bH=iH-yS(v);
+      const x=gx+mi*barW+mi*2;
+      const rect=EG.svg('rect',{x:x,y:iH-bH,width:barW,height:Math.max(bH,0),fill:colors[mi],rx:3,opacity:0.8});
+      rect.addEventListener('mouseenter',e=>{
+        rect.setAttribute('opacity','1');
+        EG.tooltip.show(e,'<b>'+data.classes[i]+'</b><br>'+m+': '+v.toFixed(4));
+      });
+      rect.addEventListener('mouseleave',()=>{rect.setAttribute('opacity','0.8');EG.tooltip.hide();});
+      g.appendChild(rect);
+    });
+    // Class label
+    const lbl=EG.svg('text',{x:gx+barW*1.5+2,y:iH+18,'text-anchor':'middle',fill:'var(--text-secondary)','font-size':'11px'});
+    lbl.textContent=data.classes[i].length>12?data.classes[i].slice(0,10)+'…':data.classes[i];
+    g.appendChild(lbl);
+  }
+
+  EG.drawLegend(container,metrics.map((m,i)=>({label:m.charAt(0).toUpperCase()+m.slice(1),color:colors[i]})));
+}
+"""
+
+_GAINS_SECTION_JS = r"""
+function renderChart_gains(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'% of Samples (sorted by score)');
+  EG.drawYAxis(g,yS,iW,'% of Positives Captured');
+
+  // Random baseline
+  g.appendChild(EG.svg('line',{x1:xS(0),y1:yS(0),x2:xS(1),y2:yS(1),stroke:'var(--text-muted)','stroke-width':1.5,'stroke-dasharray':'6,4',opacity:0.5}));
+
+  // Model curve
+  const color=config.palette[0];
+  let d='';
+  const n=Math.min(data.pctSamples.length,data.pctCaptured.length);
+  for(let i=0;i<n;i++) d+=(i===0?'M':' L')+xS(data.pctSamples[i])+' '+yS(data.pctCaptured[i]);
+  // Fill
+  g.appendChild(EG.svg('path',{d:d+' L'+xS(data.pctSamples[n-1])+' '+iH+' L'+xS(data.pctSamples[0])+' '+iH+' Z',fill:color,opacity:0.08}));
+  const path=EG.svg('path',{d:d,fill:'none',stroke:color,'stroke-width':2.5});
+  path.addEventListener('mouseenter',e=>{path.setAttribute('stroke-width','4');EG.tooltip.show(e,'<b>Cumulative Gains</b><br>'+data.nPos+' positives / '+data.nTotal+' total');});
+  path.addEventListener('mouseleave',()=>{path.setAttribute('stroke-width','2.5');EG.tooltip.hide();});
+  g.appendChild(path);
+
+  EG.drawLegend(container,[{label:'Model',color:color},{label:'Random',color:'var(--text-muted)'}]);
 }
 """

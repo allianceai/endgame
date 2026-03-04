@@ -102,6 +102,16 @@ def _build_feature_importances(
 _TABPFN25_MAX_SAMPLES = 50_000
 
 
+def _supports_eval_set(model) -> bool:
+    """Check if model.fit() accepts an eval_set keyword argument."""
+    import inspect
+    try:
+        sig = inspect.signature(model.fit)
+        return "eval_set" in sig.parameters
+    except (ValueError, TypeError):
+        return False
+
+
 def _has_non_numeric(X) -> bool:
     """Check if X contains non-numeric columns (object/category dtypes)."""
     if isinstance(X, pd.DataFrame):
@@ -120,6 +130,32 @@ def _maybe_prepend_tabpfn25(
             return models
         return ["tabpfn25"] + models
     return models
+
+
+def _select_model_for_data(
+    X, y, task: TaskType = "classification"
+) -> str:
+    """Pick a default model based on dataset characteristics.
+
+    Lightweight heuristic — no data-dependent fitting, just shape/type checks.
+    """
+    n_samples, n_features = X.shape
+    has_cats = _has_non_numeric(X)
+
+    if task == "classification":
+        if n_samples <= 3000 and n_features <= 100 and not has_cats:
+            return "tabpfn25"
+        if n_samples <= 5000 and n_features <= 30:
+            return "ebm"
+        if has_cats or n_samples > 10000:
+            return "lgbm"
+        if n_features > 500:
+            return "lgbm"
+        return "lgbm"
+    else:  # regression
+        if n_features <= 30 and n_samples <= 5000:
+            return "ebm"
+        return "lgbm"
 
 
 def _get_model(model_key: str, task: TaskType, preset_config: dict[str, Any]):
@@ -352,6 +388,7 @@ def classify(
     cv_folds: int | None = None,
     random_state: int = 42,
     verbose: bool = True,
+    explainable: bool = False,
     logger: ExperimentLogger | None = None,
 ) -> QuickResult:
     """Quick classification with automatic model selection.
@@ -372,6 +409,9 @@ def classify(
         Random seed.
     verbose : bool, default=True
         Whether to print progress.
+    explainable : bool, default=False
+        If True, only use inherently interpretable models (EBM, linear, NAM).
+        EBM is the default when explainable=True.
     logger : ExperimentLogger, optional
         Experiment logger for tracking params and metrics.
 
@@ -403,9 +443,11 @@ def classify(
     preset_config = PRESETS[preset].copy()
     n_folds = cv_folds or preset_config["cv_folds"]
 
-    # Use first model from preset; prepend TabPFN v2.5 for small numeric datasets
-    models = _maybe_prepend_tabpfn25(preset_config["models"], len(X), X)
-    model_key = models[0]
+    # Pick model
+    if explainable:
+        model_key = "ebm"
+    else:
+        model_key = _select_model_for_data(X, y_encoded, task="classification")
 
     if verbose:
         print(f"Training {model_key} with {preset} preset...")
@@ -444,7 +486,7 @@ def classify(
         y_train, y_val = y_encoded[train_idx], y_encoded[val_idx]
 
         # Fit with early stopping if available
-        if hasattr(model, "early_stopping_rounds"):
+        if _supports_eval_set(model):
             model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
         else:
             model.fit(X_train, y_train)
@@ -515,6 +557,7 @@ def regress(
     cv_folds: int | None = None,
     random_state: int = 42,
     verbose: bool = True,
+    explainable: bool = False,
     logger: ExperimentLogger | None = None,
 ) -> QuickResult:
     """Quick regression with automatic model selection.
@@ -535,6 +578,9 @@ def regress(
         Random seed.
     verbose : bool, default=True
         Whether to print progress.
+    explainable : bool, default=False
+        If True, only use inherently interpretable models (EBM, linear, NAM).
+        EBM is the default when explainable=True.
     logger : ExperimentLogger, optional
         Experiment logger for tracking params and metrics.
 
@@ -561,9 +607,11 @@ def regress(
     preset_config = PRESETS[preset].copy()
     n_folds = cv_folds or preset_config["cv_folds"]
 
-    # Use first model from preset; prepend TabPFN v2.5 for small numeric datasets
-    models = _maybe_prepend_tabpfn25(preset_config["models"], len(X), X)
-    model_key = models[0]
+    # Pick model
+    if explainable:
+        model_key = "ebm"
+    else:
+        model_key = _select_model_for_data(X, y, task="regression")
 
     if verbose:
         print(f"Training {model_key} with {preset} preset...")
@@ -597,7 +645,7 @@ def regress(
         y_train, y_val = y[train_idx], y[val_idx]
 
         # Fit with early stopping if available
-        if hasattr(model, "early_stopping_rounds"):
+        if _supports_eval_set(model):
             model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
         else:
             model.fit(X_train, y_train)
@@ -756,7 +804,7 @@ def compare(
                     X_train, X_val = X[train_idx], X[val_idx]
                 y_train, y_val = y_encoded[train_idx], y_encoded[val_idx]
 
-                if hasattr(model, "early_stopping_rounds"):
+                if _supports_eval_set(model):
                     model.fit(X_train, y_train, eval_set=[(X_val, y_val)])
                 else:
                     model.fit(X_train, y_train)

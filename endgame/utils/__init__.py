@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Utils module: Metrics, submission helpers, and reproducibility."""
 
+from endgame.utils.data import load_dataset, split
 from endgame.utils.metrics import (
     competition_metric,
     map_at_k,
@@ -25,6 +26,9 @@ from endgame.utils.sharpe import (
 from endgame.utils.submission import SubmissionHelper
 
 __all__ = [
+    # Data loading
+    "load_dataset",
+    "split",
     # Metrics
     "quadratic_weighted_kappa",
     "map_at_k",
