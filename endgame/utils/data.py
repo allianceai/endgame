@@ -4,7 +4,6 @@ Thin wrappers around sklearn so users never need to import sklearn directly.
 """
 
 from __future__ import annotations
-
 from typing import Any
 
 import numpy as np

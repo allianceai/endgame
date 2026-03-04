@@ -389,6 +389,7 @@ def classify(
     random_state: int = 42,
     verbose: bool = True,
     explainable: bool = False,
+    guardrails: bool = False,
     logger: ExperimentLogger | None = None,
 ) -> QuickResult:
     """Quick classification with automatic model selection.
@@ -412,6 +413,9 @@ def classify(
     explainable : bool, default=False
         If True, only use inherently interpretable models (EBM, linear, NAM).
         EBM is the default when explainable=True.
+    guardrails : bool, default=False
+        If True, run LeakageDetector to remove data quality issues before
+        model training.
     logger : ExperimentLogger, optional
         Experiment logger for tracking params and metrics.
 
@@ -433,6 +437,12 @@ def classify(
     else:
         X = np.asarray(X)
     y = np.asarray(y)
+
+    if guardrails:
+        from endgame.guardrails import LeakageDetector
+        detector = LeakageDetector(mode="fix", time_budget=10)
+        X = detector.fit_transform(X, y)
+        feature_names = _extract_feature_names(X)
 
     # Encode labels
     le = LabelEncoder()
@@ -558,6 +568,7 @@ def regress(
     random_state: int = 42,
     verbose: bool = True,
     explainable: bool = False,
+    guardrails: bool = False,
     logger: ExperimentLogger | None = None,
 ) -> QuickResult:
     """Quick regression with automatic model selection.
@@ -581,6 +592,9 @@ def regress(
     explainable : bool, default=False
         If True, only use inherently interpretable models (EBM, linear, NAM).
         EBM is the default when explainable=True.
+    guardrails : bool, default=False
+        If True, run LeakageDetector to remove data quality issues before
+        model training.
     logger : ExperimentLogger, optional
         Experiment logger for tracking params and metrics.
 
@@ -602,6 +616,12 @@ def regress(
     else:
         X = np.asarray(X)
     y = np.asarray(y, dtype=np.float64)
+
+    if guardrails:
+        from endgame.guardrails import LeakageDetector
+        detector = LeakageDetector(mode="fix", time_budget=10)
+        X = detector.fit_transform(X, y)
+        feature_names = _extract_feature_names(X)
 
     # Get preset config
     preset_config = PRESETS[preset].copy()
@@ -698,6 +718,7 @@ def compare(
     cv_folds: int | None = None,
     random_state: int = 42,
     verbose: bool = True,
+    guardrails: bool = False,
     logger: ExperimentLogger | None = None,
 ) -> ComparisonResult:
     """Compare multiple models quickly.
@@ -720,6 +741,9 @@ def compare(
         Random seed.
     verbose : bool, default=True
         Whether to print progress.
+    guardrails : bool, default=False
+        If True, run LeakageDetector to remove data quality issues before
+        model training.
     logger : ExperimentLogger, optional
         Experiment logger for tracking params and metrics.
 
@@ -742,6 +766,11 @@ def compare(
     else:
         X = np.asarray(X)
     y = np.asarray(y)
+
+    if guardrails:
+        from endgame.guardrails import LeakageDetector
+        detector = LeakageDetector(mode="fix", time_budget=10)
+        X = detector.fit_transform(X, y)
 
     # Get preset config
     preset_config = PRESETS[preset].copy()

@@ -608,7 +608,11 @@ class ClassificationReport:
 
     def _section_threshold_analysis(self, w, h, colors):
         """Precision, recall, F1 vs classification threshold (binary only)."""
-        from sklearn.metrics import f1_score as _f1, precision_score as _prec, recall_score as _rec
+        from sklearn.metrics import (
+            f1_score as _f1,
+            precision_score as _prec,
+            recall_score as _rec,
+        )
 
         y_prob = self.y_proba[:, 1]
         y_bin = (self.y == self.classes_[1]).astype(int)

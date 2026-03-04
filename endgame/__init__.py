@@ -48,10 +48,16 @@ def __getattr__(name: str):
     import importlib
 
     # Models and other heavy modules imported lazily for optional dependencies
-    if name in ("models", "vision", "nlp", "audio", "benchmark", "kaggle", "quick", "visualization", "persistence", "explain", "tracking", "timeseries", "signal", "automl", "dimensionality_reduction", "feature_selection"):
+    if name in ("models", "vision", "nlp", "audio", "benchmark", "kaggle", "quick", "visualization", "persistence", "explain", "tracking", "timeseries", "signal", "automl", "dimensionality_reduction", "feature_selection", "guardrails"):
         module = importlib.import_module(f"endgame.{name}")
         globals()[name] = module
         return module
+    if name == "check_data_quality":
+        from endgame.guardrails import check_data_quality
+        return check_data_quality
+    if name == "LeakageDetector":
+        from endgame.guardrails import LeakageDetector
+        return LeakageDetector
     if name == "save":
         from endgame.persistence import save
         return save
@@ -94,4 +100,7 @@ __all__ = [
     "load",
     "export_onnx",
     "explain",
+    "guardrails",
+    "check_data_quality",
+    "LeakageDetector",
 ]

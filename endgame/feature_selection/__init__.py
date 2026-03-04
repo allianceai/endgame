@@ -71,6 +71,7 @@ from endgame.feature_selection.wrapper.rfe import RFESelector
 from endgame.feature_selection.wrapper.sequential import SequentialSelector
 
 # Re-export from preprocessing (existing implementations)
+from endgame.guardrails import LeakageDetector
 from endgame.preprocessing.selection import (
     AdversarialFeatureSelector,
     NullImportanceSelector,
@@ -99,4 +100,5 @@ __all__ = [
     "KnockoffSelector",
     "AdversarialFeatureSelector",
     "NullImportanceSelector",
+    "LeakageDetector",
 ]
