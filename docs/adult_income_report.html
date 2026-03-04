@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Classification Report</title>
+<style>
+
+:root {
+  --bg-primary: #0f1117;
+  --bg-secondary: #1a1b26;
+  --bg-card: #1e1f2e;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0b0;
+  --text-muted: #606070;
+  --border: #2a2b3d;
+  --accent: #4e79a7;
+  --grid-line: rgba(255,255,255,0.08);
+  --tooltip-bg: rgba(15,17,23,0.95);
+  --tooltip-border: rgba(78,121,167,0.3);
+}
+
+[data-theme="light"] {
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-card: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #555570;
+  --text-muted: #999;
+  --border: #e0e0e0;
+  --accent: #4e79a7;
+  --grid-line: rgba(0,0,0,0.08);
+  --tooltip-bg: rgba(255,255,255,0.97);
+  --tooltip-border: rgba(78,121,167,0.3);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+  overflow: auto;
+}
+
+#chart-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+#chart-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  text-align: center;
+}
+
+#chart-container {
+  position: relative;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+#chart-container svg {
+  display: block;
+}
+
+.tooltip {
+  position: fixed;
+  padding: 8px 12px;
+  background: var(--tooltip-bg);
+  border: 1px solid var(--tooltip-border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--text-primary);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 1000;
+  max-width: 300px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  line-height: 1.5;
+}
+
+.tooltip.visible {
+  opacity: 1;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  cursor: default;
+}
+
+.legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+
+body {
+  display: block;
+  padding: 0;
+  align-items: initial;
+  justify-content: initial;
+}
+
+.report-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 40px 28px;
+}
+
+.report-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.report-header h1 {
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  letter-spacing: -0.3px;
+}
+
+.report-header .subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+/* Hero metric card — the primary KPI */
+.hero-metric {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 24px;
+  padding: 28px 36px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+
+.hero-metric .hero-ring {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+}
+
+.hero-metric .hero-ring svg { display: block; }
+
+.hero-metric .hero-info {
+  text-align: left;
+}
+
+.hero-metric .hero-value {
+  font-size: 38px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  line-height: 1.1;
+}
+
+.hero-metric .hero-label {
+  font-size: 13px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-top: 4px;
+}
+
+.hero-metric .hero-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+/* Metric cards grid */
+.metrics-panel {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+  margin-bottom: 36px;
+}
+
+.metric-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 16px;
+  text-align: center;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  position: relative;
+  cursor: default;
+}
+
+.metric-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+}
+
+.metric-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-secondary, #1e1e2e);
+  color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  white-space: normal;
+  width: 220px;
+  text-align: left;
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.metric-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 6px solid transparent;
+  border-top-color: var(--border);
+}
+
+.metric-card:hover .metric-tooltip {
+  display: block;
+}
+
+.metric-card.metric-good {
+  border-color: rgba(76, 175, 80, 0.3);
+  background: linear-gradient(135deg, var(--bg-card), rgba(76, 175, 80, 0.05));
+}
+
+.metric-card.metric-ok {
+  border-color: rgba(255, 193, 7, 0.3);
+  background: linear-gradient(135deg, var(--bg-card), rgba(255, 193, 7, 0.04));
+}
+
+.metric-card.metric-poor {
+  border-color: rgba(244, 67, 54, 0.3);
+  background: linear-gradient(135deg, var(--bg-card), rgba(244, 67, 54, 0.04));
+}
+
+.metric-card .metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  line-height: 1.2;
+}
+
+.metric-card .metric-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Charts grid */
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(580px, 1fr));
+  gap: 20px;
+}
+
+.report-section {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+  overflow: hidden;
+  transition: box-shadow 0.15s ease;
+}
+
+.report-section:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+}
+
+.section-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 14px;
+  letter-spacing: -0.2px;
+}
+
+.chart-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.chart-panel svg {
+  display: block;
+}
+
+.chart-panel .legend {
+  margin-top: 10px;
+}
+
+/* Footer & interpretability */
+.report-footer {
+  margin-top: 28px;
+  padding: 18px 22px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.report-footer h3 {
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.report-footer pre {
+  background: var(--bg-secondary);
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-top: 8px;
+}
+
+.interp-section {
+  margin-top: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 22px;
+}
+
+.interp-section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  color: var(--text-primary);
+}
+
+.rules-list {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  padding-left: 16px;
+}
+
+.rules-list li {
+  margin-bottom: 4px;
+}
+
+</style>
+</head>
+<body>
+<div class="report-container">
+  <header class="report-header">
+    <h1>Classification Report</h1>
+    <p class="subtitle">EBM — Adult Income — 9769 samples · 2 classes</p>
+  </header>
+
+  <div class="hero-metric"><div class="hero-ring"><svg width="96" height="96" viewBox="0 0 96 96"><circle cx="48" cy="48" r="38" fill="none" stroke="var(--border)" stroke-width="7"/><circle cx="48" cy="48" r="38" fill="none" stroke="#4caf50" stroke-width="7" stroke-dasharray="238.8" stroke-dashoffset="16.7" stroke-linecap="round" transform="rotate(-90 48 48)"/><text x="48" y="52" text-anchor="middle" fill="var(--text-primary)" font-size="16" font-weight="700" font-family="SF Mono,Fira Code,Consolas,monospace">0.930</text></svg></div><div class="hero-info"><div class="hero-value">0.9300</div><div class="hero-label">AUC</div><div class="hero-desc">Area Under the ROC Curve</div></div></div>
+
+  <div class="metrics-panel">
+    <div class="metric-card metric-good" data-tip="Fraction of all predictions that are correct: (TP+TN) / Total"><div class="metric-value">87.72%</div><div class="metric-label">Accuracy</div><div class="metric-tooltip">Fraction of all predictions that are correct: (TP+TN) / Total</div></div>
+<div class="metric-card metric-good" data-tip="Average per-class recall, correcting for class imbalance"><div class="metric-value">80.13%</div><div class="metric-label">Balanced Acc</div><div class="metric-tooltip">Average per-class recall, correcting for class imbalance</div></div>
+<div class="metric-card metric-ok" data-tip="Of predicted positives, how many are correct: TP / (TP+FP)"><div class="metric-value">0.7951</div><div class="metric-label">Precision</div><div class="metric-tooltip">Of predicted positives, how many are correct: TP / (TP+FP)</div></div>
+<div class="metric-card metric-ok" data-tip="Of actual positives, how many are found: TP / (TP+FN). Also called sensitivity"><div class="metric-value">0.6557</div><div class="metric-label">Recall</div><div class="metric-tooltip">Of actual positives, how many are found: TP / (TP+FN). Also called sensitivity</div></div>
+<div class="metric-card metric-ok" data-tip="Harmonic mean of precision and recall: 2·P·R / (P+R)"><div class="metric-value">0.7187</div><div class="metric-label">F1 Score</div><div class="metric-tooltip">Harmonic mean of precision and recall: 2·P·R / (P+R)</div></div>
+<div class="metric-card metric-good" data-tip="Matthews Correlation Coefficient: balanced measure even with imbalanced classes. Range [-1, 1]"><div class="metric-value">0.6459</div><div class="metric-label">MCC</div><div class="metric-tooltip">Matthews Correlation Coefficient: balanced measure even with imbalanced classes. Range [-1, 1]</div></div>
+<div class="metric-card metric-good" data-tip="Agreement beyond chance between predictions and true labels. Range [-1, 1]"><div class="metric-value">0.6411</div><div class="metric-label">Cohen κ</div><div class="metric-tooltip">Agreement beyond chance between predictions and true labels. Range [-1, 1]</div></div>
+<div class="metric-card metric-good" data-tip="Area Under the ROC Curve: probability that a random positive ranks above a random negative"><div class="metric-value">0.9300</div><div class="metric-label">AUC</div><div class="metric-tooltip">Area Under the ROC Curve: probability that a random positive ranks above a random negative</div></div>
+<div class="metric-card metric-ok" data-tip="Negative log-likelihood of predicted probabilities. Lower is better"><div class="metric-value">0.2735</div><div class="metric-label">Log Loss</div><div class="metric-tooltip">Negative log-likelihood of predicted probabilities. Lower is better</div></div>
+<div class="metric-card metric-good" data-tip="Mean squared error of predicted probabilities. Lower is better. Range [0, 1]"><div class="metric-value">0.0868</div><div class="metric-label">Brier Score</div><div class="metric-tooltip">Mean squared error of predicted probabilities. Lower is better. Range [0, 1]</div></div>
+<div class="metric-card metric-good" data-tip="Of actual negatives, how many are correctly identified: TN / (TN+FP)"><div class="metric-value">0.9468</div><div class="metric-label">Specificity</div><div class="metric-tooltip">Of actual negatives, how many are correctly identified: TN / (TN+FP)</div></div>
+<div class="metric-card metric-good" data-tip="Negative Predictive Value: of predicted negatives, how many are correct: TN / (TN+FN)"><div class="metric-value">0.8973</div><div class="metric-label">NPV</div><div class="metric-tooltip">Negative Predictive Value: of predicted negatives, how many are correct: TN / (TN+FN)</div></div>
+<div class="metric-card metric-good" data-tip="Recall + Specificity − 1. How much the model informs beyond chance. Also called Youden&#x27;s J"><div class="metric-value">0.6025</div><div class="metric-label">Informedness</div><div class="metric-tooltip">Recall + Specificity − 1. How much the model informs beyond chance. Also called Youden&#x27;s J</div></div>
+<div class="metric-card metric-good" data-tip="Precision + NPV − 1. How marked the predictions are beyond chance"><div class="metric-value">0.6924</div><div class="metric-label">Markedness</div><div class="metric-tooltip">Precision + NPV − 1. How marked the predictions are beyond chance</div></div>
+  </div>
+
+  <div class="charts-grid">
+    
+<div class="report-section">
+  <h2 class="section-title">Confusion Matrix</h2>
+  <div id="cm" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">ROC Curve</h2>
+  <div id="roc" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Precision-Recall Curve</h2>
+  <div id="pr" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Calibration Plot</h2>
+  <div id="cal" class="chart-panel" style="width:600px; height:500px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Threshold Analysis</h2>
+  <div id="thresh" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Per-Class Metrics</h2>
+  <div id="perclass" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Cumulative Gains</h2>
+  <div id="gains" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Feature Importances (Top 14)</h2>
+  <div id="imp" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Class Distribution (Test Set)</h2>
+  <div id="classdist" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+
+<div class="report-section">
+  <h2 class="section-title">Prediction Score Distribution</h2>
+  <div id="predhist" class="chart-panel" style="width:600px; height:420px;"></div>
+</div>
+  </div>
+
+  <div class="report-footer">
+<h3>Per-Class Metrics</h3>
+<pre>
+Class                 Precision     Recall         F1    Support
+----------------------------------------------------------------
+<=50K                    0.8973     0.9468     0.9214       7431
+>50K                     0.7951     0.6557     0.7187       2338
+</pre></div>
+</div>
+<div id="tooltip" class="tooltip"></div>
+<script>
+
+const EG = {};
+
+// ---- SVG namespace ----
+EG.SVG_NS = 'http://www.w3.org/2000/svg';
+
+// ---- Create SVG element ----
+EG.svg = function(tag, attrs) {
+  const el = document.createElementNS(EG.SVG_NS, tag);
+  if (attrs) {
+    for (const [k, v] of Object.entries(attrs)) {
+      el.setAttribute(k, v);
+    }
+  }
+  return el;
+};
+
+// ---- Create root SVG ----
+EG.createSVG = function(container, w, h, margin) {
+  margin = margin || {top: 40, right: 30, bottom: 50, left: 60};
+  const svg = EG.svg('svg', {width: w, height: h});
+  container.appendChild(svg);
+  const plotArea = EG.svg('g', {transform: `translate(${margin.left},${margin.top})`});
+  svg.appendChild(plotArea);
+  const iw = w - margin.left - margin.right;
+  const ih = h - margin.top - margin.bottom;
+  return {svg, g: plotArea, width: iw, height: ih, margin};
+};
+
+// ---- Number formatting ----
+EG.fmt = function(v, decimals) {
+  if (v === null || v === undefined) return '';
+  decimals = decimals !== undefined ? decimals : 2;
+  if (Math.abs(v) >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  if (Math.abs(v) >= 1e3) return (v/1e3).toFixed(1) + 'K';
+  return Number(v).toFixed(decimals);
+};
+
+EG.pct = function(v) { return (v * 100).toFixed(1) + '%'; };
+
+// ---- HTML escaping ----
+EG.esc = function(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+};
+
+// ---- Tooltip ----
+EG.tooltip = (function() {
+  let el = null;
+  return {
+    show: function(evt, html) {
+      if (!el) el = document.getElementById('tooltip');
+      el.innerHTML = html;
+      el.classList.add('visible');
+      const x = evt.clientX + 12;
+      const y = evt.clientY - 10;
+      el.style.left = Math.min(x, window.innerWidth - 280) + 'px';
+      el.style.top = Math.min(y, window.innerHeight - 100) + 'px';
+    },
+    hide: function() {
+      if (!el) el = document.getElementById('tooltip');
+      el.classList.remove('visible');
+    }
+  };
+})();
+
+// ---- Linear scale ----
+EG.scaleLinear = function(domain, range) {
+  const d0 = domain[0], d1 = domain[1];
+  const r0 = range[0], r1 = range[1];
+  const span = d1 - d0 || 1;
+  function scale(v) { return r0 + (v - d0) / span * (r1 - r0); }
+  scale.invert = function(v) { return d0 + (v - r0) / (r1 - r0) * span; };
+  scale.domain = domain;
+  scale.range = range;
+  return scale;
+};
+
+// ---- Band scale (for categories) ----
+EG.scaleBand = function(labels, range, padding) {
+  padding = padding || 0.1;
+  const r0 = range[0], r1 = range[1];
+  const n = labels.length;
+  const totalPadding = padding * (n + 1);
+  const bandWidth = (r1 - r0 - totalPadding * (r1 - r0) / (n + n * padding)) / n;
+  const step = bandWidth + padding * bandWidth;
+  const offset = (r1 - r0 - n * step + padding * bandWidth) / 2;
+  function scale(label) {
+    const i = labels.indexOf(label);
+    return r0 + offset + i * step;
+  }
+  scale.bandwidth = function() { return bandWidth; };
+  scale.labels = labels;
+  return scale;
+};
+
+// ---- Nice axis ticks ----
+EG.niceTicks = function(min, max, count) {
+  count = count || 6;
+  if (min === max) { return [min]; }
+  const range = max - min;
+  const rough = range / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(rough)));
+  const residual = rough / mag;
+  let nice;
+  if (residual <= 1.5) nice = 1 * mag;
+  else if (residual <= 3) nice = 2 * mag;
+  else if (residual <= 7) nice = 5 * mag;
+  else nice = 10 * mag;
+  const lo = Math.floor(min / nice) * nice;
+  const hi = Math.ceil(max / nice) * nice;
+  const ticks = [];
+  for (let v = lo; v <= hi + nice * 0.5; v += nice) {
+    ticks.push(Math.round(v * 1e10) / 1e10);
+  }
+  return ticks;
+};
+
+// ---- Draw X axis ----
+EG.drawXAxis = function(g, scale, height, label, isBand) {
+  const axisG = EG.svg('g', {transform: `translate(0,${height})`});
+  g.appendChild(axisG);
+
+  // Baseline
+  axisG.appendChild(EG.svg('line', {x1: 0, y1: 0, x2: scale.range ? scale.range[1] : 0, y2: 0,
+    stroke: 'var(--border)', 'stroke-width': 1}));
+
+  if (isBand) {
+    const labels = scale.labels || [];
+    const bw = scale.bandwidth();
+    labels.forEach(function(lbl) {
+      const x = scale(lbl) + bw / 2;
+      const tick = EG.svg('text', {x: x, y: 22, 'text-anchor': 'middle',
+        fill: 'var(--text-secondary)', 'font-size': '11px'});
+      tick.textContent = lbl.length > 12 ? lbl.slice(0,10) + '…' : lbl;
+      axisG.appendChild(tick);
+    });
+  } else {
+    const ticks = EG.niceTicks(scale.domain[0], scale.domain[1]);
+    ticks.forEach(function(v) {
+      const x = scale(v);
+      axisG.appendChild(EG.svg('line', {x1: x, y1: 0, x2: x, y2: 5,
+        stroke: 'var(--text-muted)', 'stroke-width': 1}));
+      const tick = EG.svg('text', {x: x, y: 20, 'text-anchor': 'middle',
+        fill: 'var(--text-secondary)', 'font-size': '11px'});
+      tick.textContent = EG.fmt(v, v % 1 === 0 ? 0 : 2);
+      axisG.appendChild(tick);
+    });
+  }
+
+  if (label) {
+    const w = scale.range ? (scale.range[1] - scale.range[0]) : 0;
+    const lbl = EG.svg('text', {x: w / 2, y: 40, 'text-anchor': 'middle',
+      fill: 'var(--text-secondary)', 'font-size': '12px', 'font-weight': '500'});
+    lbl.textContent = label;
+    axisG.appendChild(lbl);
+  }
+
+  return axisG;
+};
+
+// ---- Draw Y axis ----
+EG.drawYAxis = function(g, scale, width, label, isBand) {
+  const axisG = EG.svg('g');
+  g.appendChild(axisG);
+
+  axisG.appendChild(EG.svg('line', {x1: 0, y1: 0, x2: 0,
+    y2: scale.range ? scale.range[0] : 0,
+    stroke: 'var(--border)', 'stroke-width': 1}));
+
+  if (isBand) {
+    const labels = scale.labels || [];
+    const bw = scale.bandwidth();
+    labels.forEach(function(lbl) {
+      const y = scale(lbl) + bw / 2;
+      const tick = EG.svg('text', {x: -8, y: y + 4, 'text-anchor': 'end',
+        fill: 'var(--text-secondary)', 'font-size': '11px'});
+      tick.textContent = lbl.length > 15 ? lbl.slice(0,13) + '…' : lbl;
+      axisG.appendChild(tick);
+    });
+  } else {
+    const ticks = EG.niceTicks(scale.domain[0], scale.domain[1]);
+    ticks.forEach(function(v) {
+      const y = scale(v);
+      // Grid line
+      axisG.appendChild(EG.svg('line', {x1: 0, y1: y, x2: width, y2: y,
+        stroke: 'var(--grid-line)', 'stroke-width': 1}));
+      axisG.appendChild(EG.svg('line', {x1: -5, y1: y, x2: 0, y2: y,
+        stroke: 'var(--text-muted)', 'stroke-width': 1}));
+      const tick = EG.svg('text', {x: -8, y: y + 4, 'text-anchor': 'end',
+        fill: 'var(--text-secondary)', 'font-size': '11px'});
+      tick.textContent = EG.fmt(v, v % 1 === 0 ? 0 : 2);
+      axisG.appendChild(tick);
+    });
+  }
+
+  if (label) {
+    const h = scale.range ? Math.abs(scale.range[0] - scale.range[1]) : 0;
+    const lbl = EG.svg('text', {'text-anchor': 'middle',
+      fill: 'var(--text-secondary)', 'font-size': '12px', 'font-weight': '500',
+      transform: `translate(-45,${h/2}) rotate(-90)`});
+    lbl.textContent = label;
+    axisG.appendChild(lbl);
+  }
+
+  return axisG;
+};
+
+// ---- Draw legend ----
+EG.drawLegend = function(container, items) {
+  // items: [{label, color}]
+  const div = document.createElement('div');
+  div.className = 'legend';
+  items.forEach(function(item) {
+    const el = document.createElement('div');
+    el.className = 'legend-item';
+    const swatch = document.createElement('div');
+    swatch.className = 'legend-swatch';
+    swatch.style.background = item.color;
+    el.appendChild(swatch);
+    const text = document.createElement('span');
+    text.textContent = item.label;
+    el.appendChild(text);
+    div.appendChild(el);
+  });
+  container.parentElement.appendChild(div);
+};
+
+// ---- Color interpolation ----
+EG.lerpColor = function(c1, c2, t) {
+  const r1 = parseInt(c1.slice(1,3), 16), g1 = parseInt(c1.slice(3,5), 16), b1 = parseInt(c1.slice(5,7), 16);
+  const r2 = parseInt(c2.slice(1,3), 16), g2 = parseInt(c2.slice(3,5), 16), b2 = parseInt(c2.slice(5,7), 16);
+  const r = Math.round(r1 + (r2-r1)*t), g = Math.round(g1 + (g2-g1)*t), b = Math.round(b1 + (b2-b1)*t);
+  return '#' + ((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);
+};
+
+// ---- Map value to color from palette ----
+EG.colorScale = function(palette, min, max) {
+  return function(v) {
+    if (palette.length === 1) return palette[0];
+    const t = Math.max(0, Math.min(1, (v - min) / (max - min || 1)));
+    const idx = t * (palette.length - 1);
+    const lo = Math.floor(idx), hi = Math.min(lo + 1, palette.length - 1);
+    return EG.lerpColor(palette[lo], palette[hi], idx - lo);
+  };
+};
+
+
+(function() {
+  const data = {"matrix": [[7036, 395], [805, 1533]], "classNames": ["<=50K", ">50K"], "total": 9769};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('cm');
+  
+function renderChart_cm(data, config, container) {
+  const n = data.classNames.length;
+  const W = config.width, H = config.height;
+  const margin = {top: 30, right: 20, bottom: 60, left: 80};
+  const svg = EG.svg('svg', {width: W, height: H});
+  container.appendChild(svg);
+  const g = EG.svg('g', {transform: `translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW = W - margin.left - margin.right;
+  const iH = H - margin.top - margin.bottom;
+  const cellW = iW / n, cellH = iH / n;
+  let maxVal = 0;
+  data.matrix.forEach(r => r.forEach(v => { if(v > maxVal) maxVal = v; }));
+  if(maxVal===0) maxVal=1;
+
+  function heatColor(v) {
+    const t = v / maxVal;
+    const r = Math.round(30 + 200*t), gg = Math.round(60 + 80*(1-t)), b = Math.round(180 - 80*t);
+    return `rgb(${r},${gg},${b})`;
+  }
+
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      const v = data.matrix[i][j];
+      const rect = EG.svg('rect', {x:j*cellW, y:i*cellH, width:cellW-2, height:cellH-2, fill:heatColor(v), rx:4});
+      rect.addEventListener('mouseenter', e => {
+        EG.tooltip.show(e, `<b>True:</b> ${data.classNames[i]}<br><b>Pred:</b> ${data.classNames[j]}<br><b>Count:</b> ${v}`);
+      });
+      rect.addEventListener('mouseleave', () => EG.tooltip.hide());
+      g.appendChild(rect);
+      const txt = EG.svg('text', {x:j*cellW+cellW/2-1, y:i*cellH+cellH/2+5, 'text-anchor':'middle', fill:v/maxVal>0.5?'#fff':'var(--text-primary)', 'font-size':'14px', 'font-weight':'600'});
+      txt.textContent = v;
+      g.appendChild(txt);
+    }
+  }
+  // Labels
+  for(let i=0;i<n;i++){
+    g.appendChild(EG.svg('text', {x:-8, y:i*cellH+cellH/2+4, 'text-anchor':'end', fill:'var(--text-secondary)', 'font-size':'11px'})).textContent = data.classNames[i];
+    g.appendChild(EG.svg('text', {x:i*cellW+cellW/2, y:iH+18, 'text-anchor':'middle', fill:'var(--text-secondary)', 'font-size':'11px'})).textContent = data.classNames[i];
+  }
+  g.appendChild(EG.svg('text', {x:iW/2, y:iH+42, 'text-anchor':'middle', fill:'var(--text-muted)', 'font-size':'12px'})).textContent = 'Predicted';
+  g.appendChild(EG.svg('text', {'text-anchor':'middle', fill:'var(--text-muted)', 'font-size':'12px', transform:`translate(-55,${iH/2}) rotate(-90)`})).textContent = 'Actual';
+}
+
+  renderChart_cm(data, config, container);
+})();
+
+(function() {
+  const data = {"curves": [{"fpr": [0.0, 0.000135, 0.000404, 0.000673, 0.000942, 0.001615, 0.001884, 0.002153, 0.002557, 0.002826, 0.003095, 0.003364, 0.003633, 0.004172, 0.004441, 0.00471, 0.005114, 0.005517, 0.005787, 0.00619, 0.006594, 0.007536, 0.007805, 0.008343, 0.008613, 0.008882, 0.009151, 0.00942, 0.009689, 0.010227, 0.010766, 0.011035, 0.011573, 0.011842, 0.012111, 0.012381, 0.01265, 0.013053, 0.013457, 0.013726, 0.014534, 0.015207, 0.01561, 0.016149, 0.016552, 0.017225, 0.017494, 0.018302, 0.018705, 0.019109, 0.019647, 0.020186, 0.020724, 0.021262, 0.021935, 0.022339, 0.022608, 0.023685, 0.023954, 0.024627, 0.025299, 0.025569, 0.026107, 0.026511, 0.026914, 0.027183, 0.027453, 0.027856, 0.02826, 0.028529, 0.029202, 0.029471, 0.030009, 0.030817, 0.031086, 0.031759, 0.032028, 0.032566, 0.032835, 0.033239, 0.033912, 0.034181, 0.03445, 0.034719, 0.035258, 0.035796, 0.0362, 0.036738, 0.037276, 0.038084, 0.038353, 0.039026, 0.039429, 0.040102, 0.040506, 0.04091, 0.041448, 0.041986, 0.042255, 0.042659, 0.042928, 0.043467, 0.043736, 0.044005, 0.044409, 0.045216, 0.045889, 0.046427, 0.046965, 0.047235, 0.047638, 0.048042, 0.048446, 0.048849, 0.049791, 0.05033, 0.051003, 0.051406, 0.051945, 0.052348, 0.052752, 0.053425, 0.054367, 0.054905, 0.055309, 0.055578, 0.056116, 0.05652, 0.057058, 0.057731, 0.058, 0.058808, 0.059884, 0.060153, 0.060557, 0.061768, 0.062037, 0.062576, 0.062845, 0.063383, 0.063787, 0.065267, 0.066344, 0.067017, 0.067689, 0.068228, 0.068497, 0.070381, 0.070785, 0.071457, 0.072399, 0.073476, 0.074283, 0.074553, 0.074822, 0.07536, 0.075898, 0.076167, 0.076975, 0.077379, 0.077917, 0.078321, 0.078724, 0.079532, 0.080877, 0.081147, 0.081819, 0.082089, 0.082896, 0.0833, 0.084107, 0.084511, 0.085049, 0.086529, 0.087202, 0.08801, 0.088548, 0.090028, 0.090701, 0.091509, 0.091912, 0.093393, 0.094065, 0.094873, 0.095277, 0.095815, 0.096622, 0.097161, 0.097564, 0.098506, 0.098775, 0.10039, 0.101332, 0.101736, 0.103351, 0.104293, 0.105369, 0.106042, 0.106715, 0.10685, 0.107119, 0.107926, 0.10833, 0.109003, 0.109945, 0.110349, 0.111963, 0.112905, 0.113578, 0.115193, 0.116001, 0.116539, 0.117481, 0.118827, 0.119365, 0.120711, 0.121114, 0.121787, 0.122595, 0.123133, 0.12394, 0.124479, 0.124882, 0.12569, 0.126363, 0.127708, 0.12865, 0.129054, 0.129996, 0.130669, 0.131611, 0.132553, 0.132957, 0.133629, 0.135917, 0.136321, 0.13807, 0.140223, 0.141435, 0.142107, 0.143184, 0.144799, 0.146279, 0.147356, 0.147894, 0.149105, 0.149643, 0.151527, 0.153008, 0.154353, 0.154623, 0.156103, 0.157583, 0.15866, 0.160005, 0.160275, 0.161082, 0.162159, 0.163773, 0.164985, 0.165388, 0.165927, 0.167407, 0.168618, 0.169156, 0.171982, 0.17279, 0.173193, 0.173597, 0.174135, 0.175212, 0.176289, 0.176961, 0.178173, 0.179249, 0.179922, 0.181133, 0.181671, 0.182344, 0.184363, 0.184632, 0.185036, 0.187323, 0.189073, 0.191899, 0.192706, 0.193514, 0.194859, 0.196071, 0.196743, 0.198627, 0.1993, 0.200646, 0.20105, 0.201319, 0.202126, 0.204683, 0.205491, 0.207509, 0.209797, 0.21047, 0.211546, 0.214911, 0.217198, 0.219486, 0.221235, 0.223119, 0.227022, 0.227426, 0.228368, 0.228906, 0.230655, 0.233885, 0.235096, 0.238864, 0.241556, 0.244785, 0.245997, 0.249092, 0.249899, 0.252725, 0.253398, 0.256224, 0.257166, 0.258781, 0.259992, 0.260396, 0.262414, 0.268201, 0.26847, 0.269143, 0.271296, 0.272238, 0.273449, 0.273987, 0.275333, 0.277621, 0.284753, 0.292289, 0.294846, 0.296595, 0.300094, 0.303997, 0.305208, 0.306284, 0.307361, 0.307899, 0.310725, 0.31234, 0.31409, 0.315839, 0.316646, 0.322568, 0.323779, 0.325394, 0.330642, 0.333468, 0.336563, 0.340062, 0.346521, 0.349616, 0.352577, 0.354326, 0.35648, 0.358902, 0.365227, 0.367918, 0.369533, 0.374647, 0.383932, 0.385412, 0.388104, 0.394563, 0.398466, 0.414345, 0.416229, 0.420939, 0.429821, 0.431974, 0.433589, 0.441932, 0.443413, 0.445297, 0.455255, 0.466021, 0.47396, 0.482977, 0.505988, 0.51191, 0.520791, 0.530211, 0.594806, 0.603014, 0.61553, 0.636792, 0.68766, 0.731934, 0.805275, 0.975777, 1.0], "tpr": [0.0, 0.246364, 0.274594, 0.279299, 0.281865, 0.284003, 0.289991, 0.306672, 0.310522, 0.321642, 0.335329, 0.337468, 0.344311, 0.346022, 0.351155, 0.356287, 0.358426, 0.370402, 0.375962, 0.377246, 0.378101, 0.380667, 0.390505, 0.393071, 0.396493, 0.408041, 0.417451, 0.419589, 0.422583, 0.426861, 0.431138, 0.433704, 0.439264, 0.440975, 0.443114, 0.444397, 0.448674, 0.454234, 0.457228, 0.458939, 0.461933, 0.463644, 0.468777, 0.474765, 0.476476, 0.477759, 0.479042, 0.48118, 0.483319, 0.485885, 0.486741, 0.491446, 0.49444, 0.498717, 0.505133, 0.506843, 0.508982, 0.511976, 0.514542, 0.518392, 0.520103, 0.526518, 0.527374, 0.528229, 0.530368, 0.531223, 0.536356, 0.539778, 0.542344, 0.547904, 0.549187, 0.550043, 0.553892, 0.554748, 0.557314, 0.558169, 0.55988, 0.564157, 0.566724, 0.568435, 0.571001, 0.571856, 0.573139, 0.573995, 0.575278, 0.577844, 0.579555, 0.583405, 0.586399, 0.588965, 0.593242, 0.594525, 0.595808, 0.597092, 0.600086, 0.602224, 0.60479, 0.606501, 0.608212, 0.609495, 0.610778, 0.613772, 0.617622, 0.621471, 0.624465, 0.626176, 0.627887, 0.630026, 0.631737, 0.633447, 0.634731, 0.63858, 0.639435, 0.642857, 0.645851, 0.646707, 0.647562, 0.650556, 0.651839, 0.653978, 0.655261, 0.656972, 0.658683, 0.659538, 0.660821, 0.661677, 0.663388, 0.664243, 0.665526, 0.668092, 0.669803, 0.671514, 0.673225, 0.674936, 0.677074, 0.678785, 0.680068, 0.680924, 0.682635, 0.683918, 0.685629, 0.687767, 0.688623, 0.690761, 0.691617, 0.693328, 0.694611, 0.695894, 0.697605, 0.69846, 0.699316, 0.700171, 0.70231, 0.703593, 0.704448, 0.705731, 0.707015, 0.708298, 0.709153, 0.710009, 0.712147, 0.713003, 0.714713, 0.716424, 0.718135, 0.718991, 0.719846, 0.721129, 0.724123, 0.724979, 0.727973, 0.729256, 0.730967, 0.731822, 0.734388, 0.735244, 0.737382, 0.739521, 0.74166, 0.74337, 0.744226, 0.745081, 0.745937, 0.747648, 0.748931, 0.751497, 0.75278, 0.754063, 0.755346, 0.75663, 0.757485, 0.759196, 0.760907, 0.761762, 0.763901, 0.764756, 0.766039, 0.76775, 0.770317, 0.772883, 0.774166, 0.775877, 0.777588, 0.778443, 0.780582, 0.781865, 0.78272, 0.783576, 0.784431, 0.785714, 0.787853, 0.789136, 0.790419, 0.791275, 0.79213, 0.793413, 0.794696, 0.796835, 0.798118, 0.800257, 0.801967, 0.802823, 0.804106, 0.805817, 0.806672, 0.807528, 0.808383, 0.810094, 0.81095, 0.811805, 0.813088, 0.813944, 0.814799, 0.816938, 0.817793, 0.818648, 0.820787, 0.821642, 0.822926, 0.824209, 0.82592, 0.826775, 0.82763, 0.830197, 0.831908, 0.834046, 0.835757, 0.83704, 0.837896, 0.838751, 0.839607, 0.841317, 0.842601, 0.844311, 0.845595, 0.84645, 0.847733, 0.848589, 0.849444, 0.850299, 0.851583, 0.854577, 0.855432, 0.856287, 0.857571, 0.860137, 0.863131, 0.863986, 0.864842, 0.866553, 0.867836, 0.869119, 0.870402, 0.871685, 0.872541, 0.874679, 0.875535, 0.876818, 0.878529, 0.879384, 0.88024, 0.881523, 0.882378, 0.883234, 0.884517, 0.886228, 0.887511, 0.888794, 0.890077, 0.89136, 0.892216, 0.893071, 0.894354, 0.895637, 0.897348, 0.898204, 0.899059, 0.899914, 0.90077, 0.902053, 0.902908, 0.903764, 0.905475, 0.906758, 0.907613, 0.908469, 0.909324, 0.910607, 0.911463, 0.912318, 0.913174, 0.915312, 0.916168, 0.917879, 0.918734, 0.919589, 0.920445, 0.9213, 0.922156, 0.923011, 0.92515, 0.926005, 0.926861, 0.927716, 0.928999, 0.930282, 0.931138, 0.931993, 0.933276, 0.934559, 0.935415, 0.93627, 0.937126, 0.937981, 0.938837, 0.939692, 0.941403, 0.942258, 0.943114, 0.943969, 0.945252, 0.946536, 0.947391, 0.948674, 0.94953, 0.950813, 0.951668, 0.952524, 0.953379, 0.954234, 0.95509, 0.955945, 0.956801, 0.958512, 0.959795, 0.96065, 0.961506, 0.962361, 0.963216, 0.9645, 0.965355, 0.96621, 0.967494, 0.968349, 0.969204, 0.97006, 0.971343, 0.972198, 0.973054, 0.973909, 0.975192, 0.976048, 0.976903, 0.977759, 0.978614, 0.97947, 0.980325, 0.98118, 0.982464, 0.983319, 0.984175, 0.98503, 0.985885, 0.986741, 0.988024, 0.988879, 0.989735, 0.99059, 0.991446, 0.992301, 0.993157, 0.994012, 0.994867, 0.995295, 0.996151, 0.997434, 0.998289, 0.999145, 0.999572, 1.0], "auc": 0.93, "label": "ROC (AUC = 0.930)"}]};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('roc');
+  
+function renderChart_roc(data, config, container) {
+  const margin = {top:10, right:15, bottom:50, left:50};
+  const W = config.width, H = config.height;
+  const svg = EG.svg('svg', {width:W, height:H});
+  container.appendChild(svg);
+  const g = EG.svg('g', {transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right, iH=H-margin.top-margin.bottom;
+  const xS=EG.scaleLinear([0,1],[0,iW]), yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'False Positive Rate');
+  EG.drawYAxis(g,yS,iW,'True Positive Rate');
+  g.appendChild(EG.svg('line',{x1:xS(0),y1:yS(0),x2:xS(1),y2:yS(1),stroke:'var(--text-muted)','stroke-width':1.5,'stroke-dasharray':'6,4',opacity:0.5}));
+  data.curves.forEach((c,ci)=>{
+    const color=config.palette[ci%config.palette.length];
+    let d='';
+    const n=Math.min(c.fpr.length,c.tpr.length);
+    for(let i=0;i<n;i++) d+=(i===0?'M':' L')+xS(c.fpr[i])+' '+yS(c.tpr[i]);
+    let fillD=d+' L'+xS(c.fpr[n-1])+' '+iH+' L'+xS(c.fpr[0])+' '+iH+' Z';
+    g.appendChild(EG.svg('path',{d:fillD,fill:color,opacity:0.06}));
+    const path=EG.svg('path',{d:d,fill:'none',stroke:color,'stroke-width':2.5});
+    path.addEventListener('mouseenter',e=>{path.setAttribute('stroke-width','4');EG.tooltip.show(e,'<b>'+EG.esc(c.label)+'</b>');});
+    path.addEventListener('mouseleave',()=>{path.setAttribute('stroke-width','2.5');EG.tooltip.hide();});
+    g.appendChild(path);
+  });
+  const items=data.curves.map((c,i)=>({label:c.label,color:config.palette[i%config.palette.length]}));
+  EG.drawLegend(container,items);
+}
+
+  renderChart_roc(data, config, container);
+})();
+
+(function() {
+  const data = {"curves": [{"precision": [0.239328, 0.239918, 0.240535, 0.241155, 0.241754, 0.24238, 0.242881, 0.243514, 0.24415, 0.244789, 0.245406, 0.246052, 0.246675, 0.247328, 0.247958, 0.248617, 0.249253, 0.249893, 0.250563, 0.251209, 0.251886, 0.252539, 0.253224, 0.253884, 0.254575, 0.255242, 0.255941, 0.256616, 0.257322, 0.258004, 0.258718, 0.259407, 0.2601, 0.260826, 0.261526, 0.26226, 0.262968, 0.26371, 0.264426, 0.265176, 0.265901, 0.266659, 0.267391, 0.268158, 0.268899, 0.269559, 0.270308, 0.271092, 0.271849, 0.272611, 0.273408, 0.274178, 0.274985, 0.275764, 0.276581, 0.277369, 0.278195, 0.278992, 0.279828, 0.280634, 0.281359, 0.282175, 0.28303, 0.283856, 0.284687, 0.285557, 0.286398, 0.287156, 0.288006, 0.288897, 0.289758, 0.29066, 0.291531, 0.292445, 0.293327, 0.294251, 0.295144, 0.29608, 0.296984, 0.297932, 0.298848, 0.299769, 0.300606, 0.301538, 0.302516, 0.30346, 0.30445, 0.305406, 0.306409, 0.307378, 0.308394, 0.309375, 0.310404, 0.311265, 0.312307, 0.313315, 0.314193, 0.315256, 0.316282, 0.317359, 0.318399, 0.31949, 0.320545, 0.32165, 0.322581, 0.323701, 0.324784, 0.32592, 0.327018, 0.328169, 0.329282, 0.330308, 0.331294, 0.332429, 0.33362, 0.334771, 0.335979, 0.337147, 0.338227, 0.339411, 0.340653, 0.341757, 0.343017, 0.344088, 0.345217, 0.346452, 0.347748, 0.349001, 0.350264, 0.351589, 0.35287, 0.354214, 0.355515, 0.35688, 0.3582, 0.359431, 0.36077, 0.362176, 0.363537, 0.364965, 0.366346, 0.367796, 0.369199, 0.370512, 0.371776, 0.37305, 0.374556, 0.375851, 0.37738, 0.378533, 0.379921, 0.381094, 0.382669, 0.384194, 0.385795, 0.387345, 0.388973, 0.390549, 0.39227, 0.393872, 0.395317, 0.396842, 0.398483, 0.400208, 0.40153, 0.403282, 0.404804, 0.406233, 0.407781, 0.409591, 0.41081, 0.412113, 0.413712, 0.415582, 0.41703, 0.418384, 0.42004, 0.421895, 0.42366, 0.425362, 0.426786, 0.428705, 0.430723, 0.432678, 0.434353, 0.436152, 0.43786, 0.439692, 0.441626, 0.443299, 0.445074, 0.447172, 0.44929, 0.45112, 0.452879, 0.454145, 0.455936, 0.458241, 0.460272, 0.46201, 0.46367, 0.465649, 0.467551, 0.469987, 0.471722, 0.473784, 0.475556, 0.47766, 0.479897, 0.481728, 0.483467, 0.48577, 0.487768, 0.489679, 0.491278, 0.49323, 0.494866, 0.497083, 0.498984, 0.501248, 0.503195, 0.505737, 0.508424, 0.510791, 0.513652, 0.516197, 0.518414, 0.520304, 0.522331, 0.524027, 0.526825, 0.52954, 0.530692, 0.532972, 0.535149, 0.537484, 0.539965, 0.542612, 0.545155, 0.548124, 0.551246, 0.553373, 0.555931, 0.557853, 0.560738, 0.563246, 0.566204, 0.569049, 0.572085, 0.574735, 0.577303, 0.580022, 0.583218, 0.584336, 0.587324, 0.589336, 0.591662, 0.594478, 0.597451, 0.600058, 0.60282, 0.605209, 0.607154, 0.609009, 0.61101, 0.612009, 0.614865, 0.618384, 0.619582, 0.623193, 0.625079, 0.628152, 0.631071, 0.63436, 0.637255, 0.639328, 0.642312, 0.645129, 0.648211, 0.652144, 0.656025, 0.659052, 0.662011, 0.665141, 0.668561, 0.670369, 0.673536, 0.675419, 0.679176, 0.682139, 0.686399, 0.690242, 0.69313, 0.694295, 0.69572, 0.700196, 0.704086, 0.707532, 0.711165, 0.713118, 0.718118, 0.721018, 0.724516, 0.728395, 0.731183, 0.734898, 0.737258, 0.740675, 0.744499, 0.747617, 0.751607, 0.756732, 0.76139, 0.765321, 0.771154, 0.773833, 0.778927, 0.782262, 0.785066, 0.789581, 0.794209, 0.7978, 0.802122, 0.805914, 0.807734, 0.811706, 0.815333, 0.816118, 0.818757, 0.82195, 0.82534, 0.829928, 0.831707, 0.835294, 0.840352, 0.844189, 0.846952, 0.853096, 0.858004, 0.859088, 0.860111, 0.866197, 0.868817, 0.873085, 0.878158, 0.880484, 0.884348, 0.890024, 0.895833, 0.901961, 0.905755, 0.913191, 0.916594, 0.920071, 0.924682, 0.928505, 0.932574, 0.934825, 0.936255, 0.938713, 0.940314, 0.949462, 0.954746, 0.956867, 0.961494, 0.967548, 0.970297, 0.971903, 0.97365, 0.976871, 0.980282, 0.982507, 0.990923, 0.99529, 0.995098, 0.996599, 0.998224, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], "recall": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.998717, 0.998717, 0.998717, 0.998717, 0.998717, 0.998717, 0.998717, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.997861, 0.997861, 0.997861, 0.997861, 0.997861, 0.997861, 0.997861, 0.997861, 0.997861, 0.997861, 0.997861, 0.997434, 0.997434, 0.997434, 0.997006, 0.997006, 0.997006, 0.997006, 0.997006, 0.997006, 0.997006, 0.997006, 0.996578, 0.996578, 0.996578, 0.996578, 0.996578, 0.996578, 0.996578, 0.996151, 0.995723, 0.995723, 0.995723, 0.995723, 0.995723, 0.995723, 0.995295, 0.995295, 0.995295, 0.994867, 0.994867, 0.99444, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.993584, 0.993584, 0.993584, 0.993584, 0.993584, 0.993584, 0.993584, 0.993584, 0.993157, 0.992729, 0.992301, 0.992301, 0.991873, 0.991873, 0.991018, 0.99059, 0.989735, 0.989735, 0.989735, 0.989735, 0.989735, 0.989735, 0.989735, 0.989735, 0.989735, 0.989307, 0.988879, 0.988879, 0.988879, 0.988024, 0.988024, 0.987596, 0.986741, 0.986313, 0.986313, 0.98503, 0.983747, 0.983319, 0.983319, 0.982464, 0.98118, 0.980753, 0.980753, 0.980325, 0.979897, 0.978614, 0.978614, 0.978614, 0.978614, 0.977759, 0.977331, 0.976476, 0.976048, 0.97562, 0.974765, 0.973909, 0.973909, 0.973909, 0.973054, 0.972198, 0.97006, 0.969204, 0.969204, 0.968777, 0.967494, 0.96621, 0.965355, 0.9645, 0.9645, 0.963216, 0.962361, 0.961078, 0.960222, 0.959795, 0.958512, 0.956801, 0.956373, 0.95509, 0.953807, 0.951668, 0.950385, 0.948246, 0.947391, 0.94568, 0.944825, 0.943114, 0.942686, 0.942258, 0.941403, 0.941403, 0.940547, 0.939264, 0.937126, 0.935415, 0.932849, 0.932421, 0.931565, 0.928144, 0.926433, 0.924722, 0.923011, 0.921728, 0.920445, 0.919162, 0.918306, 0.917879, 0.91574, 0.914029, 0.911463, 0.91018, 0.908469, 0.907186, 0.905902, 0.904619, 0.902908, 0.90077, 0.899059, 0.897776, 0.893499, 0.891788, 0.888794, 0.886228, 0.884089, 0.882378, 0.879812, 0.877673, 0.874679, 0.871257, 0.867408, 0.863986, 0.858854, 0.856287, 0.854577, 0.849872, 0.848161, 0.844311, 0.841745, 0.839179, 0.83704, 0.834046, 0.830197, 0.827203, 0.824209, 0.821215, 0.819504, 0.817365, 0.814371, 0.81095, 0.807956, 0.804962, 0.800257, 0.796835, 0.79213, 0.789564, 0.785714, 0.783576, 0.780582, 0.776732, 0.770317, 0.764756, 0.76219, 0.759196, 0.755346, 0.751925, 0.746364, 0.744226, 0.739521, 0.735672, 0.731822, 0.727117, 0.723268, 0.717707, 0.71343, 0.709153, 0.704448, 0.700171, 0.697177, 0.693328, 0.68905, 0.686056, 0.680496, 0.676647, 0.671514, 0.665526, 0.661249, 0.656972, 0.651411, 0.646707, 0.641146, 0.634303, 0.628743, 0.623182, 0.615056, 0.60864, 0.602224, 0.596236, 0.590676, 0.583405, 0.576989, 0.571856, 0.565441, 0.558597, 0.553892, 0.547904, 0.539778, 0.531223, 0.526091, 0.518392, 0.511976, 0.50556, 0.497861, 0.49059, 0.484602, 0.478186, 0.472198, 0.4645, 0.458939, 0.45124, 0.443114, 0.435843, 0.427716, 0.420017, 0.411035, 0.402053, 0.393071, 0.384089, 0.377673, 0.369974, 0.360565, 0.352438, 0.344311, 0.335329, 0.325492, 0.316082, 0.3071, 0.29769, 0.288281, 0.280154, 0.271172, 0.260479, 0.250642, 0.240376, 0.230539, 0.219846, 0.209581, 0.198888, 0.188623, 0.17793, 0.167665, 0.157399, 0.146707, 0.136441, 0.125749, 0.115483, 0.10479, 0.094525, 0.083832, 0.073567, 0.062874, 0.052609, 0.041916, 0.031651, 0.020958, 0.010693, 0.0], "ap": 0.8336, "label": "PR (AP = 0.834)"}], "prevalence": 0.23932848807452145};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('pr');
+  
+function renderChart_pr(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'Recall');
+  EG.drawYAxis(g,yS,iW,'Precision');
+  if(data.prevalence!=null){
+    const py=yS(data.prevalence);
+    g.appendChild(EG.svg('line',{x1:0,y1:py,x2:iW,y2:py,stroke:'var(--text-muted)','stroke-width':1.5,'stroke-dasharray':'6,4',opacity:0.5}));
+  }
+  data.curves.forEach((c,ci)=>{
+    const color=config.palette[ci%config.palette.length];
+    const n=Math.min(c.precision.length,c.recall.length);
+    let d='';
+    for(let i=0;i<n;i++) d+=(i===0?'M':' L')+xS(c.recall[i])+' '+yS(c.precision[i]);
+    g.appendChild(EG.svg('path',{d:d+' L'+xS(c.recall[n-1])+' '+iH+' L'+xS(c.recall[0])+' '+iH+' Z',fill:color,opacity:0.06}));
+    const path=EG.svg('path',{d:d,fill:'none',stroke:color,'stroke-width':2.5});
+    path.addEventListener('mouseenter',e=>{path.setAttribute('stroke-width','4');EG.tooltip.show(e,'<b>'+EG.esc(c.label)+'</b>');});
+    path.addEventListener('mouseleave',()=>{path.setAttribute('stroke-width','2.5');EG.tooltip.hide();});
+    g.appendChild(path);
+  });
+  EG.drawLegend(container,data.curves.map((c,i)=>({label:c.label,color:config.palette[i%config.palette.length]})));
+}
+
+  renderChart_pr(data, config, container);
+})();
+
+(function() {
+  const data = {"curves": [{"probTrue": [0.020885, 0.139438, 0.270987, 0.359855, 0.417249, 0.589005, 0.629969, 0.757862, 0.869767, 0.982507], "probPred": [0.021265, 0.144891, 0.249765, 0.350383, 0.449638, 0.548198, 0.649067, 0.747832, 0.84575, 0.987553], "counts": [5219, 961, 679, 553, 429, 382, 327, 318, 215, 686], "histBins": [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85, 0.95], "ece": 0.0076, "mce": 0, "label": "EBM"}], "nBins": 10};
+  const config = {"width": 600, "height": 500, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('cal');
+  
+function renderChart_cal(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height*0.65;
+  const svg=EG.svg('svg',{width:config.width,height:config.height});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-10;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,1],[iH,0]);
+  const ticks=[0,0.2,0.4,0.6,0.8,1.0];
+  ticks.forEach(v=>{
+    g.appendChild(EG.svg('line',{x1:0,y1:yS(v),x2:iW,y2:yS(v),stroke:'var(--grid-line)'}));
+    g.appendChild(EG.svg('text',{x:-8,y:yS(v)+4,'text-anchor':'end',fill:'var(--text-secondary)','font-size':'10px'})).textContent=v.toFixed(1);
+    g.appendChild(EG.svg('text',{x:xS(v),y:iH+15,'text-anchor':'middle',fill:'var(--text-secondary)','font-size':'10px'})).textContent=v.toFixed(1);
+  });
+  g.appendChild(EG.svg('line',{x1:xS(0),y1:yS(0),x2:xS(1),y2:yS(1),stroke:'var(--text-muted)','stroke-width':1.5,'stroke-dasharray':'6,4',opacity:0.6}));
+  g.appendChild(EG.svg('text',{x:iW/2,y:iH+35,'text-anchor':'middle',fill:'var(--text-secondary)','font-size':'11px'})).textContent='Mean Predicted Probability';
+
+  data.curves.forEach((c,ci)=>{
+    const color=config.palette[ci%config.palette.length];
+    let d='';const pts=[];
+    for(let i=0;i<c.probTrue.length;i++){
+      if(c.probTrue[i]===null||c.probPred[i]===null)continue;
+      pts.push({x:xS(c.probPred[i]),y:yS(c.probTrue[i]),pred:c.probPred[i],t:c.probTrue[i],cnt:c.counts[i]});
+    }
+    pts.forEach((p,i)=>{d+=(i===0?'M':' L')+p.x+' '+p.y;});
+    if(d)g.appendChild(EG.svg('path',{d:d,fill:'none',stroke:color,'stroke-width':2.5}));
+    pts.forEach(p=>{
+      const dot=EG.svg('circle',{cx:p.x,cy:p.y,r:5,fill:color,stroke:'var(--bg-card)','stroke-width':2});
+      dot.addEventListener('mouseenter',e=>{dot.setAttribute('r','7');EG.tooltip.show(e,'Pred: '+EG.fmt(p.pred,3)+'<br>Actual: '+EG.fmt(p.t,3)+'<br>n='+p.cnt);});
+      dot.addEventListener('mouseleave',()=>{dot.setAttribute('r','5');EG.tooltip.hide();});
+      g.appendChild(dot);
+    });
+    g.appendChild(EG.svg('text',{x:10,y:16,fill:color,'font-size':'11px','font-weight':'600'})).textContent='ECE='+c.ece.toFixed(3);
+  });
+
+  // Histogram
+  const gH=EG.svg('g',{transform:`translate(${margin.left},${H+15})`});
+  svg.appendChild(gH);
+  const hH=config.height-H-40;
+  let maxC=0;data.curves.forEach(c=>c.counts.forEach(v=>{if(v>maxC)maxC=v;}));if(!maxC)maxC=1;
+  const hY=EG.scaleLinear([0,maxC],[hH,0]);
+  gH.appendChild(EG.svg('line',{x1:0,y1:hH,x2:iW,y2:hH,stroke:'var(--border)'}));
+  data.curves.forEach((c,ci)=>{
+    const color=config.palette[ci%config.palette.length];
+    const barW=iW/c.histBins.length*0.7;
+    c.counts.forEach((cnt,i)=>{
+      const x=xS(c.histBins[i])-barW/2;
+      const bH=hH-hY(cnt);
+      gH.appendChild(EG.svg('rect',{x:x,y:hH-bH,width:barW,height:Math.max(bH,0),fill:color,opacity:0.5,rx:2}));
+    });
+  });
+}
+
+  renderChart_cal(data, config, container);
+})();
+
+(function() {
+  const data = {"thresholds": [0.01, 0.0224, 0.0348, 0.0472, 0.0596, 0.072, 0.0844, 0.0968, 0.1092, 0.1216, 0.1341, 0.1465, 0.1589, 0.1713, 0.1837, 0.1961, 0.2085, 0.2209, 0.2333, 0.2457, 0.2581, 0.2705, 0.2829, 0.2953, 0.3077, 0.3201, 0.3325, 0.3449, 0.3573, 0.3697, 0.3822, 0.3946, 0.407, 0.4194, 0.4318, 0.4442, 0.4566, 0.469, 0.4814, 0.4938, 0.5062, 0.5186, 0.531, 0.5434, 0.5558, 0.5682, 0.5806, 0.593, 0.6054, 0.6178, 0.6303, 0.6427, 0.6551, 0.6675, 0.6799, 0.6923, 0.7047, 0.7171, 0.7295, 0.7419, 0.7543, 0.7667, 0.7791, 0.7915, 0.8039, 0.8163, 0.8287, 0.8411, 0.8535, 0.8659, 0.8784, 0.8908, 0.9032, 0.9156, 0.928, 0.9404, 0.9528, 0.9652, 0.9776, 0.99], "precision": [0.3272, 0.3701, 0.4002, 0.4238, 0.4426, 0.4576, 0.4731, 0.4868, 0.4989, 0.5129, 0.5242, 0.5352, 0.5491, 0.5609, 0.572, 0.58, 0.5886, 0.5976, 0.6053, 0.6119, 0.6208, 0.6328, 0.642, 0.6521, 0.6616, 0.6705, 0.6778, 0.6891, 0.6946, 0.7029, 0.7116, 0.7216, 0.7313, 0.737, 0.7457, 0.7547, 0.7646, 0.7739, 0.7831, 0.7906, 0.8002, 0.8065, 0.8151, 0.8175, 0.8229, 0.8296, 0.835, 0.8433, 0.8502, 0.8577, 0.8603, 0.8656, 0.8763, 0.8804, 0.8903, 0.8977, 0.9056, 0.9158, 0.922, 0.9285, 0.9342, 0.9356, 0.9407, 0.9504, 0.9572, 0.9624, 0.9674, 0.9713, 0.9716, 0.9747, 0.9806, 0.98, 0.9824, 0.988, 0.9939, 0.9953, 0.9952, 0.9951, 0.9982, 1.0], "recall": [0.9966, 0.9932, 0.988, 0.9803, 0.9756, 0.9692, 0.9628, 0.9564, 0.9457, 0.9414, 0.9328, 0.9256, 0.9179, 0.9106, 0.9055, 0.8991, 0.8892, 0.8824, 0.8743, 0.8597, 0.8494, 0.8379, 0.8276, 0.8195, 0.8118, 0.8024, 0.7908, 0.7823, 0.7716, 0.7609, 0.7502, 0.7382, 0.7275, 0.7169, 0.7074, 0.6989, 0.6903, 0.6809, 0.6702, 0.6604, 0.6493, 0.6364, 0.6262, 0.6129, 0.6001, 0.5894, 0.5778, 0.5684, 0.556, 0.5441, 0.5321, 0.5205, 0.509, 0.4974, 0.4859, 0.4765, 0.4636, 0.4559, 0.4397, 0.4277, 0.4132, 0.3978, 0.3871, 0.3772, 0.3631, 0.3507, 0.343, 0.3328, 0.3216, 0.3131, 0.3033, 0.2938, 0.287, 0.2819, 0.2772, 0.2729, 0.2678, 0.2609, 0.2429, 0.2079], "f1": [0.4927, 0.5392, 0.5697, 0.5918, 0.6089, 0.6217, 0.6344, 0.6452, 0.6532, 0.6641, 0.6712, 0.6783, 0.6872, 0.6942, 0.7011, 0.7051, 0.7083, 0.7126, 0.7153, 0.7149, 0.7174, 0.721, 0.7231, 0.7263, 0.729, 0.7305, 0.73, 0.7328, 0.7311, 0.7307, 0.7304, 0.7298, 0.7294, 0.7268, 0.7261, 0.7257, 0.7256, 0.7245, 0.7223, 0.7196, 0.7169, 0.7115, 0.7083, 0.7006, 0.694, 0.6892, 0.683, 0.6791, 0.6724, 0.6658, 0.6575, 0.6501, 0.6439, 0.6357, 0.6287, 0.6225, 0.6133, 0.6088, 0.5954, 0.5857, 0.573, 0.5582, 0.5485, 0.5401, 0.5265, 0.5141, 0.5065, 0.4957, 0.4833, 0.4739, 0.4632, 0.4521, 0.4442, 0.4386, 0.4334, 0.4283, 0.422, 0.4134, 0.3908, 0.3442], "bestThreshold": 0.3449, "bestF1": 0.7328};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('thresh');
+  
+function renderChart_thresh(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'Classification Threshold');
+  EG.drawYAxis(g,yS,iW,'Score');
+
+  const series=[
+    {vals:data.precision, label:'Precision', color:config.palette[0]},
+    {vals:data.recall, label:'Recall', color:config.palette[1%config.palette.length]},
+    {vals:data.f1, label:'F1', color:config.palette[2%config.palette.length]},
+  ];
+
+  series.forEach(s=>{
+    let d='';
+    for(let i=0;i<data.thresholds.length;i++){
+      d+=(i===0?'M':' L')+xS(data.thresholds[i])+' '+yS(s.vals[i]);
+    }
+    const path=EG.svg('path',{d:d,fill:'none',stroke:s.color,'stroke-width':2.5});
+    path.addEventListener('mouseenter',e=>{path.setAttribute('stroke-width','4');EG.tooltip.show(e,'<b>'+s.label+'</b>');});
+    path.addEventListener('mouseleave',()=>{path.setAttribute('stroke-width','2.5');EG.tooltip.hide();});
+    g.appendChild(path);
+  });
+
+  // Mark optimal threshold
+  const bx=xS(data.bestThreshold),by=yS(data.bestF1);
+  g.appendChild(EG.svg('line',{x1:bx,y1:0,x2:bx,y2:iH,stroke:'var(--text-muted)','stroke-width':1,'stroke-dasharray':'4,3'}));
+  const dot=EG.svg('circle',{cx:bx,cy:by,r:6,fill:config.palette[2%config.palette.length],stroke:'var(--bg-card)','stroke-width':2});
+  dot.addEventListener('mouseenter',e=>{EG.tooltip.show(e,'<b>Best F1</b><br>Threshold: '+data.bestThreshold.toFixed(3)+'<br>F1: '+data.bestF1.toFixed(3));});
+  dot.addEventListener('mouseleave',()=>{EG.tooltip.hide();});
+  g.appendChild(dot);
+
+  EG.drawLegend(container,series.map(s=>({label:s.label,color:s.color})));
+}
+
+  renderChart_thresh(data, config, container);
+})();
+
+(function() {
+  const data = {"classes": ["<=50K", ">50K"], "precision": [0.8973, 0.7951], "recall": [0.9468, 0.6557], "f1": [0.9214, 0.7187]};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('perclass');
+  
+function renderChart_perclass(data, config, container) {
+  const margin={top:10,right:20,bottom:60,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const n=data.classes.length;
+  const metrics=['precision','recall','f1'];
+  const colors=[config.palette[0],config.palette[1%config.palette.length],config.palette[2%config.palette.length]];
+  const groupW=iW/n;
+  const barW=groupW*0.25;
+  const yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawYAxis(g,yS,iW,'Score');
+
+  // Grid lines
+  [0,0.25,0.5,0.75,1.0].forEach(v=>{
+    g.appendChild(EG.svg('line',{x1:0,y1:yS(v),x2:iW,y2:yS(v),stroke:'var(--grid-line)'}));
+  });
+
+  for(let i=0;i<n;i++){
+    const gx=i*groupW+groupW*0.15;
+    metrics.forEach((m,mi)=>{
+      const v=data[m][i];
+      const bH=iH-yS(v);
+      const x=gx+mi*barW+mi*2;
+      const rect=EG.svg('rect',{x:x,y:iH-bH,width:barW,height:Math.max(bH,0),fill:colors[mi],rx:3,opacity:0.8});
+      rect.addEventListener('mouseenter',e=>{
+        rect.setAttribute('opacity','1');
+        EG.tooltip.show(e,'<b>'+data.classes[i]+'</b><br>'+m+': '+v.toFixed(4));
+      });
+      rect.addEventListener('mouseleave',()=>{rect.setAttribute('opacity','0.8');EG.tooltip.hide();});
+      g.appendChild(rect);
+    });
+    // Class label
+    const lbl=EG.svg('text',{x:gx+barW*1.5+2,y:iH+18,'text-anchor':'middle',fill:'var(--text-secondary)','font-size':'11px'});
+    lbl.textContent=data.classes[i].length>12?data.classes[i].slice(0,10)+'…':data.classes[i];
+    g.appendChild(lbl);
+  }
+
+  EG.drawLegend(container,metrics.map((m,i)=>({label:m.charAt(0).toUpperCase()+m.slice(1),color:colors[i]})));
+}
+
+  renderChart_perclass(data, config, container);
+})();
+
+(function() {
+  const data = {"pctSamples": [0.000102, 0.005016, 0.009929, 0.014843, 0.019756, 0.02467, 0.029583, 0.034497, 0.03941, 0.044324, 0.049237, 0.054151, 0.059064, 0.063978, 0.068891, 0.073805, 0.078718, 0.083632, 0.088545, 0.093459, 0.098372, 0.103286, 0.108199, 0.113113, 0.118026, 0.12294, 0.127853, 0.132767, 0.13768, 0.142594, 0.147507, 0.152421, 0.157334, 0.162248, 0.167161, 0.172075, 0.176988, 0.181902, 0.186815, 0.191729, 0.196642, 0.201556, 0.206469, 0.211383, 0.216296, 0.22121, 0.226123, 0.231037, 0.23595, 0.240864, 0.245777, 0.250691, 0.255604, 0.260518, 0.265431, 0.270345, 0.275258, 0.280172, 0.285085, 0.289999, 0.294912, 0.299826, 0.304739, 0.309653, 0.314566, 0.31948, 0.324393, 0.329307, 0.33422, 0.339134, 0.344047, 0.348961, 0.353875, 0.358788, 0.363702, 0.368615, 0.373529, 0.378442, 0.383356, 0.388269, 0.393183, 0.398096, 0.40301, 0.407923, 0.412837, 0.41775, 0.422664, 0.427577, 0.432491, 0.437404, 0.442318, 0.447231, 0.452145, 0.457058, 0.461972, 0.466885, 0.471799, 0.476712, 0.481626, 0.486539, 0.491453, 0.496366, 0.50128, 0.506193, 0.511107, 0.51602, 0.520934, 0.525847, 0.530761, 0.535674, 0.540588, 0.545501, 0.550415, 0.555328, 0.560242, 0.565155, 0.570069, 0.574982, 0.579896, 0.584809, 0.589723, 0.594636, 0.59955, 0.604463, 0.609377, 0.61429, 0.619204, 0.624117, 0.629031, 0.633944, 0.638858, 0.643771, 0.648685, 0.653598, 0.658512, 0.663425, 0.668339, 0.673252, 0.678166, 0.683079, 0.687993, 0.692906, 0.69782, 0.702733, 0.707647, 0.71256, 0.717474, 0.722387, 0.727301, 0.732214, 0.737128, 0.742041, 0.746955, 0.751868, 0.756782, 0.761695, 0.766609, 0.771522, 0.776436, 0.781349, 0.786263, 0.791176, 0.79609, 0.801003, 0.805917, 0.81083, 0.815744, 0.820657, 0.825571, 0.830484, 0.835398, 0.840311, 0.845225, 0.850138, 0.855052, 0.859965, 0.864879, 0.869792, 0.874706, 0.879619, 0.884533, 0.889446, 0.89436, 0.899273, 0.904187, 0.9091, 0.914014, 0.918927, 0.923841, 0.928754, 0.933668, 0.938581, 0.943495, 0.948408, 0.953322, 0.958235, 0.963149, 0.968062, 0.972976, 0.977889, 0.982803, 0.987716, 0.99263, 0.997543], "pctCaptured": [0.000428, 0.020958, 0.041488, 0.062019, 0.082549, 0.10308, 0.12361, 0.14414, 0.164671, 0.185201, 0.205731, 0.226262, 0.246364, 0.266039, 0.283576, 0.302395, 0.319932, 0.338323, 0.355432, 0.372541, 0.386655, 0.404192, 0.421728, 0.437126, 0.452096, 0.465355, 0.478614, 0.49059, 0.505133, 0.517964, 0.530796, 0.546193, 0.557742, 0.570573, 0.581694, 0.594953, 0.606501, 0.620188, 0.631737, 0.644568, 0.654405, 0.663388, 0.673225, 0.682635, 0.690761, 0.69846, 0.705304, 0.714713, 0.723268, 0.731822, 0.739521, 0.74722, 0.755774, 0.76219, 0.770317, 0.780154, 0.785287, 0.791702, 0.799829, 0.8071, 0.813516, 0.819076, 0.822926, 0.828486, 0.835757, 0.84089, 0.846022, 0.851155, 0.857571, 0.865269, 0.871685, 0.878529, 0.882806, 0.886655, 0.891788, 0.897776, 0.90077, 0.904619, 0.907186, 0.91018, 0.914029, 0.917023, 0.919162, 0.921728, 0.924722, 0.927716, 0.931993, 0.933704, 0.937981, 0.941403, 0.942258, 0.942686, 0.94568, 0.947391, 0.951668, 0.953807, 0.956373, 0.958939, 0.96065, 0.962789, 0.9645, 0.965355, 0.967494, 0.969204, 0.97006, 0.973054, 0.973909, 0.974765, 0.976048, 0.976903, 0.978186, 0.978614, 0.97947, 0.980753, 0.98118, 0.983319, 0.983747, 0.985885, 0.986313, 0.988024, 0.988024, 0.988879, 0.989307, 0.989735, 0.989735, 0.989735, 0.989735, 0.99059, 0.991873, 0.992301, 0.992729, 0.993157, 0.993584, 0.993584, 0.993584, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.994012, 0.994867, 0.994867, 0.995295, 0.995723, 0.995723, 0.995723, 0.996151, 0.996578, 0.996578, 0.996578, 0.997006, 0.997006, 0.997006, 0.997006, 0.997006, 0.997434, 0.997861, 0.997861, 0.997861, 0.997861, 0.997861, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998289, 0.998717, 0.998717, 0.998717, 0.998717, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999145, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 0.999572, 1.0, 1.0, 1.0], "nPos": 2338, "nTotal": 9769};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('gains');
+  
+function renderChart_gains(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'% of Samples (sorted by score)');
+  EG.drawYAxis(g,yS,iW,'% of Positives Captured');
+
+  // Random baseline
+  g.appendChild(EG.svg('line',{x1:xS(0),y1:yS(0),x2:xS(1),y2:yS(1),stroke:'var(--text-muted)','stroke-width':1.5,'stroke-dasharray':'6,4',opacity:0.5}));
+
+  // Model curve
+  const color=config.palette[0];
+  let d='';
+  const n=Math.min(data.pctSamples.length,data.pctCaptured.length);
+  for(let i=0;i<n;i++) d+=(i===0?'M':' L')+xS(data.pctSamples[i])+' '+yS(data.pctCaptured[i]);
+  // Fill
+  g.appendChild(EG.svg('path',{d:d+' L'+xS(data.pctSamples[n-1])+' '+iH+' L'+xS(data.pctSamples[0])+' '+iH+' Z',fill:color,opacity:0.08}));
+  const path=EG.svg('path',{d:d,fill:'none',stroke:color,'stroke-width':2.5});
+  path.addEventListener('mouseenter',e=>{path.setAttribute('stroke-width','4');EG.tooltip.show(e,'<b>Cumulative Gains</b><br>'+data.nPos+' positives / '+data.nTotal+' total');});
+  path.addEventListener('mouseleave',()=>{path.setAttribute('stroke-width','2.5');EG.tooltip.hide();});
+  g.appendChild(path);
+
+  EG.drawLegend(container,[{label:'Model',color:color},{label:'Random',color:'var(--text-muted)'}]);
+}
+
+  renderChart_gains(data, config, container);
+})();
+
+(function() {
+  const data = {"labels": ["marital-status", "age", "capital-gain", "occupation", "hours-per-week", "education", "sex", "relationship", "capital-loss", "education-num", "fnlwgt", "workclass", "native-country", "race"], "values": [0.215386, 0.168439, 0.126488, 0.081077, 0.073701, 0.072304, 0.061621, 0.055605, 0.034405, 0.029404, 0.025635, 0.020745, 0.020532, 0.014658]};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('imp');
+  
+function renderChart_imp(data, config, container) {
+  const margin={top:10,right:30,bottom:30,left:140};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const n=data.labels.length;
+  const rowH=iH/n;
+  const maxV=Math.max.apply(null,data.values)||1;
+  const xS=EG.scaleLinear([0,maxV],[0,iW]);
+
+  for(let i=0;i<n;i++){
+    const y=i*rowH,v=data.values[i];
+    const color=config.palette[i%config.palette.length];
+    const bW=xS(v);
+    const rect=EG.svg('rect',{x:0,y:y+2,width:Math.max(bW,2),height:rowH-4,fill:color,rx:3,opacity:0.8});
+    rect.addEventListener('mouseenter',e=>{rect.setAttribute('opacity','1');EG.tooltip.show(e,'<b>'+EG.esc(data.labels[i])+'</b><br>'+EG.fmt(v,4));});
+    rect.addEventListener('mouseleave',()=>{rect.setAttribute('opacity','0.8');EG.tooltip.hide();});
+    g.appendChild(rect);
+    g.appendChild(EG.svg('text',{x:bW+5,y:y+rowH/2+4,fill:'var(--text-secondary)','font-size':'10px'})).textContent=EG.fmt(v,4);
+    g.appendChild(EG.svg('text',{x:-6,y:y+rowH/2+4,'text-anchor':'end',fill:'var(--text-primary)','font-size':'11px'})).textContent=data.labels[i].length>20?data.labels[i].slice(0,18)+'…':data.labels[i];
+  }
+}
+
+  renderChart_imp(data, config, container);
+})();
+
+(function() {
+  const data = {"labels": ["<=50K", ">50K"], "values": [7431, 2338]};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('classdist');
+  
+function renderChart_classdist(data, config, container) {
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const cx=W/2,cy=H/2-10,R=Math.min(W,H)*0.35;
+  const total=data.values.reduce((a,b)=>a+b,0)||1;
+  let angle=-Math.PI/2;
+  data.values.forEach((v,i)=>{
+    const sweep=v/total*Math.PI*2;
+    const x1=cx+R*Math.cos(angle),y1=cy+R*Math.sin(angle);
+    const x2=cx+R*Math.cos(angle+sweep),y2=cy+R*Math.sin(angle+sweep);
+    const large=sweep>Math.PI?1:0;
+    const d=`M${cx} ${cy} L${x1} ${y1} A${R} ${R} 0 ${large} 1 ${x2} ${y2} Z`;
+    const color=config.palette[i%config.palette.length];
+    const path=EG.svg('path',{d:d,fill:color,stroke:'var(--bg-card)','stroke-width':2,opacity:0.85});
+    const midA=angle+sweep/2;
+    path.addEventListener('mouseenter',e=>{path.setAttribute('opacity','1');EG.tooltip.show(e,'<b>'+EG.esc(data.labels[i])+'</b><br>'+v+' ('+(v/total*100).toFixed(1)+'%)');});
+    path.addEventListener('mouseleave',()=>{path.setAttribute('opacity','0.85');EG.tooltip.hide();});
+    svg.appendChild(path);
+    // Label
+    const lR=R*0.65;
+    const lx=cx+lR*Math.cos(midA),ly=cy+lR*Math.sin(midA);
+    if(sweep>0.2) svg.appendChild(EG.svg('text',{x:lx,y:ly+4,'text-anchor':'middle',fill:'#fff','font-size':'12px','font-weight':'600'})).textContent=(v/total*100).toFixed(0)+'%';
+    angle+=sweep;
+  });
+  EG.drawLegend(container,data.labels.map((l,i)=>({label:l+' ('+data.values[i]+')',color:config.palette[i%config.palette.length]})));
+}
+
+  renderChart_classdist(data, config, container);
+})();
+
+(function() {
+  const data = {"bins": [0.0167, 0.05, 0.0833, 0.1167, 0.15, 0.1833, 0.2167, 0.25, 0.2833, 0.3167, 0.35, 0.3833, 0.4167, 0.45, 0.4833, 0.5167, 0.55, 0.5833, 0.6167, 0.65, 0.6833, 0.7167, 0.75, 0.7833, 0.8167, 0.85, 0.8833, 0.9167, 0.95, 0.9833], "countsPos": [26, 37, 46, 48, 44, 42, 51, 77, 56, 63, 66, 70, 60, 54, 65, 78, 70, 77, 70, 74, 62, 81, 91, 69, 65, 67, 55, 32, 35, 607], "countsNeg": [3914, 768, 428, 339, 280, 208, 161, 174, 160, 125, 108, 121, 84, 91, 75, 65, 46, 46, 39, 41, 41, 34, 19, 24, 14, 7, 7, 9, 0, 3], "posLabel": ">50K", "negLabel": "<=50K"};
+  const config = {"width": 600, "height": 420, "palette": ["#4e79a7", "#f28e2b", "#e15759", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]};
+  const container = document.getElementById('predhist');
+  
+function renderChart_predhist(data, config, container) {
+  const margin={top:10,right:15,bottom:50,left:50};
+  const W=config.width,H=config.height;
+  const svg=EG.svg('svg',{width:W,height:H});
+  container.appendChild(svg);
+  const g=EG.svg('g',{transform:`translate(${margin.left},${margin.top})`});
+  svg.appendChild(g);
+  const iW=W-margin.left-margin.right,iH=H-margin.top-margin.bottom;
+  const bins=data.bins,cp=data.countsPos,cn=data.countsNeg;
+  const maxC=Math.max(Math.max.apply(null,cp),Math.max.apply(null,cn))||1;
+  const xS=EG.scaleLinear([0,1],[0,iW]),yS=EG.scaleLinear([0,maxC*1.1],[iH,0]);
+  EG.drawXAxis(g,xS,iH,'Predicted Probability');
+  EG.drawYAxis(g,yS,iW,'Count');
+  const barW=iW/bins.length*0.4;
+  const posColor=config.palette[0],negColor=config.palette[1%config.palette.length];
+  bins.forEach((b,i)=>{
+    const x=xS(b);
+    const hN=iH-yS(cn[i]),hP=iH-yS(cp[i]);
+    g.appendChild(EG.svg('rect',{x:x-barW-1,y:iH-hN,width:barW,height:Math.max(hN,0),fill:negColor,opacity:0.6,rx:2}));
+    g.appendChild(EG.svg('rect',{x:x+1,y:iH-hP,width:barW,height:Math.max(hP,0),fill:posColor,opacity:0.6,rx:2}));
+  });
+  EG.drawLegend(container,[{label:data.negLabel,color:negColor},{label:data.posLabel,color:posColor}]);
+}
+
+  renderChart_predhist(data, config, container);
+})();
+</script>
+</body>
+</html>

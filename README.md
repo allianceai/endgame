@@ -50,8 +50,9 @@ pip install endgame-ml[tabular]
 import endgame as eg
 from endgame.visualization import ClassificationReport
 
-# "Is this tumor malignant?" --- 569 biopsies, 30 cell nucleus features
-X, y, feature_names, class_names = eg.utils.load_dataset("breast_cancer", return_names=True)
+# "Will this person earn more than $50K?" --- 48,842 census records, 14 features
+X, y, feature_names, class_names = eg.utils.load_dataset(1590, return_names=True)
+class_names = ["<=50K", ">50K"]
 X_train, X_test, y_train, y_test = eg.utils.split(X, y)
 
 model = eg.models.EBMClassifier()  # fully interpretable glass-box model
@@ -62,17 +63,17 @@ ClassificationReport(
     feature_names=feature_names,
     class_names=class_names,
     model_name="EBM",
-    dataset_name="Breast Cancer Wisconsin",
+    dataset_name="Adult Income",
 ).save("report.html")
 ```
 
 <p align="center">
-  <a href="https://allianceai.github.io/endgame/breast_cancer_report.html">
-    <img src="assets/breast_cancer_report_screenshot.png" width="800" alt="Interactive Classification Report">
+  <a href="https://allianceai.github.io/endgame/adult_income_report.html">
+    <img src="assets/adult_income_report_screenshot.png" width="800" alt="Interactive Classification Report">
   </a>
 </p>
 <p align="center">
-  <strong><a href="https://allianceai.github.io/endgame/breast_cancer_report.html">Open the full interactive report &rarr;</a></strong>
+  <strong><a href="https://allianceai.github.io/endgame/adult_income_report.html">Open the full interactive report &rarr;</a></strong>
 </p>
 
 ## Why Endgame
@@ -223,8 +224,8 @@ See the [MCP Server Guide](docs/guides/mcp_server.md) for full documentation.
 ```python
 import endgame as eg
 
-# Load data — Adult Income (48,842 samples, 14 features)
-X, y = eg.utils.load_dataset(1590)  # Adult
+# Load data — Breast Cancer Wisconsin (569 samples, 30 features)
+X, y = eg.utils.load_dataset("breast_cancer")
 X_train, X_test, y_train, y_test = eg.utils.split(X, y)
 
 # Train with competition-winning defaults
@@ -259,7 +260,7 @@ from endgame.visualization import ClassificationReport
 report = ClassificationReport(
     model, X_test, y_test,
     model_name="LightGBM",
-    dataset_name="Adult Income",
+    dataset_name="Breast Cancer Wisconsin",
 )
 report.save("evaluation_report.html")
 ```
