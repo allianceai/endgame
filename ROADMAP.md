@@ -1,7 +1,7 @@
 # Endgame Development Roadmap
 
-**Last Updated:** 2026-02-22
-**Version:** 1.0.0
+**Last Updated:** 2026-03-04
+**Version:** 1.0.2
 **Status:** Stable Release
 
 This document tracks all implemented features and planned additions for the Endgame library.
@@ -141,6 +141,11 @@ This document tracks all implemented features and planned additions for the Endg
 - [x] `QuantileRegressorForest` - Quantile regression for prediction intervals & uncertainty
 - [x] `EvolutionaryTreeClassifier` / `EvolutionaryTreeRegressor` - Genetic algorithm optimized trees
 
+#### treeple-Backed Tree Models (optional: treeple)
+- [x] `ExtraObliqueRandomForestClassifier` / `ExtraObliqueRandomForestRegressor` - Extra oblique trees
+- [x] `PatchObliqueRandomForestClassifier` / `PatchObliqueRandomForestRegressor` - Patch-based oblique trees
+- [x] `HonestForestClassifier` - Honest estimation with separate structure/estimation splits
+
 #### Interpretable Models
 - [x] `EBMClassifier` / `EBMRegressor` - Explainable Boosting Machines
 - [x] `MARSClassifier` / `MARSRegressor` - Multivariate Adaptive Regression Splines
@@ -188,6 +193,10 @@ This document tracks all implemented features and planned additions for the Endg
 - [x] `TabPFN25Classifier` / `TabPFN25Regressor` - RealTabPFN-2.5 (50K samples, 2K features)
 - [x] `TabDPTClassifier` / `TabDPTRegressor` - Tabular Discriminative Pre-trained Transformer
 
+#### Neuroevolution (optional: neat-python / tensorneat)
+- [x] `NEATClassifier` / `NEATRegressor` - NeuroEvolution of Augmenting Topologies
+- [x] `TensorNEATClassifier` / `TensorNEATRegressor` - GPU-accelerated NEAT (JAX/PyTorch)
+
 #### Kernel Methods
 - [x] `GPClassifier` / `GPRegressor` - Gaussian Process with competition defaults
 - [x] `SVMClassifier` / `SVMRegressor` - Support Vector Machine wrapper
@@ -221,12 +230,33 @@ This document tracks all implemented features and planned additions for the Endg
 
 ### Ensemble (`eg.ensemble`) ✅
 
+#### Core Ensemble Methods
 - [x] `HillClimbingEnsemble` - Forward selection ensemble optimization
 - [x] `StackingEnsemble` - Meta-learner stacking
 - [x] `BlendingEnsemble` - Simple blending with holdout
 - [x] `OptimizedBlender` - Optimized weight blending (scipy minimize)
 - [x] `RankAverageBlender` - Rank-based averaging
+- [x] `PowerBlender` - Power-weighted blending
 - [x] `ThresholdOptimizer` - Classification threshold optimization
+
+#### Classical Ensemble Methods
+- [x] `VotingClassifier` / `VotingRegressor` - Hard/soft voting ensemble
+- [x] `BaggingClassifier` / `BaggingRegressor` - Bootstrap aggregating
+- [x] `AdaBoostClassifier` / `AdaBoostRegressor` - Adaptive boosting
+
+#### Advanced Ensemble Methods
+- [x] `SuperLearner` - Super Learner (cross-validated stacking with constrained optimization)
+- [x] `BayesianModelAveraging` - Bayesian model averaging with posterior weights
+- [x] `NegativeCorrelationEnsemble` - Diversity-promoting ensemble (joint training with NCL penalty)
+- [x] `SnapshotEnsemble` - Cyclic learning rate ensembling (free ensemble from single training run)
+- [x] `CascadeEnsemble` - Sequential cascade with early stopping
+
+#### Multi-Output & Chains
+- [x] `MultiOutputClassifier` / `MultiOutputRegressor` - Independent multi-target wrappers
+- [x] `ClassifierChain` / `RegressorChain` - Chained multi-target with label dependencies
+
+#### Knowledge Distillation
+- [x] `KnowledgeDistiller` - Compress ensemble to single model (soft/hard labels, temperature scaling)
 
 ---
 
@@ -317,7 +347,7 @@ This document tracks all implemented features and planned additions for the Endg
 
 ---
 
-### Clustering (`eg.clustering`) ✅ NEW
+### Clustering (`eg.clustering`) ✅
 
 16 clustering algorithms with automatic method selection.
 
@@ -562,24 +592,58 @@ Intelligent AutoML framework matching AutoGluon's 3-line simplicity while levera
 - [x] `list_models()` - Query models by criteria
 - [x] `get_default_portfolio()` - Smart portfolio selection
 
-#### Search Strategies
+#### Search Strategies (7 total)
 - [x] `BaseSearchStrategy` - Abstract search interface
 - [x] `PortfolioSearch` - Default: diverse parallel model training
 - [x] `HeuristicSearch` - Data-driven rule-based selection
 - [x] `RandomSearch` - Random valid pipeline sampling
 - [x] `BayesianSearch` - Optuna-wrapped Bayesian optimization
 - [x] `GeneticSearch` - Evolutionary pipeline optimization
+- [x] `BanditSearch` - Multi-armed bandit search (UCB-based model selection)
+- [x] `AdaptiveSearch` - Adaptive strategy switching based on convergence
 
-#### Presets
+#### Presets (7 total)
 - [x] `best_quality` - Maximum performance (no time limit)
 - [x] `high_quality` - High performance with 4-hour budget
 - [x] `good_quality` - Good performance with 1-hour budget
 - [x] `medium_quality` - Balanced (default, 15 min)
 - [x] `fast` - Quick single-model baseline (5 min)
 - [x] `interpretable` - Glass-box models only
+- [x] `exhaustive` - Evolutionary search over ALL models + preprocessing + ensembles
+
+#### Guardrails & Reporting
+- [x] `QualityGuardrailsExecutor` - Data quality checks integrated into AutoML pipeline
+- [x] `AutoMLReport` - Comprehensive HTML report with model comparison, feature importance, timings
+- [x] `ReportGenerator` - Generate `AutoMLReport` from pipeline results
 
 #### Preprocessing
 - [x] `AutoPreprocessor` - Automatic preprocessing pipeline selection
+
+---
+
+### Guardrails (`eg.guardrails`) ✅ NEW
+
+- [x] `LeakageDetector` - Detect data leakage (target leakage, train-test leakage, temporal leakage)
+- [x] `check_data_quality()` - One-line data health check (missing patterns, cardinality, constant features)
+- [x] `GuardrailsReport` - Structured report with warnings and recommendations
+- [x] `DataQualityWarning` - Individual warning dataclass with severity levels
+
+---
+
+### MCP Server (`eg.mcp`) ✅ NEW
+
+Full MCP (Model Context Protocol) server enabling LLM-powered ML pipelines.
+
+#### Core Infrastructure
+- [x] `create_server()` - Factory function for MCP server instantiation
+- [x] `SessionManager` - Stateful session management for multi-step ML workflows
+- [x] `DatasetArtifact` / `ModelArtifact` / `VisualizationArtifact` - Artifact tracking
+
+#### Capabilities
+- [x] 10+ tool modules covering data loading, preprocessing, model training, evaluation, visualization
+- [x] Code generation for reproducible pipeline export
+- [x] Resource discovery for browsing available models, presets, metrics, and visualizers
+- [x] Session state management across multi-turn conversations
 
 ---
 
@@ -700,7 +764,7 @@ Intelligent AutoML framework matching AutoGluon's 3-line simplicity while levera
 
 ---
 
-### Explainability (`eg.explain`) ✅ NEW
+### Explainability (`eg.explain`) ✅
 
 - [x] `explain()` - One-line model explanation (auto-selects best method)
 - [x] `Explanation` - Dataclass with `values`, `base_value`, `feature_names`, `plot()`, `to_dataframe()`, `top_features()`
@@ -713,7 +777,7 @@ Intelligent AutoML framework matching AutoGluon's 3-line simplicity while levera
 
 ---
 
-### Fairness (`eg.fairness`) ✅ NEW
+### Fairness (`eg.fairness`) ✅
 
 #### Metrics
 - [x] `demographic_parity()` - Selection rate by group
@@ -731,7 +795,7 @@ Intelligent AutoML framework matching AutoGluon's 3-line simplicity while levera
 
 ---
 
-### Persistence & Deployment (`eg.persistence`) ✅ NEW
+### Persistence & Deployment (`eg.persistence`) ✅
 
 - [x] `save()` / `load()` - Model serialization with metadata
 - [x] `export_onnx()` - ONNX export with auto-backend detection (skl2onnx, hummingbird, torch.onnx)
@@ -739,7 +803,23 @@ Intelligent AutoML framework matching AutoGluon's 3-line simplicity while levera
 
 ---
 
-### Experiment Tracking (`eg.tracking`) ✅ NEW
+### Visualization (`eg.visualization`) ✅
+
+44 interactive chart types plus 2 ML report generators.
+
+- [x] Shared infrastructure: `BaseVisualizer` ABC, palettes (_palettes.py), HTML template (_html_template.py)
+- **Tier 1 (Critical):** `BarChartVisualizer`, `HeatmapVisualizer`, `ConfusionMatrixVisualizer`, `HistogramVisualizer`, `LineChartVisualizer`, `ScatterplotVisualizer`
+- **Tier 2 (Important):** `BoxPlotVisualizer`, `ViolinPlotVisualizer`, `ErrorBarsVisualizer`, `ParallelCoordinatesVisualizer`, `RadarChartVisualizer`, `TreemapVisualizer`, `SunburstVisualizer`
+- **Tier 3 (Nice-to-have):** `SankeyVisualizer`, `DotMatrixVisualizer`, `VennDiagramVisualizer`, `WordCloudVisualizer`
+- **Tier 4 (Extended):** `ArcDiagramVisualizer`, `ChordDiagramVisualizer`, `DonutChartVisualizer`, `FlowChartVisualizer`, `NetworkDiagramVisualizer` (Bayesian Network support), `NightingaleRoseVisualizer`, `RadialBarVisualizer`, `SpiralPlotVisualizer`, `StreamGraphVisualizer`
+- **Tier A (ML Evaluation):** `ROCCurveVisualizer`, `PRCurveVisualizer`, `CalibrationPlotVisualizer`, `LiftChartVisualizer`, `PDPVisualizer`/`PDP2DVisualizer`, `WaterfallVisualizer`
+- **Tier B (General-Purpose):** `RidgelinePlotVisualizer`, `BumpChartVisualizer`, `LollipopChartVisualizer`, `DumbbellChartVisualizer`, `FunnelChartVisualizer`, `GaugeChartVisualizer`
+- **ML Reports:** `ClassificationReport`, `RegressionReport` - Comprehensive HTML model evaluation reports
+- All charts: self-contained HTML (no CDN), dark/light themes, Jupyter display, classmethod constructors for ML patterns
+
+---
+
+### Experiment Tracking (`eg.tracking`) ✅
 
 - [x] `ExperimentLogger` - Abstract base class for experiment logging backends
 - [x] `MLflowLogger` - MLflow-backed logger (lazy import, param flattening, model flavor auto-detection)
@@ -797,15 +877,9 @@ These features represent the biggest gaps relative to AutoGluon and the current 
 #### Visualization
 - [x] **Interactive Decision Tree Visualization** - HTML/JS tree rendering ✅
   - Implemented: `TreeVisualizer` with interactive D3.js-based HTML rendering
-- [x] **Comprehensive Visualization Suite** - 42 interactive chart types ✅
-  - Shared infrastructure: `BaseVisualizer` ABC, palettes (_palettes.py), HTML template (_html_template.py)
-  - **Tier 1 (Critical):** `BarChartVisualizer`, `HeatmapVisualizer`, `ConfusionMatrixVisualizer`, `HistogramVisualizer`, `LineChartVisualizer`, `ScatterplotVisualizer`
-  - **Tier 2 (Important):** `BoxPlotVisualizer`, `ViolinPlotVisualizer`, `ErrorBarsVisualizer`, `ParallelCoordinatesVisualizer`, `RadarChartVisualizer`, `TreemapVisualizer`, `SunburstVisualizer`
-  - **Tier 3 (Nice-to-have):** `SankeyVisualizer`, `DotMatrixVisualizer`, `VennDiagramVisualizer`, `WordCloudVisualizer`
-  - **Tier 4 (Extended):** `ArcDiagramVisualizer`, `ChordDiagramVisualizer`, `DonutChartVisualizer`, `FlowChartVisualizer`, `NetworkDiagramVisualizer` (Bayesian Network support), `NightingaleRoseVisualizer`, `RadialBarVisualizer`, `SpiralPlotVisualizer`, `StreamGraphVisualizer`
-  - **Tier A (ML Evaluation):** `ROCCurveVisualizer`, `PRCurveVisualizer`, `CalibrationPlotVisualizer`, `LiftChartVisualizer`, `PDPVisualizer`/`PDP2DVisualizer`, `WaterfallVisualizer`
-  - **Tier B (General-Purpose):** `RidgelinePlotVisualizer`, `BumpChartVisualizer`, `LollipopChartVisualizer`, `DumbbellChartVisualizer`, `FunnelChartVisualizer`, `GaugeChartVisualizer`
-  - All charts: self-contained HTML (no CDN), dark/light themes, Jupyter display, classmethod constructors for ML patterns
+
+- [x] **Comprehensive Visualization Suite** - 44 interactive chart types + 2 ML reports ✅
+  - See Visualization section above for full listing
 
 #### Documentation
 - [x] **Documentation Directory Setup** - Sphinx/MkDocs scaffolding ✅
@@ -846,6 +920,18 @@ These are the latest high-performing tabular models from the research literature
   - Complexity: High
   - Notes: Transformer-based in-context learning competitive with TabPFN on larger datasets. Strong on numeric features.
   - Reference: Ye et al., 2025 - "TabICL: A Tabular Foundation Model for In-Context Learning"
+
+- [ ] **CARTE** - Context-Aware Representation of Table Entries
+  - Priority: 🟡 Medium
+  - Complexity: High
+  - Notes: Pre-trained tabular model leveraging external knowledge via contextual embeddings. Strong zero-shot transfer.
+  - Reference: Kim et al., 2024 - "CARTE: Pretraining and Transfer for Tabular Learning"
+
+- [ ] **ModernTCN** - Modern Temporal Convolutional Network for Tabular Data
+  - Priority: 🟡 Medium
+  - Complexity: Medium
+  - Notes: TCN architecture adapted for tabular data with modern training techniques.
+  - Reference: Luo & Wang, 2024 - "ModernTCN: A Modern Pure Convolution Structure for General Time Series Analysis"
 
 - [ ] **Trompt** - Tabular Prompt Learning
   - Priority: 🟢 Low
@@ -900,9 +986,33 @@ These features address the growing importance of data quality, fairness, and mod
   - Complexity: Medium
   - Notes: `DriftDetector` with PSI, KS-test, MMD, adversarial detection. Extends existing `AdversarialValidator` concept to production monitoring.
 
+- [ ] **Data Valuation**
+  - Priority: 🟡 Medium
+  - Complexity: High
+  - Notes: Data Shapley values for quantifying individual data point contributions. `DataValuator` with TMC-Shapley and KNN-Shapley.
+  - Reference: Ghorbani & Zou, 2019 - "Data Shapley: Equitable Valuation of Data for Machine Learning"
+
 ---
 
 ### Tier 3: Advanced Learning Paradigms
+
+#### Conformal Extensions
+- [ ] **Conformal Risk Control** - Distribution-free risk guarantees
+  - Priority: 🟡 Medium
+  - Complexity: Medium
+  - Notes: Generalization of conformal prediction to arbitrary monotone loss functions. Coverage → risk control.
+  - Reference: Angelopoulos et al., 2024 - "Conformal Risk Control"
+
+- [ ] **Conformal Selection** - FDR-controlled variable selection
+  - Priority: 🟢 Low
+  - Complexity: Medium
+  - Notes: Apply conformal inference to feature selection with FDR control.
+
+- [ ] **Adaptive Conformal Inference** - Online conformal with distribution shift
+  - Priority: 🟡 Medium
+  - Complexity: Medium
+  - Notes: Conformal prediction that adapts to distribution shifts over time.
+  - Reference: Gibbs & Candès, 2021 - "Adaptive Conformal Inference Under Distribution Shift"
 
 #### Active Learning (`eg.active_learning`)
 - [ ] **Query Strategies**
@@ -938,11 +1048,16 @@ These features address the growing importance of data quality, fairness, and mod
   - Complexity: Medium
   - Notes: Deep learning for survival analysis.
 
+- [ ] **Kaplan-Meier / Nelson-Aalen** - Non-parametric survival estimators
+  - Priority: 🟡 Medium
+  - Complexity: Low
+  - Notes: Foundation estimators for survival curves and cumulative hazard.
+
 #### Causal Inference (`eg.causal`)
 - [ ] **Treatment Effect Estimation**
   - Priority: 🟡 Medium
   - Complexity: High
-  - Notes: `CausalForest`, `DoublyRobustEstimator`, `InversePropensityWeighting`. Growing importance in industry. DoWhy/EconML integration.
+  - Notes: `CausalForest`, `DoublyRobustEstimator`, `InversePropensityWeighting`, `MetaLearners` (S-learner, T-learner, X-learner). DoWhy/EconML integration.
   - Reference: Athey & Imbens, 2019 - "Generalized Random Forests"
 
 #### Semi-Supervised Extensions
@@ -1011,16 +1126,28 @@ These features address the growing importance of data quality, fairness, and mod
   - Complexity: Low
   - Notes: Regularization via interpolation for neural tabular models.
 
-- [ ] **Snapshot Ensembles** - Cyclic LR ensembling
-  - Priority: 🟢 Low
-  - Complexity: Low
-  - Notes: Free ensemble from single training run.
-
 #### Time Series Additions
 - [ ] **Chronos Integration** - Foundation model for time series
   - Priority: 🟡 Medium
   - Complexity: Low
   - Notes: Amazon's zero-shot forecasting model. Chronos-2 recently released.
+  - Reference: Ansari et al., 2024 - "Chronos: Learning the Language of Time Series"
+
+- [ ] **TimesFM** - Google's Time Series Foundation Model
+  - Priority: 🟡 Medium
+  - Complexity: Low
+  - Notes: Pre-trained on 100B time points, strong zero-shot performance.
+  - Reference: Das et al., 2024 - "A Decoder-Only Foundation Model for Time-Series Forecasting"
+
+- [ ] **Moirai** - Salesforce's universal forecaster
+  - Priority: 🟢 Low
+  - Complexity: Medium
+  - Notes: Multi-dataset pre-trained universal forecasting model.
+
+- [ ] **TinyTimeMixer** - Lightweight time series foundation model
+  - Priority: 🟢 Low
+  - Complexity: Low
+  - Notes: IBM's compact foundation model for efficient time series forecasting.
 
 #### Signal Processing Additions
 - [ ] EMD (Empirical Mode Decomposition)
@@ -1048,7 +1175,7 @@ These features address the growing importance of data quality, fairness, and mod
   - Complexity: Medium
   - Notes: optbinning integration.
 
-#### Model Compression
+#### Model Compression & Edge Deployment
 - [ ] **Model Pruning Utilities** - Neural network pruning
   - Priority: 🟢 Low
   - Complexity: Medium
@@ -1059,34 +1186,60 @@ These features address the growing importance of data quality, fairness, and mod
   - Complexity: High
   - Notes: `optimize_for_inference()` method.
 
+- [ ] **TFLite / CoreML / OpenVINO Export** - Edge deployment formats
+  - Priority: 🟢 Low
+  - Complexity: Medium
+  - Notes: Post-training quantization and format conversion for mobile/edge.
+
 #### Meta-Learning
 - [ ] **Zero-Shot HPO** - TabRepo-style learned portfolios
   - Priority: 🟡 Medium
   - Complexity: High
-  - Notes: Pre-computed optimal configs from 200+ datasets.
+  - Notes: Pre-computed optimal configs from 200+ datasets. `TabRepoPortfolio`, `MetaLearningHPO`.
 
-#### Multi-Target Extensions
-- [ ] **Classifier Chains** - Structured multi-label
-  - Priority: 🟢 Low
-  - Complexity: Low
-  - Notes: Exploit label dependencies.
-
-- [ ] **Multi-Task Neural Network** - Shared backbone multi-task
-  - Priority: 🟢 Low
+#### Agentic ML
+- [ ] **MCP Expansion for Agentic AutoML** - LLM-driven ML pipeline orchestration
+  - Priority: 🟡 Medium
   - Complexity: Medium
-  - Notes: Joint learning with task-specific heads.
+  - Notes: Expand MCP server for autonomous multi-step ML workflows, experiment tracking, and iterative improvement.
 
-#### Validation Additions
-- [ ] **Blocking Time Series Split** - Block bootstrap CV
-  - Priority: 🟢 Low
+#### Published Benchmarks
+- [ ] **TabArena Results** - Standardized benchmark comparisons
+  - Priority: 🟡 Medium
   - Complexity: Low
-  - Notes: Alternative to purged TS split.
+  - Notes: Published comparison vs AutoGluon, H2O, FLAML on standard benchmarks.
 
-#### Ensemble Additions
-- [ ] **Negative Correlation Learning** - Diversity-promoting ensemble
-  - Priority: 🟢 Low
-  - Complexity: High
-  - Notes: Train diverse ensemble members jointly.
+---
+
+## Future Version Roadmap
+
+### v1.1.0 — Data-Centric AI & Foundation Models
+- [ ] Data Quality Module (profiling, drift detection, duplicate detection, data valuation)
+- [ ] ExcelFormer, TabICL, CARTE, ModernTCN (remaining SOTA tabular models)
+- [ ] Conformal extensions (risk control, selection, adaptive inference)
+- [ ] Active Learning framework (uncertainty sampling, QBC, BatchBALD)
+- [ ] SWA, TabularMixup/CutMix training utilities
+- [ ] Agentic ML: MCP expansion for agentic AutoML workflows
+- [ ] Published benchmarks: TabArena results, comparison vs AutoGluon/H2O/FLAML
+
+### v1.2.0 — Advanced Learning Paradigms
+- [ ] Survival Analysis (`eg.survival`): CoxPH, RSF, DeepSurv, KaplanMeier, NelsonAalen
+- [ ] Causal Inference (`eg.causal`): CausalForest, DoublyRobust, IPW, MetaLearners, DoWhy
+- [ ] Time Series Foundation Models: Chronos/Chronos-2, TimesFM, Moirai, TinyTimeMixer
+- [ ] Online Learning (`eg.online`): River wrapper, HoeffdingTree, concept drift detection
+- [ ] Graph ML (`eg.graph`): GCN, GAT, GraphSAGE, TabularGNN (optional: torch_geometric)
+- [ ] Zero-Shot HPO: TabRepoPortfolio, MetaLearningHPO
+- [ ] Pipeline Templates: Pre-built competition pipelines
+- [ ] Rule Induction: RIPPER, CN2
+- [ ] Signal Extensions: EMD, Catch22, HRV features
+
+### v2.0.0 — Next Generation
+- [ ] Federated Learning (`eg.federated`): FederatedTrainer, DP-SGD, SecureAggregation
+- [ ] Multi-Modal Improvements: CLIP embeddings, FusionTransformer, TabularImageClassifier
+- [ ] Reinforcement Learning Basics (`eg.rl`): ContextualBandit, ThompsonSampling, LinUCB
+- [ ] Edge Deployment: TFLite, CoreML, OpenVINO export, post-training quantization
+- [ ] Advanced Compression: ModelPruning, TensorRT optimization
+- [ ] Quantum ML (experimental): QuantumKernelClassifier, VQC (optional: pennylane)
 
 ---
 
@@ -1113,7 +1266,7 @@ These features address the growing importance of data quality, fairness, and mod
 
 ---
 
-## Version Targets
+## Version History
 
 ### v0.6.0
 - [x] Time Series Module (`eg.timeseries`) ✅
@@ -1126,7 +1279,7 @@ These features address the growing importance of data quality, fairness, and mod
 - [x] Geometric/Generative/LLM Imbalance Methods ✅
 - [x] Symbolic Regression ✅
 
-### v0.7.0 ✅
+### v0.7.0
 - [x] Interactive Decision Tree Visualization (HTML/JS, collapsible, zoomable) ✅
 - [x] Documentation Directory Setup (Sphinx/MkDocs scaffolding) ✅
 - [x] TabPFN v2 Integration (Nature 2025 foundation model) ✅
@@ -1153,25 +1306,25 @@ These features address the growing importance of data quality, fairness, and mod
 - [x] Refit on Full Data (`refit_full()` for deployment) ✅
 - [x] MultiModal Enhancement (embedding + attention fusion) ✅
 
-### v1.0.0 (Current) ✅
-- [x] Version bump and stable release
-- [x] All public modules accessible via `eg.<name>` lazy loading
-- [x] API stability guarantee
-- [x] Comprehensive documentation site
-- [x] Tutorial notebooks for each module
-- [x] Neuroevolution models (NEAT, TensorNEAT)
+### v1.0.0
+- [x] Version bump and stable release ✅
+- [x] All public modules accessible via `eg.<name>` lazy loading ✅
+- [x] API stability guarantee ✅
+- [x] Comprehensive documentation site ✅
+- [x] Tutorial notebooks for each module ✅
+- [x] Neuroevolution models (NEAT, TensorNEAT) ✅
+- [x] Expanded ensemble methods (17+ classes: voting, bagging, boosting, SuperLearner, BMA, NCL, snapshot, cascade) ✅
+- [x] treeple-backed tree models (ExtraOblique, PatchOblique, HonestForest) ✅
 
-### v1.1.0 (Next)
-- [ ] Data Quality Module (profiling, drift detection)
-- [ ] ExcelFormer, TabICL (remaining SOTA tabular models)
-- [ ] Active Learning framework
-- [ ] SWA Training Utility
-- [ ] Pipeline Templates
-- [ ] Survival Analysis (RSF, Cox, DeepSurv)
-- [ ] Causal Inference (CausalForest, DoublyRobust)
-- [ ] Online/Streaming Learning (River integration)
-- [ ] Zero-Shot HPO
-- [ ] Published performance benchmarks on TabArena
+### v1.0.2 (Current)
+- [x] Guardrails module (`eg.guardrails`) - LeakageDetector, data quality checks ✅
+- [x] MCP Server (`eg.mcp`) - Full MCP server with 10+ tool modules, session management, code generation ✅
+- [x] AutoML search expansions (BanditSearch, AdaptiveSearch — 7 strategies total) ✅
+- [x] AutoML `exhaustive` preset ✅
+- [x] AutoML guardrails & reporting (QualityGuardrailsExecutor, AutoMLReport, ReportGenerator) ✅
+- [x] Visualization reports (ClassificationReport, RegressionReport — 44 chart types total) ✅
+- [x] BlockedTimeSeriesSplit in `eg.timeseries` ✅
+
 ---
 
 ## Test Coverage
@@ -1190,6 +1343,7 @@ These features address the growing importance of data quality, fairness, and mod
 | models.rules | test_furia.py | ✅ |
 | models.bayesian | test_bayesian.py | ✅ |
 | models.ngboost | test_ngboost.py | ✅ |
+| models.neuroevolution | test_neat.py | ✅ |
 | models.tabular.gandalf | test_gandalf.py | ✅ |
 | models.tabular.nam | (in test_models.py) | ✅ |
 | models.kernel | (in test_models.py) | ✅ |
@@ -1213,6 +1367,8 @@ These features address the growing importance of data quality, fairness, and mod
 | feature_selection | test_feature_selection.py | ✅ |
 | dimensionality_reduction | test_dimensionality_reduction.py | ✅ |
 | automl | test_automl.py | ✅ |
+| guardrails | test_guardrails.py | ✅ |
+| mcp | test_mcp.py | ✅ |
 | models.tabular.tabm | test_tabm.py | ✅ |
 | models.tabular.tabdpt | test_tabdpt.py | ✅ |
 | models.tabular.realmlp | test_realmlp.py | ✅ |
@@ -1275,10 +1431,16 @@ When implementing a new feature:
 - TabDPT: Ma et al., 2024 - "TabDPT: Scaling Tabular Foundation Models" ✅
 - xRFM: Beaglehole & Holzmüller, 2025 - "xRFM: Accurate, scalable, and interpretable feature learning models for tabular data" ✅
 - Confident Learning: Northcutt et al., 2021 - "Confident Learning: Estimating Uncertainty in Dataset Labels" ✅
+- NEAT: Stanley & Miikkulainen, 2002 - "Evolving Neural Networks through Augmenting Topologies" ✅
 
 ### Papers to Implement (Priority Order)
 - ExcelFormer: Chen et al., 2023 - "ExcelFormer: A Neural Network Surpassing GBDTs on Tabular Data"
 - TabICL: Ye et al., 2025 - "TabICL: A Tabular Foundation Model for In-Context Learning"
+- CARTE: Kim et al., 2024 - "CARTE: Pretraining and Transfer for Tabular Learning"
+- Chronos: Ansari et al., 2024 - "Chronos: Learning the Language of Time Series"
+- TimesFM: Das et al., 2024 - "A Decoder-Only Foundation Model for Time-Series Forecasting"
+- Conformal Risk Control: Angelopoulos et al., 2024 - "Conformal Risk Control"
+- Data Shapley: Ghorbani & Zou, 2019 - "Data Shapley: Equitable Valuation of Data for Machine Learning"
 - CausalForest: Athey & Imbens, 2019 - "Generalized Random Forests"
 - RIPPER: Cohen, 1995 - "Fast Effective Rule Induction"
 - RVM: Tipping, 2001 - "Sparse Bayesian Learning and the Relevance Vector Machine"
@@ -1296,4 +1458,8 @@ When implementing a new feature:
 - `imbalanced-learn` - Resampling methods
 - `pyod` - Python Outlier Detection
 - `hummingbird-ml` - ONNX conversion for tree models
+- `treeple` - Advanced tree models (oblique, patch, honest forests)
+- `mcp` - Model Context Protocol for LLM tool use
+- `chronos-forecasting` - Time series foundation models
+- `torch_geometric` - Graph neural networks
 - `KEEL` (Java) - Instance selection, noise filters, fuzzy systems
