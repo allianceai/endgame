@@ -85,11 +85,11 @@ def create_server() -> FastMCP:
     from endgame.mcp.tools.discover import register as reg_discover
     from endgame.mcp.tools.evaluate import register as reg_evaluate
     from endgame.mcp.tools.export import register as reg_export
+    from endgame.mcp.tools.guardrails import register as reg_guardrails
     from endgame.mcp.tools.predict import register as reg_predict
     from endgame.mcp.tools.preprocess import register as reg_preprocess
     from endgame.mcp.tools.train import register as reg_train
     from endgame.mcp.tools.visualize import register as reg_visualize
-    from endgame.mcp.tools.guardrails import register as reg_guardrails
 
     for reg_fn in (
         reg_data,

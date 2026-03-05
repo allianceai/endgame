@@ -155,7 +155,7 @@ class LeakageDetector(TransformerMixin, BaseEstimator):
         for check_name in checks_to_run:
             if check_time_budget(start, self.time_budget, 0.95):
                 if self.verbose:
-                    logger.info(f"Time budget exceeded, skipping remaining checks")
+                    logger.info("Time budget exceeded, skipping remaining checks")
                 break
 
             check_fn = CHECK_REGISTRY[check_name][0]

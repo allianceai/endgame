@@ -610,7 +610,11 @@ class ClassificationReport:
         """Precision, recall, F1 vs classification threshold (binary only)."""
         from sklearn.metrics import (
             f1_score as _f1,
+        )
+        from sklearn.metrics import (
             precision_score as _prec,
+        )
+        from sklearn.metrics import (
             recall_score as _rec,
         )
 

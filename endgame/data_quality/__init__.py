@@ -2,9 +2,9 @@ from __future__ import annotations
 
 """Data quality module: profiling, deduplication, drift detection, and data valuation."""
 
-from endgame.data_quality.profiler import DataProfile, DataProfiler
-from endgame.data_quality.duplicates import DuplicateDetector, DuplicateReport
 from endgame.data_quality.drift import DriftDetector, DriftReport, FeatureDriftResult
+from endgame.data_quality.duplicates import DuplicateDetector, DuplicateReport
+from endgame.data_quality.profiler import DataProfile, DataProfiler
 from endgame.data_quality.valuation import DataValuator
 
 
