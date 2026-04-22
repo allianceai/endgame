@@ -30,8 +30,10 @@ from sklearn.linear_model import (
 )
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
+from endgame.core.glassbox import GlassboxMixin
 
-class LinearClassifier(ClassifierMixin, BaseEstimator):
+
+class LinearClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Linear Classifier with competition-tuned defaults.
 
     Wraps LogisticRegression with automatic feature scaling and
@@ -247,7 +249,7 @@ class LinearClassifier(ClassifierMixin, BaseEstimator):
         return np.mean(np.abs(self.model_.coef_), axis=0)
 
 
-class LinearRegressor(RegressorMixin, BaseEstimator):
+class LinearRegressor(GlassboxMixin, RegressorMixin, BaseEstimator):
     """Linear Regressor with competition-tuned defaults.
 
     Wraps Ridge/Lasso/ElasticNet with automatic feature scaling and
@@ -414,3 +416,32 @@ class LinearRegressor(RegressorMixin, BaseEstimator):
         if not self._is_fitted:
             raise RuntimeError("LinearRegressor has not been fitted.")
         return np.abs(self.model_.coef_)
+
+
+def _linear_structure(self, *, is_classifier: bool) -> dict:
+    if not self._is_fitted:
+        raise RuntimeError(f"{self.__class__.__name__} has not been fitted.")
+    feature_names = self._structure_feature_names(self.n_features_in_)
+    coef = np.asarray(self.coef_)
+    intercept = np.asarray(self.intercept_).ravel().tolist()
+    if coef.ndim == 1:
+        coefficients = {feature_names[i]: float(c) for i, c in enumerate(coef)}
+    else:
+        coefficients = [
+            {feature_names[i]: float(c) for i, c in enumerate(row)}
+            for row in coef
+        ]
+    return {
+        "link": "logit" if is_classifier else "identity",
+        "coefficients": coefficients,
+        "intercept": intercept if len(intercept) > 1 else float(intercept[0]),
+        "solver": getattr(self, "solver", None),
+        "penalty": getattr(self, "penalty", None),
+        "feature_importances": self.feature_importances_.tolist() if np.asarray(self.feature_importances_).ndim == 1 else np.asarray(self.feature_importances_).tolist(),
+    }
+
+
+LinearClassifier._structure_type = "linear"
+LinearClassifier._structure_content = lambda self: _linear_structure(self, is_classifier=True)
+LinearRegressor._structure_type = "linear"
+LinearRegressor._structure_content = lambda self: _linear_structure(self, is_classifier=False)

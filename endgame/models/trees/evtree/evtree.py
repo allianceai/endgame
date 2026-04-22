@@ -34,6 +34,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.utils import check_random_state
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 # Try to import numba for JIT compilation
 try:
     from numba import jit, prange
@@ -982,7 +985,7 @@ class _EvolutionaryTreeBase(BaseEstimator):
         self._is_fitted = True
 
 
-class EvolutionaryTreeClassifier(_EvolutionaryTreeBase, ClassifierMixin):
+class EvolutionaryTreeClassifier(GlassboxMixin, _EvolutionaryTreeBase, ClassifierMixin):
     """Evolutionary Tree Classifier - Globally optimal trees via genetic algorithms.
 
     Unlike greedy methods (CART, C4.5) that make locally optimal splits,
@@ -1249,7 +1252,7 @@ class EvolutionaryTreeClassifier(_EvolutionaryTreeBase, ClassifierMixin):
         return importances
 
 
-class EvolutionaryTreeRegressor(_EvolutionaryTreeBase, RegressorMixin):
+class EvolutionaryTreeRegressor(GlassboxMixin, _EvolutionaryTreeBase, RegressorMixin):
     """Evolutionary Tree Regressor - Globally optimal trees via genetic algorithms.
 
     Parameters
@@ -1419,3 +1422,57 @@ class EvolutionaryTreeRegressor(_EvolutionaryTreeBase, RegressorMixin):
             importances /= total
 
         return importances
+
+
+def _evtree_node_to_dict(
+    node: TreeNode,
+    feature_names: list[str],
+    class_names: list[Any] | None,
+    depth: int = 0,
+) -> dict[str, Any]:
+    if node.is_leaf():
+        value = node.value.tolist() if len(node.value) > 0 else None
+        out: dict[str, Any] = {
+            "type": "leaf",
+            "depth": depth,
+            "n_samples": int(node.n_samples),
+            "value": value,
+        }
+        if class_names is not None and value is not None:
+            counts = np.asarray(value)
+            out["class"] = class_names[int(np.argmax(counts))]
+        return out
+    feat = int(node.feature_idx)
+    return {
+        "type": "split",
+        "depth": depth,
+        "feature_index": feat,
+        "feature": feature_names[feat] if feat < len(feature_names) else f"x{feat}",
+        "threshold": float(node.threshold),
+        "n_samples": int(node.n_samples),
+        "left": _evtree_node_to_dict(node.left, feature_names, class_names, depth + 1) if node.left else None,
+        "right": _evtree_node_to_dict(node.right, feature_names, class_names, depth + 1) if node.right else None,
+    }
+
+
+def _evtree_structure(self, class_names: list[Any] | None) -> dict[str, Any]:
+    if self.tree_ is None:
+        raise RuntimeError("Tree not fitted.")
+    feature_names = self._structure_feature_names(self.n_features_in_)
+    return {
+        "tree": {
+            "root": _evtree_node_to_dict(self.tree_, feature_names, class_names),
+            "n_nodes": int(self.tree_.count_nodes()),
+            "n_leaves": int(self.tree_.count_leaves()),
+            "max_depth": int(self.tree_.depth()),
+        },
+        "feature_importances": self.feature_importances_.tolist(),
+    }
+
+
+EvolutionaryTreeClassifier._structure_type = "tree"
+EvolutionaryTreeClassifier._structure_content = lambda self: _evtree_structure(
+    self, self.classes_.tolist() if hasattr(self, "classes_") and self.classes_ is not None else None
+)
+EvolutionaryTreeRegressor._structure_type = "tree"
+EvolutionaryTreeRegressor._structure_content = lambda self: _evtree_structure(self, None)

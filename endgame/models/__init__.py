@@ -8,6 +8,7 @@ from endgame.models.wrappers import (
     LGBMWrapper,
     XGBWrapper,
 )
+from endgame.models.multiclass import is_binary_only, ovr_wrap
 
 # NGBoost for probabilistic prediction
 try:
@@ -75,6 +76,9 @@ __all__ = [
     "LGBMWrapper",
     "XGBWrapper",
     "CatBoostWrapper",
+    # Multiclass wrapping for binary-only classifiers
+    "ovr_wrap",
+    "is_binary_only",
     # Custom trees
     "RotationForestClassifier",
     "RotationForestRegressor",

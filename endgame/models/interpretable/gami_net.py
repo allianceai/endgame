@@ -31,6 +31,8 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
+from endgame.core.glassbox import GlassboxMixin
+
 try:
     import torch
     import torch.nn as nn
@@ -324,7 +326,7 @@ class _GAMINetModule(nn.Module):
         return importance
 
 
-class GAMINetClassifier(ClassifierMixin, BaseEstimator):
+class GAMINetClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """GAMI-Net Classifier.
 
     Generalized Additive Model with Structured Interactions.
@@ -773,7 +775,7 @@ class GAMINetClassifier(ClassifierMixin, BaseEstimator):
         return np.vstack(all_main), np.vstack(all_interact)
 
 
-class GAMINetRegressor(RegressorMixin, BaseEstimator):
+class GAMINetRegressor(GlassboxMixin, RegressorMixin, BaseEstimator):
     """GAMI-Net Regressor.
 
     Same as GAMINetClassifier but for regression with MSE loss.
@@ -1066,3 +1068,40 @@ class GAMINetRegressor(RegressorMixin, BaseEstimator):
                 all_interact.append(interact.cpu().numpy())
 
         return np.vstack(all_main), np.vstack(all_interact)
+
+
+def _gaminet_structure(self, *, link: str) -> dict[str, Any]:
+    check_is_fitted(self, "model_")
+    feature_names = self._structure_feature_names(self.n_features_in_)
+    main_importance = self.model_.get_main_importance().tolist()
+    terms: list[dict[str, Any]] = []
+    for i, imp in enumerate(main_importance):
+        terms.append({
+            "name": feature_names[i] if i < len(feature_names) else f"x{i}",
+            "feature_index": i,
+            "type": "main",
+            "importance": float(imp),
+        })
+    for pair in getattr(self, "interaction_pairs_", []):
+        a, b = pair
+        name = f"{feature_names[a]} x {feature_names[b]}" if a < len(feature_names) and b < len(feature_names) else f"x{a} x x{b}"
+        terms.append({
+            "name": name,
+            "feature_indices": [int(a), int(b)],
+            "features": [feature_names[a], feature_names[b]] if a < len(feature_names) and b < len(feature_names) else [f"x{a}", f"x{b}"],
+            "type": "interaction",
+        })
+    return {
+        "link": link,
+        "terms": terms,
+        "n_main_effects": self.n_features_in_,
+        "n_interactions": len(getattr(self, "interaction_pairs_", [])),
+        "feature_importances": main_importance,
+        "note": "Shape functions are neural (MLP); use get_effects(X) for per-sample contributions.",
+    }
+
+
+GAMINetClassifier._structure_type = "additive"
+GAMINetClassifier._structure_content = lambda self: _gaminet_structure(self, link="logit")
+GAMINetRegressor._structure_type = "additive"
+GAMINetRegressor._structure_content = lambda self: _gaminet_structure(self, link="identity")

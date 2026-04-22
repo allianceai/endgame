@@ -204,14 +204,20 @@ class TestAlternatingDecisionTreeClassifier:
         )
         clf.fit(X_train, y_train)
         
-        structure = clf.get_structure()
-        assert isinstance(structure, str)
-        assert "Alternating Decision Tree" in structure
-        
+        text = clf.summary()
+        assert isinstance(text, str)
+        assert "Alternating Decision Tree" in text
+
         # Test with feature names
         feature_names = [f"feat_{i}" for i in range(10)]
-        structure = clf.get_structure(feature_names=feature_names)
-        assert "feat_" in structure
+        text = clf.summary(feature_names=feature_names)
+        assert "feat_" in text
+
+        # Machine-readable dict API
+        struct = clf.get_structure()
+        assert isinstance(struct, dict)
+        assert struct["structure_type"] == "tree"
+        assert "feature_importances" in struct
     
     def test_categorical_features(self):
         """Test with categorical features."""
@@ -373,14 +379,19 @@ class TestAlternatingModelTreeRegressor:
         )
         reg.fit(X_train, y_train)
         
-        structure = reg.get_structure()
-        assert isinstance(structure, str)
-        assert "Alternating Model Tree" in structure
-        
+        text = reg.summary()
+        assert isinstance(text, str)
+        assert "Alternating Model Tree" in text
+
         # Test with feature names
         feature_names = [f"feat_{i}" for i in range(10)]
-        structure = reg.get_structure(feature_names=feature_names)
-        assert "feat_" in structure
+        text = reg.summary(feature_names=feature_names)
+        assert "feat_" in text
+
+        # Machine-readable dict API
+        struct = reg.get_structure()
+        assert isinstance(struct, dict)
+        assert struct["structure_type"] == "tree"
     
     def test_categorical_features(self):
         """Test with categorical features."""

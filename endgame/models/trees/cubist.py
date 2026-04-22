@@ -23,6 +23,8 @@ from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+
 # Try to import Rust backend
 HAS_RUST = False
 CubistRust = None
@@ -39,7 +41,7 @@ except ImportError:
         pass
 
 
-class CubistRegressor(BaseEstimator, RegressorMixin):
+class CubistRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):
     """Cubist Regression Model.
 
     A high-performance implementation of the Cubist algorithm that combines
@@ -373,3 +375,52 @@ class CubistRegressor(BaseEstimator, RegressorMixin):
         for key, value in params.items():
             setattr(self, key, value)
         return self
+
+    _structure_type = "rules"
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self)
+        feature_names = self._structure_feature_names(self.n_features_in_)
+        backend = "rust" if self._use_rust_backend else "python"
+        rules_repr: list[dict[str, Any]] = []
+        committees: list[dict[str, Any]] = []
+
+        if not self._use_rust_backend:
+            from endgame.core.glassbox import sklearn_tree_to_dict
+
+            for c_idx, (tree, leaf_models) in enumerate(
+                zip(self._trees, self._linear_models)
+            ):
+                leaf_model_dicts = []
+                for leaf_id, lr in leaf_models.items():
+                    if lr is None:
+                        leaf_model_dicts.append({
+                            "leaf_id": int(leaf_id),
+                            "intercept": None,
+                            "coefficients": None,
+                        })
+                    else:
+                        leaf_model_dicts.append({
+                            "leaf_id": int(leaf_id),
+                            "intercept": float(lr.intercept_),
+                            "coefficients": [float(c) for c in np.asarray(lr.coef_).ravel()],
+                        })
+                committees.append({
+                    "committee_index": c_idx,
+                    "tree": sklearn_tree_to_dict(tree.tree_, feature_names, None),
+                    "leaf_linear_models": leaf_model_dicts,
+                })
+
+        return {
+            "backend": backend,
+            "n_rules": int(self.n_rules_),
+            "committees": committees,
+            "feature_importances": self.feature_importances_.tolist(),
+            "note": (
+                "Rust backend does not expose rule internals; use Python backend "
+                "(use_rust=False) to inspect trees and per-leaf linear models."
+                if self._use_rust_backend
+                else None
+            ),
+            "rules": rules_repr,
+        }

@@ -28,6 +28,8 @@ from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+
 # Try to import Rust backend
 try:
     from endgame.models.trees.c50_rust import C50Classifier as RustC50Classifier
@@ -406,7 +408,7 @@ class Pruner:
             node.errors = tree_errors
 
 
-class C50Classifier(ClassifierMixin, BaseEstimator):
+class C50Classifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """C5.0 Decision Tree Classifier.
 
     A high-performance implementation of the C5.0 decision tree algorithm
@@ -767,19 +769,10 @@ class C50Classifier(ClassifierMixin, BaseEstimator):
             return self._rust_clf.feature_importances()
         return self._importances
 
-    def get_structure(self, feature_names: list[str] | None = None) -> str:
-        """Get a human-readable representation of the decision tree structure.
+    _structure_type = "tree"
 
-        Parameters
-        ----------
-        feature_names : list of str, optional
-            Names for the features. If None, uses feature indices.
-
-        Returns
-        -------
-        structure : str
-            Text representation of the tree.
-        """
+    def summary(self, feature_names: list[str] | None = None) -> str:
+        """Human-readable text representation of the decision tree."""
         check_is_fitted(self)
         if self._use_rust_backend:
             return "Tree structure not available for Rust backend"
@@ -833,12 +826,72 @@ class C50Classifier(ClassifierMixin, BaseEstimator):
                 lines.append(f"{prefix}{attr_name} = {i}:")
                 self._format_node(branch, feature_names, lines, indent + 1)
 
-    def summary(self, feature_names: list[str] | None = None) -> str:
-        """Alias for get_structure for API consistency."""
-        return self.get_structure(feature_names)
+    def _node_to_dict(self, node: TreeNode, feature_names: list[str], depth: int = 0) -> dict[str, Any]:
+        if node.is_leaf:
+            total = float(node.class_dist.sum())
+            return {
+                "type": "leaf",
+                "depth": depth,
+                "n_samples": total,
+                "class_distribution": node.class_dist.tolist(),
+                "class": self.classes_[node.class_].item() if hasattr(self.classes_[node.class_], "item") else self.classes_[node.class_],
+                "confidence": float(node.class_dist[node.class_] / total) if total > 0 else 0.0,
+                "errors": float(node.errors),
+            }
+        attr = node.tested_attr
+        feat_name = feature_names[attr] if attr < len(feature_names) else f"x{attr}"
+        out: dict[str, Any] = {
+            "type": "split",
+            "depth": depth,
+            "feature_index": int(attr),
+            "feature": feat_name,
+            "split_type": node.node_type.name.lower(),
+            "n_samples": float(node.cases),
+        }
+        if node.node_type == NodeType.THRESHOLD:
+            out["threshold"] = float(node.threshold) if node.threshold is not None else None
+            out["branches"] = [
+                {"edge": "<=", "child": self._node_to_dict(node.branches[0], feature_names, depth + 1)}
+                if len(node.branches) >= 1 else None,
+                {"edge": ">", "child": self._node_to_dict(node.branches[1], feature_names, depth + 1)}
+                if len(node.branches) >= 2 else None,
+            ]
+            out["branches"] = [b for b in out["branches"] if b is not None]
+        elif node.node_type == NodeType.SUBSET and node.subsets is not None:
+            out["subsets"] = [list(s) for s in node.subsets]
+            out["branches"] = [
+                {"edge": f"subset_{i}", "child": self._node_to_dict(b, feature_names, depth + 1)}
+                for i, b in enumerate(node.branches)
+            ]
+        else:
+            out["branches"] = [
+                {"edge": f"={i}", "child": self._node_to_dict(b, feature_names, depth + 1)}
+                for i, b in enumerate(node.branches)
+            ]
+        return out
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self)
+        feature_names = self._structure_feature_names(self.n_features_in_)
+        if self._use_rust_backend:
+            importances = self.feature_importances_.tolist() if self.feature_importances_ is not None else []
+            return {
+                "backend": "rust",
+                "tree": None,
+                "note": "Tree internals not exposed by Rust backend",
+                "feature_importances": importances,
+            }
+        return {
+            "tree": {
+                "root": self._node_to_dict(self.tree_, feature_names, depth=0),
+                "n_leaves": int(self.tree_.n_leaves()),
+                "max_depth": int(self.tree_.depth()),
+            },
+            "feature_importances": self.feature_importances_.tolist() if self.feature_importances_ is not None else [],
+        }
 
 
-class C50Ensemble(ClassifierMixin, BaseEstimator):
+class C50Ensemble(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Boosted C5.0 Ensemble Classifier.
 
     Uses AdaBoost-style boosting to combine multiple C5.0 trees.
@@ -1020,19 +1073,10 @@ class C50Ensemble(ClassifierMixin, BaseEstimator):
 
         return proba
 
-    def get_structure(self, feature_names: list[str] | None = None) -> str:
-        """Get a summary of the boosted ensemble structure.
+    _structure_type = "tree_ensemble"
 
-        Parameters
-        ----------
-        feature_names : list of str, optional
-            Names for the features.
-
-        Returns
-        -------
-        structure : str
-            Text representation of the ensemble.
-        """
+    def summary(self, feature_names: list[str] | None = None) -> str:
+        """Human-readable summary of the boosted ensemble."""
         check_is_fitted(self)
 
         lines = []
@@ -1052,6 +1096,22 @@ class C50Ensemble(ClassifierMixin, BaseEstimator):
 
         return "\n".join(lines)
 
-    def summary(self, feature_names: list[str] | None = None) -> str:
-        """Alias for get_structure for API consistency."""
-        return self.get_structure(feature_names)
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self)
+        trees = []
+        for clf, weight in zip(self.estimators_, self.estimator_weights_):
+            try:
+                tree_struct = clf.get_structure().get("tree") if hasattr(clf, "get_structure") else None
+            except Exception:
+                tree_struct = None
+            trees.append({"weight": float(weight), "tree": tree_struct})
+        return {
+            "trees": trees,
+            "n_trees": len(self.estimators_),
+            "weights": [float(w) for w in self.estimator_weights_],
+            "feature_importances": (
+                self.feature_importances_.tolist()
+                if getattr(self, "feature_importances_", None) is not None
+                else []
+            ),
+        }

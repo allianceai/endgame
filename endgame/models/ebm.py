@@ -33,6 +33,8 @@ from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+
 try:
     from interpret.glassbox import (
         ExplainableBoostingClassifier,
@@ -54,7 +56,7 @@ def _check_interpret_installed():
         )
 
 
-class EBMBase(BaseEstimator):
+class EBMBase(GlassboxMixin, BaseEstimator):
     """Base class for EBM wrappers with common functionality.
 
     This class provides shared functionality for both classification and
@@ -391,6 +393,42 @@ class EBMBase(BaseEstimator):
         """
         check_is_fitted(self, "_ebm")
         self._ebm.to_json(file, detail=detail, indent=indent)
+
+    _structure_type = "additive"
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, "_ebm")
+        term_names = self.get_term_names()
+        importances = self.term_importances()
+        terms_payload: list[dict[str, Any]] = []
+        for i, (term, name, imp) in enumerate(
+            zip(self.term_features_, term_names, importances)
+        ):
+            entry: dict[str, Any] = {
+                "index": i,
+                "name": name,
+                "features": [self.feature_names_in_[j] for j in term],
+                "feature_indices": [int(j) for j in term],
+                "type": "main" if len(term) == 1 else "interaction",
+                "importance": float(imp),
+                "scores": np.asarray(self.term_scores_[i]).tolist(),
+            }
+            if len(term) == 1:
+                try:
+                    bins = self._ebm.bins_[term[0]][0]
+                    entry["bin_edges"] = np.asarray(bins).tolist()
+                except Exception:
+                    pass
+            terms_payload.append(entry)
+        return {
+            "intercept": (
+                np.asarray(self._ebm.intercept_).tolist()
+                if hasattr(self._ebm, "intercept_") else None
+            ),
+            "terms": terms_payload,
+            "n_terms": len(terms_payload),
+            "feature_importances": {k: float(v) for k, v in self.get_feature_importances().items()},
+        }
 
     def get_histogram(self, term: int | str) -> tuple[NDArray, NDArray]:
         """Get the histogram (bin edges and scores) for a term.

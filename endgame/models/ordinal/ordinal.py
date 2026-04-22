@@ -25,6 +25,8 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
+from endgame.core.glassbox import GlassboxMixin
+
 # Try importing mord
 _HAS_MORD = False
 try:
@@ -34,7 +36,7 @@ except ImportError:
     pass
 
 
-class OrdinalClassifier(ClassifierMixin, BaseEstimator):
+class OrdinalClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Unified Ordinal Regression Classifier with auto-variant selection.
 
     Wraps mord library ordinal regression methods with automatic model
@@ -536,3 +538,31 @@ class LAD(OrdinalClassifier):
             auto_scale=auto_scale,
             random_state=random_state,
         )
+
+
+def _ordinal_structure(self) -> dict:
+    if not self._is_fitted:
+        raise RuntimeError(f"{self.__class__.__name__} has not been fitted.")
+    feature_names = self._structure_feature_names(self.n_features_in_)
+    out: dict = {
+        "variant": self.variant_ if hasattr(self, "variant_") else self.variant,
+        "link": "cumulative_logit",
+        "alpha": float(self.alpha),
+    }
+    if hasattr(self, "coef_") and self.coef_ is not None:
+        coef = np.asarray(self.coef_)
+        if coef.ndim == 1:
+            out["coefficients"] = {feature_names[i]: float(c) for i, c in enumerate(coef)}
+        else:
+            out["coefficients"] = [
+                {feature_names[i]: float(c) for i, c in enumerate(row)} for row in coef
+            ]
+    if hasattr(self, "theta_") and self.theta_ is not None:
+        out["thresholds"] = np.asarray(self.theta_).ravel().tolist()
+    if hasattr(self, "intercept_") and self.intercept_ is not None:
+        out["intercept"] = np.asarray(self.intercept_).ravel().tolist()
+    return out
+
+
+OrdinalClassifier._structure_type = "linear"
+OrdinalClassifier._structure_content = _ordinal_structure

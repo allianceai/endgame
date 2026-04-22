@@ -19,8 +19,10 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.naive_bayes import BernoulliNB, ComplementNB, GaussianNB, MultinomialNB
 from sklearn.preprocessing import LabelEncoder
 
+from endgame.core.glassbox import GlassboxMixin
 
-class NaiveBayesClassifier(ClassifierMixin, BaseEstimator):
+
+class NaiveBayesClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Naive Bayes Classifier with automatic variant selection.
 
     Automatically selects the appropriate Naive Bayes variant based on
@@ -308,3 +310,39 @@ class NaiveBayesClassifier(ClassifierMixin, BaseEstimator):
         elif hasattr(self.model_, 'class_prior_'):
             return np.log(self.model_.class_prior_)
         return None
+
+
+    _structure_type = "linear"
+
+    def _structure_content(self) -> dict:
+        if not self._is_fitted:
+            raise RuntimeError("NaiveBayesClassifier has not been fitted.")
+        feature_names = self._structure_feature_names(self.n_features_in_)
+        payload: dict = {
+            "variant": self.variant_ or self.variant,
+            "link": "log_likelihood",
+        }
+        # Class priors
+        if hasattr(self.model_, "class_prior_"):
+            payload["class_priors"] = np.asarray(self.model_.class_prior_).tolist()
+        elif hasattr(self.model_, "class_log_prior_"):
+            payload["class_log_priors"] = np.asarray(self.model_.class_log_prior_).tolist()
+
+        # Variant-specific parameters
+        if hasattr(self.model_, "theta_") and hasattr(self.model_, "var_"):
+            # GaussianNB: per-class mean and variance per feature
+            payload["means"] = {
+                str(c): {feature_names[i]: float(v) for i, v in enumerate(row)}
+                for c, row in zip(self.classes_, self.model_.theta_)
+            }
+            payload["variances"] = {
+                str(c): {feature_names[i]: float(v) for i, v in enumerate(row)}
+                for c, row in zip(self.classes_, self.model_.var_)
+            }
+        elif hasattr(self.model_, "feature_log_prob_"):
+            # Multinomial / Bernoulli / Complement
+            payload["feature_log_probs"] = {
+                str(c): {feature_names[i]: float(v) for i, v in enumerate(row)}
+                for c, row in zip(self.classes_, self.model_.feature_log_prob_)
+            }
+        return payload

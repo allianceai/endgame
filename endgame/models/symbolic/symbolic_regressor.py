@@ -22,6 +22,8 @@ from numpy.typing import NDArray
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+
 from endgame.models.symbolic._constant_optimizer import optimize_constants
 from endgame.models.symbolic._expression import (
     Node,
@@ -119,7 +121,7 @@ def _get_loss_fn(loss: str) -> Callable[[np.ndarray, np.ndarray], float]:
         return lambda y, yp: float(np.mean((y - yp) ** 2))
 
 
-class SymbolicRegressor(BaseEstimator, RegressorMixin):
+class SymbolicRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):
     """Symbolic Regression for discovering interpretable equations.
 
     Uses multi-population genetic programming with Pareto-frontier
@@ -549,3 +551,26 @@ class SymbolicRegressor(BaseEstimator, RegressorMixin):
         if hasattr(self, "best_equation_"):
             return f"SymbolicRegressor(best={self.best_equation_}, loss={self.best_loss_:.4f})"
         return f"SymbolicRegressor(preset={self.preset!r}, operators={self.operators!r})"
+
+    _structure_type = "symbolic"
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, "model_")
+        frontier = []
+        try:
+            pf = self._frontier.get_pareto_optimal()
+            for _, row in pf.iterrows():
+                frontier.append({
+                    "complexity": int(row["complexity"]),
+                    "equation": str(row["equation"]),
+                    "loss": float(row["loss"]),
+                })
+        except Exception:
+            pass
+        return {
+            "equation": str(self.best_equation_),
+            "best_loss": float(self.best_loss_),
+            "best_complexity": int(self.best_complexity_),
+            "pareto_frontier": frontier,
+            "feature_importances": self.feature_importances_.tolist(),
+        }

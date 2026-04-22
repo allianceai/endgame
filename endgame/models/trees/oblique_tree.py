@@ -20,6 +20,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 from endgame.models.trees.oblique_splits import (
     ObliqueSplit,
     compute_entropy,
@@ -68,7 +71,7 @@ class ObliqueTreeNode:
     node_id: int = 0
 
 
-class ObliqueDecisionTreeClassifier(ClassifierMixin, BaseEstimator):
+class ObliqueDecisionTreeClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """A single oblique decision tree for classification.
 
     This is the base estimator used by ObliqueRandomForestClassifier.
@@ -571,8 +574,23 @@ class ObliqueDecisionTreeClassifier(ClassifierMixin, BaseEstimator):
             return 1
         return self._count_leaves(node.left) + self._count_leaves(node.right)
 
+    _structure_type = "tree"
 
-class ObliqueDecisionTreeRegressor(BaseEstimator, RegressorMixin):
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, ["tree_"])
+        feature_names = self._structure_feature_names(self.n_features_in_)
+        return {
+            "tree": {
+                "root": _oblique_node_to_dict(self.tree_, feature_names, self.classes_.tolist()),
+                "max_depth": int(self.get_depth()),
+                "n_leaves": int(self.get_n_leaves()),
+            },
+            "oblique_method": self.oblique_method,
+            "feature_importances": self.feature_importances_.tolist(),
+        }
+
+
+class ObliqueDecisionTreeRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):
     """A single oblique decision tree for regression.
 
     This is the base estimator used by ObliqueRandomForestRegressor.
@@ -964,3 +982,57 @@ class ObliqueDecisionTreeRegressor(BaseEstimator, RegressorMixin):
         if node.is_leaf:
             return 1
         return self._count_leaves(node.left) + self._count_leaves(node.right)
+
+
+def _oblique_node_to_dict(
+    node: ObliqueTreeNode,
+    feature_names: list[str],
+    class_names: list[Any] | None,
+) -> dict[str, Any]:
+    if node.is_leaf:
+        value = node.value.tolist() if node.value is not None else None
+        out: dict[str, Any] = {
+            "type": "leaf",
+            "depth": int(node.depth),
+            "n_samples": int(node.n_samples),
+            "impurity": float(node.impurity),
+            "value": value,
+        }
+        if class_names is not None and value is not None:
+            counts = np.asarray(value)
+            out["class"] = class_names[int(np.argmax(counts))]
+        return out
+    split = node.split
+    return {
+        "type": "split",
+        "depth": int(node.depth),
+        "n_samples": int(node.n_samples),
+        "impurity": float(node.impurity),
+        "feature_indices": [int(i) for i in split.feature_indices],
+        "features": [feature_names[i] if i < len(feature_names) else f"x{i}" for i in split.feature_indices],
+        "coefficients": [float(c) for c in split.coefficients],
+        "threshold": float(split.threshold),
+        "left": _oblique_node_to_dict(node.left, feature_names, class_names),
+        "right": _oblique_node_to_dict(node.right, feature_names, class_names),
+    }
+
+
+def _attach_oblique_regressor_structure():
+    """Attach _structure_content to ObliqueDecisionTreeRegressor."""
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, ["tree_"])
+        feature_names = self._structure_feature_names(self.n_features_in_)
+        return {
+            "tree": {
+                "root": _oblique_node_to_dict(self.tree_, feature_names, None),
+                "max_depth": int(self.get_depth()),
+                "n_leaves": int(self.get_n_leaves()),
+            },
+            "oblique_method": self.oblique_method,
+            "feature_importances": self.feature_importances_.tolist(),
+        }
+    ObliqueDecisionTreeRegressor._structure_type = "tree"
+    ObliqueDecisionTreeRegressor._structure_content = _structure_content
+
+
+_attach_oblique_regressor_structure()

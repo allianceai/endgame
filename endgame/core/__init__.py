@@ -8,6 +8,7 @@ from endgame.core.base import (
     EndgameRegressorMixin,
     PolarsTransformer,
 )
+from endgame.core.glassbox import GlassboxMixin, sklearn_tree_to_dict
 from endgame.core.config import (
     CATBOOST_ENDGAME_DEFAULTS,
     LGBM_ENDGAME_DEFAULTS,
@@ -36,6 +37,9 @@ __all__ = [
     "PolarsTransformer",
     "EndgameClassifierMixin",
     "EndgameRegressorMixin",
+    # Glassbox structure extraction
+    "GlassboxMixin",
+    "sklearn_tree_to_dict",
     # Config
     "LGBM_ENDGAME_DEFAULTS",
     "XGB_ENDGAME_DEFAULTS",

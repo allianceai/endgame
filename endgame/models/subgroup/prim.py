@@ -27,6 +27,9 @@ import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.preprocessing import LabelEncoder
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 
 @dataclass
 class Box:
@@ -136,7 +139,7 @@ class PRIMResult:
         return sorted(pareto_indices)
 
 
-class PRIMRegressor(RegressorMixin, BaseEstimator):
+class PRIMRegressor(GlassboxMixin, RegressorMixin, BaseEstimator):
     """PRIM (Patient Rule Induction Method) for regression/continuous targets.
 
     Finds rectangular regions where the target variable has unusually
@@ -615,7 +618,7 @@ class PRIMRegressor(RegressorMixin, BaseEstimator):
         ]
 
 
-class PRIMClassifier(ClassifierMixin, BaseEstimator):
+class PRIMClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """PRIM for classification via one-vs-rest subgroup discovery.
 
     Trains a PRIM regressor per class (one-vs-rest) on the binary
@@ -813,3 +816,54 @@ class PRIMClassifier(ClassifierMixin, BaseEstimator):
         if not self._is_fitted:
             raise RuntimeError("PRIMClassifier has not been fitted.")
         return [reg.get_rules() for reg in self._prim_regressors]
+
+
+def _box_to_dict(box: Box, feature_names: list[str]) -> dict[str, Any]:
+    limits = {
+        (feature_names[i] if i < len(feature_names) else f"x{i}"): [
+            float(lo) if np.isfinite(lo) else None,
+            float(hi) if np.isfinite(hi) else None,
+        ]
+        for i, (lo, hi) in box.limits.items()
+    }
+    return {
+        "limits": limits,
+        "coverage": float(box.coverage),
+        "density": float(box.density),
+        "support": int(box.support),
+        "rules": box.to_rules(feature_names),
+    }
+
+
+def _prim_regressor_structure(self) -> dict[str, Any]:
+    if not self._is_fitted:
+        raise RuntimeError("PRIMRegressor has not been fitted.")
+    feature_names = list(self.feature_names_in_)
+    return {
+        "boxes": [_box_to_dict(b, feature_names) for b in self.boxes_],
+        "n_boxes": len(self.boxes_),
+        "objective": getattr(self, "objective", None),
+    }
+
+
+def _prim_classifier_structure(self) -> dict[str, Any]:
+    if not self._is_fitted:
+        raise RuntimeError("PRIMClassifier has not been fitted.")
+    feature_names = list(self.feature_names_in_)
+    per_class = []
+    for class_idx, reg in enumerate(self._prim_regressors):
+        per_class.append({
+            "class_index": class_idx,
+            "class": self.classes_[class_idx].item() if hasattr(self.classes_[class_idx], "item") else self.classes_[class_idx],
+            "boxes": [_box_to_dict(b, feature_names) for b in reg.boxes_],
+        })
+    return {
+        "per_class": per_class,
+        "n_classes": len(self._prim_regressors),
+    }
+
+
+PRIMRegressor._structure_type = "boxes"
+PRIMRegressor._structure_content = _prim_regressor_structure
+PRIMClassifier._structure_type = "boxes"
+PRIMClassifier._structure_content = _prim_classifier_structure

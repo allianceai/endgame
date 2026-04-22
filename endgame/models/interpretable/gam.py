@@ -26,6 +26,9 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 try:
     from pygam import GAM, LinearGAM, LogisticGAM, f, l, s, te  # spline, factor, linear, tensor
     HAS_PYGAM = True
@@ -44,7 +47,7 @@ def _check_pygam():
         )
 
 
-class GAMClassifier(ClassifierMixin, BaseEstimator):
+class GAMClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Generalized Additive Model Classifier.
 
     GAMs model the target as a sum of smooth functions of individual
@@ -405,7 +408,7 @@ class GAMClassifier(ClassifierMixin, BaseEstimator):
         return "\n".join(lines)
 
 
-class GAMRegressor(RegressorMixin, BaseEstimator):
+class GAMRegressor(GlassboxMixin, RegressorMixin, BaseEstimator):
     """Generalized Additive Model Regressor.
 
     Uses pyGAM's LinearGAM for regression.
@@ -643,3 +646,61 @@ class GAMRegressor(RegressorMixin, BaseEstimator):
         lines.append("=" * 60)
 
         return "\n".join(lines)
+
+
+def _gam_term_payload(self) -> list[dict[str, Any]]:
+    """Build per-term payload from the fitted pyGAM model."""
+    terms = []
+    try:
+        n_terms = len(list(self.gam_.terms))
+    except Exception:
+        n_terms = self.n_features_in_
+    for i in range(n_terms):
+        try:
+            XX = self.gam_.generate_X_grid(term=i)
+            effects = self.gam_.partial_dependence(i, XX)
+            x_vals = XX[:, i].tolist() if i < XX.shape[1] else []
+            name = self.feature_names_[i] if i < len(self.feature_names_) else f"x{i}"
+            importance = (
+                float(self.feature_importances_[i])
+                if i < len(self.feature_importances_) else None
+            )
+            terms.append({
+                "name": name,
+                "feature_index": i,
+                "type": "spline",
+                "importance": importance,
+                "x_grid": x_vals,
+                "partial_dependence": np.asarray(effects).ravel().tolist(),
+            })
+        except Exception as e:
+            terms.append({
+                "name": f"term_{i}",
+                "feature_index": i,
+                "type": "spline",
+                "error": str(e),
+            })
+    return terms
+
+
+def _gam_structure(self, link: str) -> dict[str, Any]:
+    check_is_fitted(self, "gam_")
+    stats = getattr(self.gam_, "statistics_", {}) or {}
+    return {
+        "link": link,
+        "terms": _gam_term_payload(self),
+        "intercept": float(np.asarray(self.gam_.coef_)[0]) if hasattr(self.gam_, "coef_") else None,
+        "n_splines": int(self.n_splines),
+        "spline_order": int(getattr(self, "spline_order", 3)),
+        "lam": self.gam_.lam if hasattr(self.gam_, "lam") else None,
+        "r_squared": stats.get("pseudo_r2", {}).get("explained_deviance") if isinstance(stats.get("pseudo_r2"), dict) else None,
+        "gcv": stats.get("GCV"),
+        "aic": stats.get("AIC"),
+        "feature_importances": self.feature_importances_.tolist(),
+    }
+
+
+GAMClassifier._structure_type = "additive"
+GAMClassifier._structure_content = lambda self: _gam_structure(self, "logit")
+GAMRegressor._structure_type = "additive"
+GAMRegressor._structure_content = lambda self: _gam_structure(self, "identity")

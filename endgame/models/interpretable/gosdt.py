@@ -28,6 +28,9 @@ from sklearn.preprocessing import KBinsDiscretizer, LabelEncoder
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 try:
     from gosdt import GOSDT
     HAS_GOSDT = True
@@ -45,7 +48,7 @@ def _check_gosdt_installed():
         )
 
 
-class GOSDTClassifier(ClassifierMixin, BaseEstimator):
+class GOSDTClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Globally Optimal Sparse Decision Tree Classifier.
 
     GOSDT produces decision trees that are provably optimal within the
@@ -511,3 +514,29 @@ class GOSDTClassifier(ClassifierMixin, BaseEstimator):
             f"GOSDTClassifier(regularization={self.regularization}, "
             f"depth_budget={self.depth_budget}, auto_discretize={self.auto_discretize})"
         )
+
+    _structure_type = "tree"
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, "tree_")
+        from endgame.core.glassbox import sklearn_tree_to_dict
+
+        rules = self.get_rules()
+        if self._using_gosdt and hasattr(self, "_tree_json"):
+            return {
+                "backend": "gosdt",
+                "tree_json": self._tree_json,
+                "rules": rules,
+                "regularization": float(self.regularization),
+                "depth_budget": int(self.depth_budget),
+                "text": self.get_tree_structure(),
+            }
+        feature_names = list(self.feature_names_) if hasattr(self, "feature_names_") else None
+        return {
+            "backend": "cart_fallback",
+            "tree": sklearn_tree_to_dict(self.tree_.tree_, feature_names, self.classes_.tolist()),
+            "rules": rules,
+            "regularization": float(self.regularization),
+            "depth_budget": int(self.depth_budget),
+            "text": self.get_tree_structure(),
+        }

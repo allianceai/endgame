@@ -40,6 +40,10 @@ class ModelInfo:
         Whether PyTorch is required.
     requires_julia : bool
         Whether Julia is required.
+    binary_only : bool
+        Whether the model only supports binary classification. Callers
+        fitting on multiclass targets should wrap with
+        ``endgame.models.multiclass.ovr_wrap`` (OneVsRestClassifier).
     typical_fit_time : str
         Expected fit time category: "fast", "medium", "slow", "very_slow".
     memory_usage : str
@@ -72,6 +76,7 @@ class ModelInfo:
     supports_gpu: bool = False
     requires_torch: bool = False
     requires_julia: bool = False
+    binary_only: bool = False
     typical_fit_time: str = "medium"
     memory_usage: str = "medium"
     interpretable: bool = False
@@ -697,6 +702,7 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         typical_fit_time="medium",
         memory_usage="medium",
         default_params={"max_card": 2, "c": 0.001},
+        binary_only=True,
         notes="Rule List Classifier. Greedy sequential covering with beam search.",
     ),
     "node_gam": ModelInfo(
@@ -741,6 +747,7 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         memory_usage="low",
         default_params={"max_coef": 5},
         required_packages=["fasterrisk"],
+        binary_only=True,
         notes="Supersparse Linear Integer Models. Produces scorecards with small integers.",
     ),
     "fasterrisk": ModelInfo(
@@ -754,6 +761,7 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         typical_fit_time="medium",
         memory_usage="medium",
         default_params={"max_coef": 5, "sparsity": 10},
+        binary_only=True,
         notes="Fast and accurate risk scores. Optimized SLIM variant.",
     ),
     "gam": ModelInfo(
@@ -766,6 +774,7 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         memory_usage="low",
         default_params={"n_splines": 25},
         required_packages=["pygam"],
+        binary_only=True,
         notes="Generalized Additive Models via pyGAM. Smooth shape functions.",
     ),
     "gosdt": ModelInfo(
@@ -780,6 +789,7 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         max_samples=10000,
         default_params={"regularization": 0.01, "depth_budget": 5},
         required_packages=["gosdt"],
+        binary_only=True,
         notes="Globally Optimal Sparse Decision Trees. Provably optimal trees.",
     ),
 

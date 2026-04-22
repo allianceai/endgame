@@ -313,6 +313,132 @@ def _extract_evtree(tree_node, feature_names, class_names, is_classifier, node_c
     return node
 
 
+def _extract_adt_prediction_node(
+    pred_node,
+    feature_names,
+    class_names,
+    is_classifier,
+    node_counter=None,
+):
+    """Extract an AlternatingDecisionTree prediction node (clf/reg).
+
+    ADT's native shape is prediction-node → splitters → yes/no prediction-nodes,
+    which we flatten: each splitter becomes a split node under the prediction
+    node whose yes/no children are the next prediction nodes.
+    """
+    if node_counter is None:
+        node_counter = [0]
+
+    pred_id = node_counter[0]
+    node_counter[0] += 1
+
+    is_leaf = not getattr(pred_node, "children", None)
+    node = VizNode(
+        node_id=pred_id,
+        is_leaf=is_leaf,
+        n_samples=int(getattr(pred_node, "n_samples", 0) or 0),
+        impurity_name="error",
+    )
+
+    # Prediction payload — handles both ADT (scalar) and AMT (linear model).
+    if hasattr(pred_node, "model"):  # AMT: linear model at node
+        lm = pred_node.model
+        val = float(lm.intercept)
+        node.predicted_value = val
+        if len(lm.feature_indices) == 0:
+            node.predicted_class = f"{val:.4g}"
+        else:
+            parts = [f"{val:.3g}"]
+            for idx, coef in zip(lm.feature_indices, lm.coefficients):
+                name = feature_names[idx] if feature_names and idx < len(feature_names) else f"x{idx}"
+                parts.append(f"{float(coef):+.3g}·{name}")
+            node.predicted_class = " ".join(parts)
+    else:
+        val = float(getattr(pred_node, "prediction", 0.0))
+        if is_classifier:
+            # Binary ADT: sign of prediction picks the class.
+            node.predicted_value = val
+            if class_names is not None and len(class_names) >= 2:
+                node.predicted_class = str(class_names[1 if val >= 0 else 0])
+            else:
+                node.predicted_class = f"{val:+.3g}"
+        else:
+            node.predicted_value = val
+            node.predicted_class = f"{val:.4g}"
+
+    for splitter in getattr(pred_node, "children", []) or []:
+        cond = splitter.condition
+        feat_idx = cond.feature_idx
+        feat_name = (
+            feature_names[feat_idx]
+            if feature_names and feat_idx < len(feature_names)
+            else f"feature_{feat_idx}"
+        )
+        split_id = node_counter[0]
+        node_counter[0] += 1
+
+        split_type = getattr(cond, "split_type", None)
+        split_name = getattr(split_type, "name", "").lower() or "threshold"
+        if split_name == "threshold":
+            label = f"{feat_name} ≤ {float(cond.threshold):.4g}"
+        else:
+            label = f"{feat_name} = {cond.threshold}"
+
+        split_node = VizNode(
+            node_id=split_id,
+            is_leaf=False,
+            split_label=label,
+            split_feature=feat_name,
+            split_type="threshold" if split_name == "threshold" else "discrete",
+            n_samples=int(getattr(pred_node, "n_samples", 0) or 0),
+            child_labels=["yes", "no"],
+        )
+        split_node.children.append(
+            _extract_adt_prediction_node(splitter.yes_child, feature_names, class_names, is_classifier, node_counter)
+        )
+        split_node.children.append(
+            _extract_adt_prediction_node(splitter.no_child, feature_names, class_names, is_classifier, node_counter)
+        )
+        node.children.append(split_node)
+
+    if node.children and not node.child_labels:
+        node.child_labels = ["" for _ in node.children]
+
+    return node
+
+
+def _extract_gosdt_json(tree_json, classes, node_counter=None):
+    """Extract a tree from GOSDT's JSON export (optimal path)."""
+    if node_counter is None:
+        node_counter = [0]
+    node_id = node_counter[0]
+    node_counter[0] += 1
+
+    if "prediction" in tree_json:
+        pred_idx = int(tree_json["prediction"])
+        pred = classes[pred_idx] if classes is not None and pred_idx < len(classes) else pred_idx
+        return VizNode(
+            node_id=node_id,
+            is_leaf=True,
+            predicted_class=str(pred),
+        )
+
+    feat = str(tree_json.get("feature", "?"))
+    node = VizNode(
+        node_id=node_id,
+        is_leaf=False,
+        split_label=feat,
+        split_feature=feat,
+        split_type="discrete",
+        child_labels=["True", "False"],
+    )
+    if "true" in tree_json:
+        node.children.append(_extract_gosdt_json(tree_json["true"], classes, node_counter))
+    if "false" in tree_json:
+        node.children.append(_extract_gosdt_json(tree_json["false"], classes, node_counter))
+    return node
+
+
 # ---------------------------------------------------------------------------
 # Main TreeVisualizer class
 # ---------------------------------------------------------------------------
@@ -399,9 +525,29 @@ class TreeVisualizer:
         model = self.model
         cls_name = type(model).__name__
 
-        # Ensembles — extract single tree
+        # Named endgame ensembles (match before generic estimators_ check so
+        # nested tree backends aren't misrouted through sklearn extraction).
+        if cls_name == 'C50Ensemble':
+            return 'c50_ensemble'
+        if cls_name in ('ObliqueRandomForestClassifier', 'ObliqueRandomForestRegressor'):
+            return 'oblique_forest'
+        if cls_name in ('RotationForestClassifier', 'RotationForestRegressor'):
+            return 'rotation_forest'
+        if cls_name == 'QuantileRegressorForest':
+            return 'sklearn_ensemble'
+        if cls_name == 'CubistRegressor':
+            return 'cubist'
+        if cls_name in ('EvolutionaryTreeClassifier', 'EvolutionaryTreeRegressor'):
+            return 'evtree'
+        if cls_name == 'AlternatingDecisionTreeClassifier':
+            return 'adt'
+        if cls_name == 'AlternatingModelTreeRegressor':
+            return 'amt'
+        if cls_name == 'GOSDTClassifier':
+            return 'gosdt'
+
+        # Generic sklearn ensembles (random forest, gradient boosting, etc.)
         if hasattr(model, 'estimators_'):
-            # GradientBoosting stores trees in a 2D ndarray
             est = model.estimators_
             if hasattr(est, 'shape') and len(est.shape) == 2:
                 if hasattr(est[0, 0], 'tree_'):
@@ -410,22 +556,14 @@ class TreeVisualizer:
                 first = est[0]
                 if hasattr(first, 'tree_'):
                     return 'sklearn_ensemble'
-        if cls_name in ('C50Ensemble',):
-            return 'c50_ensemble'
-        if cls_name in ('ObliqueRandomForestClassifier', 'ObliqueRandomForestRegressor'):
-            return 'oblique_forest'
-        if cls_name in ('RotationForestClassifier', 'RotationForestRegressor'):
-            return 'sklearn_ensemble'
 
         # Single trees
-        if hasattr(model, 'tree_') and hasattr(model.tree_, 'feature'):
-            return 'sklearn'
-        if cls_name in ('C50Classifier',) and hasattr(model, 'tree_'):
+        if cls_name == 'C50Classifier' and hasattr(model, 'tree_'):
             return 'c50'
         if cls_name in ('ObliqueDecisionTreeClassifier', 'ObliqueDecisionTreeRegressor'):
             return 'oblique'
-        if cls_name in ('EvolutionaryTreeClassifier', 'EvolutionaryTreeRegressor'):
-            return 'evtree'
+        if hasattr(model, 'tree_') and hasattr(model.tree_, 'feature'):
+            return 'sklearn'
 
         # Fallback: try sklearn-like
         if hasattr(model, 'tree_'):
@@ -434,7 +572,8 @@ class TreeVisualizer:
         raise ValueError(
             f"Unsupported model type: {cls_name}. "
             "TreeVisualizer supports sklearn trees, C5.0, ObliqueTree, "
-            "EvolutionaryTree, and their ensemble variants."
+            "EvolutionaryTree, AlternatingDecisionTree, Cubist, GOSDT, "
+            "and their ensemble variants."
         )
 
     def _is_classifier(self) -> bool:
@@ -471,9 +610,10 @@ class TreeVisualizer:
             return _extract_c50_tree(self.model.tree_, self.feature_names, self.class_names)
 
         elif model_type == 'c50_ensemble':
-            trees = self.model.trees_ if hasattr(self.model, 'trees_') else [self.model.tree_]
-            idx = min(self.tree_index, len(trees) - 1)
-            return _extract_c50_tree(trees[idx], self.feature_names, self.class_names)
+            # C50Ensemble stores fitted C50Classifier instances in estimators_.
+            estimators = self.model.estimators_
+            idx = min(self.tree_index, len(estimators) - 1)
+            return _extract_c50_tree(estimators[idx].tree_, self.feature_names, self.class_names)
 
         elif model_type == 'oblique':
             root = self.model.tree_ if hasattr(self.model, 'tree_') else self.model.root_
@@ -484,9 +624,42 @@ class TreeVisualizer:
             root = tree_model.tree_ if hasattr(tree_model, 'tree_') else tree_model.root_
             return _extract_oblique_tree(root, self.feature_names, self.class_names, is_clf)
 
+        elif model_type == 'rotation_forest':
+            # Each member is a sklearn tree trained on rotated features.
+            tree_model = self.model.estimators_[self.tree_index]
+            rotated_names = [f"rot_{i}" for i in range(self.model.n_features_in_)] if hasattr(self.model, 'n_features_in_') else None
+            return _extract_sklearn_tree(tree_model, rotated_names or self.feature_names, self.class_names, is_clf)
+
         elif model_type == 'evtree':
             root = self.model.tree_ if hasattr(self.model, 'tree_') else self.model.root_
             return _extract_evtree(root, self.feature_names, self.class_names, is_clf)
+
+        elif model_type == 'adt':
+            if getattr(self.model, '_binary', True):
+                root = self.model.root_
+            else:
+                trees = self.model._ovr_trees
+                root = trees[min(self.tree_index, len(trees) - 1)]
+            return _extract_adt_prediction_node(
+                root, self.feature_names, self.class_names, is_clf,
+            )
+
+        elif model_type == 'amt':
+            return _extract_adt_prediction_node(
+                self.model.root_, self.feature_names, self.class_names, False,
+            )
+
+        elif model_type == 'cubist':
+            # Cubist is committees of sklearn trees with per-leaf linear models.
+            trees = self.model._trees
+            idx = min(self.tree_index, len(trees) - 1)
+            return _extract_sklearn_tree(trees[idx], self.feature_names, self.class_names, False)
+
+        elif model_type == 'gosdt':
+            # Optimal path: the native GOSDT JSON. Fallback path: CART inside self.model.tree_.
+            if getattr(self.model, "_using_gosdt", False) and hasattr(self.model, "_tree_json"):
+                return _extract_gosdt_json(self.model._tree_json, self.class_names)
+            return _extract_sklearn_tree(self.model.tree_, self.feature_names, self.class_names, is_clf)
 
         else:
             raise ValueError(f"Unknown model type: {model_type}")

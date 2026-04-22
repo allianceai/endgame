@@ -12,10 +12,12 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
 from endgame.models.symbolic.symbolic_regressor import SymbolicRegressor
+from typing import Any
 
 
-class SymbolicClassifier(BaseEstimator, ClassifierMixin):
+class SymbolicClassifier(GlassboxMixin, BaseEstimator, ClassifierMixin):
     """Symbolic Classification via logistic transformation of symbolic regression.
 
     For binary classification, fits a symbolic regression model to the log-odds
@@ -224,3 +226,21 @@ class SymbolicClassifier(BaseEstimator, ClassifierMixin):
                 return f"SymbolicClassifier(equation={self.model_.best_equation_})"
             return f"SymbolicClassifier(n_classes={self.n_classes_})"
         return f"SymbolicClassifier(preset={self.preset!r})"
+
+    _structure_type = "symbolic"
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, "model_")
+        if self.n_classes_ == 2:
+            inner = self.model_._structure_content()
+            inner["link"] = "logit"
+            return inner
+        per_class = []
+        for cls, model in zip(self.classes_, self.model_):
+            payload = model._structure_content()
+            payload["class"] = cls.item() if hasattr(cls, "item") else cls
+            per_class.append(payload)
+        return {
+            "link": "softmax_ovr",
+            "per_class": per_class,
+        }

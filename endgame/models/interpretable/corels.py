@@ -41,6 +41,9 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import KBinsDiscretizer, LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 logger = logging.getLogger(__name__)
 
 _CORELS_CACHE_DIR = Path.home() / ".cache" / "endgame" / "corels"
@@ -126,7 +129,7 @@ def _build_corels_binary() -> str:
 # Main classifier
 # ======================================================================
 
-class CORELSClassifier(ClassifierMixin, BaseEstimator):
+class CORELSClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Certifiably Optimal Rule List Classifier.
 
     Parameters
@@ -690,3 +693,31 @@ class CORELSClassifier(ClassifierMixin, BaseEstimator):
             f"CORELSClassifier(c={self.c}, max_card={self.max_card}, "
             f"backend='{self.backend}')"
         )
+
+    _structure_type = "rules"
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, "rules_")
+        rule_dicts = []
+        default = None
+        for i, r in enumerate(self.rules_):
+            consequent = r["consequent"]
+            class_label = self.classes_[consequent]
+            entry = {
+                "antecedent": str(r["antecedent"]),
+                "consequent_class": class_label.item() if hasattr(class_label, "item") else class_label,
+                "position": i,
+            }
+            if r["antecedent"] == "default":
+                default = entry
+            else:
+                rule_dicts.append(entry)
+        return {
+            "rules": rule_dicts,
+            "default": default,
+            "n_rules": len(rule_dicts),
+            "regularization": float(self.c),
+            "max_cardinality": int(self.max_card),
+            "backend": getattr(self, "backend_used_", "unknown"),
+            "optimal": bool(getattr(self, "optimal_", False)),
+        }

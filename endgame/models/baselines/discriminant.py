@@ -25,8 +25,10 @@ from sklearn.discriminant_analysis import (
 )
 from sklearn.preprocessing import LabelEncoder
 
+from endgame.core.glassbox import GlassboxMixin
 
-class LDAClassifier(ClassifierMixin, BaseEstimator):
+
+class LDAClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Linear Discriminant Analysis Classifier.
 
     LDA assumes that all classes share the same covariance matrix.
@@ -213,7 +215,7 @@ class LDAClassifier(ClassifierMixin, BaseEstimator):
         return self.model_.intercept_
 
 
-class QDAClassifier(ClassifierMixin, BaseEstimator):
+class QDAClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Quadratic Discriminant Analysis Classifier.
 
     QDA allows each class to have its own covariance matrix,
@@ -342,7 +344,7 @@ class QDAClassifier(ClassifierMixin, BaseEstimator):
         return self.model_.decision_function(X_clean)
 
 
-class RDAClassifier(ClassifierMixin, BaseEstimator):
+class RDAClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Regularized Discriminant Analysis Classifier.
 
     RDA interpolates between LDA and QDA using a regularization parameter.
@@ -523,3 +525,49 @@ class RDAClassifier(ClassifierMixin, BaseEstimator):
     def decision_function(self, X) -> np.ndarray:
         """Compute decision function (log posteriors)."""
         return self.predict_log_proba(X)
+
+
+def _discriminant_structure(self, variant: str) -> dict:
+    if not self._is_fitted:
+        raise RuntimeError(f"{self.__class__.__name__} has not been fitted.")
+    feature_names = self._structure_feature_names(self.n_features_in_)
+    out: dict = {
+        "variant": variant,
+        "link": "linear_discriminant" if variant == "lda" else "quadratic_discriminant",
+    }
+    model = self.model_
+    if hasattr(model, "coef_"):
+        coef = np.asarray(model.coef_)
+        if coef.ndim == 1:
+            out["coefficients"] = {feature_names[i]: float(c) for i, c in enumerate(coef)}
+        else:
+            out["coefficients"] = [
+                {feature_names[i]: float(c) for i, c in enumerate(row)} for row in coef
+            ]
+    if hasattr(model, "intercept_"):
+        inter = np.asarray(model.intercept_).ravel().tolist()
+        out["intercept"] = inter[0] if len(inter) == 1 else inter
+    if hasattr(model, "means_"):
+        out["class_means"] = {
+            str(c): {feature_names[i]: float(v) for i, v in enumerate(row)}
+            for c, row in zip(self.classes_, model.means_)
+        }
+    if hasattr(model, "priors_"):
+        out["class_priors"] = {str(c): float(p) for c, p in zip(self.classes_, model.priors_)}
+    if hasattr(model, "covariance_"):
+        cov = np.asarray(model.covariance_)
+        if cov.ndim == 2:
+            out["shared_covariance"] = cov.tolist()
+        else:
+            out["per_class_covariance"] = {
+                str(c): mat.tolist() for c, mat in zip(self.classes_, cov)
+            }
+    return out
+
+
+LDAClassifier._structure_type = "linear"
+LDAClassifier._structure_content = lambda self: _discriminant_structure(self, "lda")
+QDAClassifier._structure_type = "linear"
+QDAClassifier._structure_content = lambda self: _discriminant_structure(self, "qda")
+RDAClassifier._structure_type = "linear"
+RDAClassifier._structure_content = lambda self: _discriminant_structure(self, "rda")

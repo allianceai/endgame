@@ -28,6 +28,9 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 try:
     from numba import jit, prange
     HAS_NUMBA = True
@@ -468,7 +471,7 @@ def _stretch_rules(
     return rules  # Return as-is for now
 
 
-class FURIAClassifier(ClassifierMixin, BaseEstimator):
+class FURIAClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Fuzzy Unordered Rule Induction Algorithm (FURIA) classifier.
 
     FURIA learns a set of fuzzy rules for classification. It extends RIPPER
@@ -745,3 +748,33 @@ class FURIAClassifier(ClassifierMixin, BaseEstimator):
     def feature_importances_(self) -> np.ndarray:
         """Feature importance scores (sklearn compatible)."""
         return self.get_rule_importance()
+
+    _structure_type = "fuzzy_rules"
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, 'rules_')
+        rule_dicts = []
+        for rule in self.rules_:
+            class_label = self._label_encoder.inverse_transform([rule.consequent])[0]
+            conditions = []
+            for c in rule.conditions:
+                conditions.append({
+                    "feature_index": int(c.feature_idx),
+                    "feature": str(c.feature_name),
+                    "lower_bound": float(c.lower_bound) if c.lower_bound is not None else None,
+                    "upper_bound": float(c.upper_bound) if c.upper_bound is not None else None,
+                    "lower_support": float(c.lower_support) if c.lower_support is not None else None,
+                    "upper_support": float(c.upper_support) if c.upper_support is not None else None,
+                    "text": str(c),
+                })
+            rule_dicts.append({
+                "conditions": conditions,
+                "consequent_class": class_label.item() if hasattr(class_label, "item") else class_label,
+                "weight": float(rule.weight),
+                "support": int(rule.support),
+            })
+        return {
+            "rules": rule_dicts,
+            "n_rules": len(rule_dicts),
+            "feature_importances": self.feature_importances_.tolist(),
+        }

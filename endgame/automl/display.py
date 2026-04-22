@@ -205,11 +205,13 @@ def display_model(
             lines.append(f"    (tree display failed: {e})")
         displayed = True
 
-    # ── C5.0: tree structure ─────────────────────────────────────────
-    if hasattr(model, "get_structure"):
+    # ── C5.0 / ADT: tree structure ───────────────────────────────────
+    if hasattr(model, "summary") and (
+        "c50" in type(model).__name__.lower() or "alternating" in type(model).__name__.lower()
+    ):
         try:
-            tree_str = model.get_structure(feature_names=fn or None)
-            lines.append("\n  C5.0 Decision Tree:")
+            tree_str = model.summary(feature_names=fn or None)
+            lines.append("\n  Decision Tree:")
             lines.append(_indent(R(tree_str)))
         except Exception as e:
             lines.append(f"    (tree display failed: {e})")

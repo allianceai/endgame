@@ -32,6 +32,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import KBinsDiscretizer, LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 
 def _round_to_integers(
     coefficients: np.ndarray,
@@ -60,7 +63,7 @@ def _round_to_integers(
     return rounded
 
 
-class SLIMClassifier(ClassifierMixin, BaseEstimator):
+class SLIMClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Supersparse Linear Integer Model Classifier.
 
     SLIM produces scoring systems with small integer coefficients that can
@@ -195,6 +198,7 @@ class SLIMClassifier(ClassifierMixin, BaseEstimator):
             self._original_feature_names = list(X.columns)
         else:
             self._original_feature_names = [f"x{i}" for i in range(self.n_features_in_)]
+        self.feature_names_in_ = np.array(self._original_feature_names)
 
         # Discretize if needed
         if self.discretize:
@@ -414,7 +418,7 @@ class SLIMClassifier(ClassifierMixin, BaseEstimator):
         return total, breakdown
 
 
-class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
+class FasterRiskClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """FasterRisk Classifier.
 
     Produces optimized sparse integer risk scores using beam search,
@@ -534,6 +538,7 @@ class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
             self._original_feature_names = list(X.columns)
         else:
             self._original_feature_names = [f"x{i}" for i in range(self.n_features_in_)]
+        self.feature_names_in_ = np.array(self._original_feature_names)
 
         # Discretize
         if self.discretize:
@@ -683,3 +688,29 @@ class FasterRiskClassifier(ClassifierMixin, BaseEstimator):
                 total += points
 
         return total, breakdown
+
+
+def _slim_like_structure(self, *, variant: str) -> dict[str, Any]:
+    check_is_fitted(self)
+    scorecard = []
+    for name, coef in zip(self.feature_names_, self.coef_):
+        if int(coef) != 0:
+            scorecard.append({
+                "feature": str(name),
+                "points": int(coef),
+            })
+    return {
+        "intercept": int(self.intercept_),
+        "scorecard": scorecard,
+        "n_nonzero": len(scorecard),
+        "max_coef": int(getattr(self, "max_coef", 0)) if hasattr(self, "max_coef") else None,
+        "variant": variant,
+        "discretized": bool(getattr(self, "discretize", False)),
+        "text": self.get_scorecard(),
+    }
+
+
+SLIMClassifier._structure_type = "scorecard"
+SLIMClassifier._structure_content = lambda self: _slim_like_structure(self, variant="slim")
+FasterRiskClassifier._structure_type = "scorecard"
+FasterRiskClassifier._structure_content = lambda self: _slim_like_structure(self, variant="faster_risk")

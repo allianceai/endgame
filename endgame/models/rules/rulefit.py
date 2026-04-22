@@ -17,7 +17,9 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, clone
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
 from endgame.models.rules.extraction import extract_rules_from_ensemble
+from typing import Any
 
 
 def _preprocess_linear_features(
@@ -82,7 +84,7 @@ def _preprocess_linear_features(
     return X_processed, params
 
 
-class RuleFitRegressor(BaseEstimator, RegressorMixin):
+class RuleFitRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):
     """
     RuleFit: Rule-based regression combining tree ensembles with Lasso.
 
@@ -728,7 +730,7 @@ class RuleFitRegressor(BaseEstimator, RegressorMixin):
         return fig
 
 
-class RuleFitClassifier(ClassifierMixin, BaseEstimator):
+class RuleFitClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """
     RuleFit for classification.
 
@@ -1310,3 +1312,32 @@ class RuleFitClassifier(ClassifierMixin, BaseEstimator):
             equation += "\n                " + term
 
         return equation
+
+
+def _rulefit_structure(self, *, is_classifier: bool) -> dict[str, Any]:
+    check_is_fitted(self)
+    rules = self.get_rules(exclude_zero_coef=False, sort_by="importance")
+    linear_terms: list[dict[str, Any]] = []
+    if getattr(self, "include_linear", False):
+        for name, coef in zip(self.feature_names_in_, self.linear_coef_):
+            if abs(coef) > 0:
+                linear_terms.append({"feature": str(name), "coefficient": float(coef)})
+    return {
+        "intercept": float(self.intercept_),
+        "link": "logit" if is_classifier else "identity",
+        "linear_terms": linear_terms,
+        "rules": rules,
+        "n_rules": int(self.n_rules_),
+        "n_rules_selected": int(getattr(self, "n_rules_selected_", 0)),
+        "alpha": float(getattr(self, "alpha_", 0.0)),
+        "feature_importances": [
+            {"feature": str(name), "importance": float(imp)}
+            for name, imp in zip(self.feature_names_in_, self.feature_importances_)
+        ],
+    }
+
+
+RuleFitRegressor._structure_type = "rules"
+RuleFitRegressor._structure_content = lambda self: _rulefit_structure(self, is_classifier=False)
+RuleFitClassifier._structure_type = "rules"
+RuleFitClassifier._structure_content = lambda self: _rulefit_structure(self, is_classifier=True)

@@ -12,6 +12,7 @@ from sklearn.base import ClassifierMixin
 from sklearn.utils.validation import check_array, check_X_y
 
 from endgame.core.base import EndgameEstimator
+from endgame.core.glassbox import GlassboxMixin
 
 # =============================================================================
 # Custom Exceptions
@@ -520,7 +521,7 @@ class BayesianClassifierMixin(BayesianSerializationMixin):
 # =============================================================================
 
 
-class BaseBayesianClassifier(ClassifierMixin, EndgameEstimator, BayesianClassifierMixin):
+class BaseBayesianClassifier(GlassboxMixin, ClassifierMixin, EndgameEstimator, BayesianClassifierMixin):
     """
     Base class for all Bayesian Network Classifiers.
 
@@ -795,3 +796,42 @@ class BaseBayesianClassifier(ClassifierMixin, EndgameEstimator, BayesianClassifi
             Mean accuracy.
         """
         return np.mean(self.predict(X) == y)
+
+
+    _structure_type = "bayesian_network"
+
+    def _structure_content(self) -> dict[str, Any]:
+        if not hasattr(self, 'structure_') or self.structure_ is None:
+            raise NotFittedError("Call fit() first")
+        nodes = list(self.structure_.nodes())
+        edges = [[str(u), str(v)] for u, v in self.structure_.edges()]
+        cpts_payload: dict[str, Any] = {}
+        if hasattr(self, 'cpts_') and self.cpts_ is not None:
+            for node, cpt in self.cpts_.items():
+                arr = np.asarray(cpt)
+                cpts_payload[str(node)] = {
+                    "shape": list(arr.shape),
+                    "values": arr.tolist(),
+                }
+        cardinalities = {
+            str(k): int(v)
+            for k, v in (self.cardinalities_ or {}).items()
+        } if getattr(self, "cardinalities_", None) else {}
+        feature_importances = (
+            self.feature_importances_.tolist()
+            if getattr(self, "feature_importances_", None) is not None
+            else []
+        )
+        mb: list = []
+        try:
+            mb = sorted(self.markov_blanket_)
+        except Exception:
+            mb = []
+        return {
+            "nodes": [str(n) for n in nodes],
+            "edges": edges,
+            "cpts": cpts_payload,
+            "cardinalities": cardinalities,
+            "feature_importances": feature_importances,
+            "markov_blanket": mb,
+        }

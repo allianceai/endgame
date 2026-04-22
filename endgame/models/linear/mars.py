@@ -26,10 +26,12 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.linear_model import LogisticRegression
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
 from endgame.models.linear.basis import BasisFunction, HingeSpec, LinearBasisFunction
+from typing import Any
 
 
-class MARSRegressor(BaseEstimator, RegressorMixin):
+class MARSRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):
     """Multivariate Adaptive Regression Splines for regression.
 
     MARS builds a piecewise linear model by discovering knots (thresholds)
@@ -1069,7 +1071,7 @@ class MARSRegressor(BaseEstimator, RegressorMixin):
         return selected
 
 
-class MARSClassifier(ClassifierMixin, BaseEstimator):
+class MARSClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """MARS for classification via logistic regression on basis functions.
 
     Fits a MARS model to discover basis functions, then uses logistic
@@ -1372,3 +1374,50 @@ class MARSClassifier(ClassifierMixin, BaseEstimator):
         """
         check_is_fitted(self)
         return self.mars_regressor_.compute_variable_importance()
+
+
+def _mars_structure(self) -> dict[str, Any]:
+    check_is_fitted(self)
+    feature_names = list(self.feature_names_in_) if getattr(self, "feature_names_in_", None) is not None else [f"x{i}" for i in range(self.n_features_in_)]
+    basis_dicts = []
+    for bf, coef in zip(self.basis_functions_, self.coef_):
+        hinges = [
+            {
+                "feature_index": int(h.feature_idx),
+                "feature": feature_names[h.feature_idx] if h.feature_idx < len(feature_names) else f"x{h.feature_idx}",
+                "knot": float(h.knot),
+                "direction": int(h.direction),
+            }
+            for h in getattr(bf, "hinges", [])
+        ]
+        basis_dicts.append({
+            "coefficient": float(coef),
+            "is_intercept": bool(bf.is_intercept) if hasattr(bf, "is_intercept") else (len(hinges) == 0),
+            "degree": len(hinges),
+            "hinges": hinges,
+            "text": str(bf),
+        })
+    return {
+        "intercept": float(self.intercept_),
+        "basis_functions": basis_dicts,
+        "n_terms": len(basis_dicts),
+    }
+
+
+MARSRegressor._structure_type = "additive"
+MARSRegressor._structure_content = _mars_structure
+
+
+def _mars_classifier_structure(self) -> dict[str, Any]:
+    check_is_fitted(self)
+    # MARSClassifier wraps a MARSRegressor internally plus logistic regression
+    reg = self.mars_regressor_
+    base = _mars_structure(reg)
+    base["link"] = "logit"
+    base["logistic_coef"] = [float(c) for c in np.asarray(self.logistic_.coef_).ravel()]
+    base["logistic_intercept"] = float(np.asarray(self.logistic_.intercept_).ravel()[0])
+    return base
+
+
+MARSClassifier._structure_type = "additive"
+MARSClassifier._structure_content = _mars_classifier_structure

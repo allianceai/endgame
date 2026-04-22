@@ -35,6 +35,9 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin, sklearn_tree_to_dict
+from typing import Any
+
 
 def _build_leaf_samples(tree: DecisionTreeRegressor, X: np.ndarray, y: np.ndarray) -> dict[int, np.ndarray]:
     """Build a mapping from leaf node IDs to the y values in that leaf.
@@ -120,7 +123,7 @@ def _fit_single_tree(
     return tree, leaf_samples, indices
 
 
-class QuantileRegressorForest(BaseEstimator, RegressorMixin):
+class QuantileRegressorForest(GlassboxMixin, BaseEstimator, RegressorMixin):
     """Random Forest for conditional quantile estimation.
 
     Quantile Regression Forests (QRF) estimate the full conditional distribution
@@ -709,6 +712,25 @@ class QuantileRegressorForest(BaseEstimator, RegressorMixin):
     def n_estimators_(self) -> int:
         """Number of fitted estimators."""
         return len(self.estimators_) if hasattr(self, "estimators_") else 0
+
+    _structure_type = "tree_ensemble"
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, ["estimators_"])
+        feature_names = self._structure_feature_names(self.n_features_in_)
+        trees = [
+            {"tree": sklearn_tree_to_dict(est.tree_, feature_names, None)}
+            for est in self.estimators_
+        ]
+        return {
+            "trees": trees,
+            "n_trees": len(self.estimators_),
+            "feature_importances": self.feature_importances_.tolist(),
+            "note": (
+                "Each leaf stores the bag of training targets in leaf_samples_; "
+                "quantile predictions are computed by pooling leaves across trees."
+            ),
+        }
 
 
 def pinball_loss(

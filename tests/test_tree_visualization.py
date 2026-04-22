@@ -283,3 +283,111 @@ class TestTreeVisualizer:
             assert 'cdn.' not in content
             assert 'unpkg.com' not in content
             assert 'jsdelivr' not in content
+
+
+# ===== Endgame tree model coverage =====
+
+class TestEndgameTreeCoverage:
+    """Confirm every endgame tree-based model renders through TreeVisualizer."""
+
+    def _check(self, model, feature_names):
+        viz = TreeVisualizer(model, feature_names=feature_names)
+        data = json.loads(viz.to_json())
+        assert "id" in data
+        assert "leaf" in data
+        return data
+
+    def test_c50_classifier(self, binary_data):
+        from endgame.models.trees.c50 import C50Classifier
+        X, y = binary_data
+        clf = C50Classifier(random_state=0).fit(X, y)
+        self._check(clf, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_c50_ensemble(self, binary_data):
+        from endgame.models.trees.c50 import C50Ensemble
+        X, y = binary_data
+        clf = C50Ensemble(n_trials=3, random_state=0).fit(X, y)
+        self._check(clf, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_adt_classifier(self, binary_data):
+        from endgame.models.trees.adtree import AlternatingDecisionTreeClassifier
+        X, y = binary_data
+        clf = AlternatingDecisionTreeClassifier(n_iterations=3, random_state=0).fit(X, y)
+        data = self._check(clf, [f"x{i}" for i in range(X.shape[1])])
+        # ADT root is a prediction node; if splitters were learned it has children.
+        assert isinstance(data.get("children", []), list)
+
+    def test_amt_regressor(self, regression_data):
+        from endgame.models.trees.adtree import AlternatingModelTreeRegressor
+        X, y = regression_data
+        reg = AlternatingModelTreeRegressor(n_iterations=3, random_state=0).fit(X, y)
+        self._check(reg, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_oblique_dt_classifier(self, binary_data):
+        from endgame.models.trees.oblique_tree import ObliqueDecisionTreeClassifier
+        X, y = binary_data
+        clf = ObliqueDecisionTreeClassifier(max_depth=3, random_state=0).fit(X, y)
+        data = self._check(clf, [f"x{i}" for i in range(X.shape[1])])
+        # Oblique splits produce multi-term labels with "+" or "-" coefficients.
+        if not data["leaf"]:
+            assert data["splitType"] == "oblique"
+
+    def test_oblique_dt_regressor(self, regression_data):
+        from endgame.models.trees.oblique_tree import ObliqueDecisionTreeRegressor
+        X, y = regression_data
+        reg = ObliqueDecisionTreeRegressor(max_depth=3, random_state=0).fit(X, y)
+        self._check(reg, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_oblique_forest_classifier(self, binary_data):
+        from endgame.models.trees.oblique_forest import ObliqueRandomForestClassifier
+        X, y = binary_data
+        clf = ObliqueRandomForestClassifier(n_estimators=3, max_depth=3, random_state=0).fit(X, y)
+        self._check(clf, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_oblique_forest_regressor(self, regression_data):
+        from endgame.models.trees.oblique_forest import ObliqueRandomForestRegressor
+        X, y = regression_data
+        reg = ObliqueRandomForestRegressor(n_estimators=3, max_depth=3, random_state=0).fit(X, y)
+        self._check(reg, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_rotation_forest_classifier(self, binary_data):
+        from endgame.models.trees.rotation_forest import RotationForestClassifier
+        X, y = binary_data
+        clf = RotationForestClassifier(n_estimators=3, random_state=0).fit(X, y)
+        self._check(clf, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_rotation_forest_regressor(self, regression_data):
+        from endgame.models.trees.rotation_forest import RotationForestRegressor
+        X, y = regression_data
+        reg = RotationForestRegressor(n_estimators=3, random_state=0).fit(X, y)
+        self._check(reg, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_quantile_forest(self, regression_data):
+        from endgame.models.trees.quantile_forest import QuantileRegressorForest
+        X, y = regression_data
+        reg = QuantileRegressorForest(n_estimators=3, max_depth=3, random_state=0).fit(X, y)
+        self._check(reg, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_cubist(self, regression_data):
+        from endgame.models.trees.cubist import CubistRegressor
+        X, y = regression_data
+        reg = CubistRegressor(use_rust=False).fit(X, y)
+        self._check(reg, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_evtree_classifier(self, binary_data):
+        from endgame.models.trees.evtree.evtree import EvolutionaryTreeClassifier
+        X, y = binary_data
+        clf = EvolutionaryTreeClassifier(n_generations=3, population_size=8, random_state=0).fit(X, y)
+        self._check(clf, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_evtree_regressor(self, regression_data):
+        from endgame.models.trees.evtree.evtree import EvolutionaryTreeRegressor
+        X, y = regression_data
+        reg = EvolutionaryTreeRegressor(n_generations=3, population_size=8, random_state=0).fit(X, y)
+        self._check(reg, [f"x{i}" for i in range(X.shape[1])])
+
+    def test_gosdt_classifier(self, binary_data):
+        from endgame.models.interpretable.gosdt import GOSDTClassifier
+        X, y = binary_data
+        clf = GOSDTClassifier(depth_budget=3).fit(X, y)
+        self._check(clf, [f"x{i}" for i in range(X.shape[1])])

@@ -1170,9 +1170,12 @@ def extract_interpretability_outputs(
                     except Exception:
                         pass
 
-            # C5.0 / Decision Trees
-            elif hasattr(model, 'get_structure'):
-                output = model.get_structure()
+            # C5.0 / Decision Trees (text summary)
+            elif hasattr(model, 'summary') and (
+                'c50' in type(model).__name__.lower()
+                or 'alternating' in type(model).__name__.lower()
+            ):
+                output = model.summary()
 
             # FURIA
             elif hasattr(model, 'get_rules_str'):

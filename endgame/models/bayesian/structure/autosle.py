@@ -24,12 +24,14 @@ from concurrent.futures import ThreadPoolExecutor
 import networkx as nx
 import numpy as np
 
+from endgame.core.glassbox import GlassboxMixin
 from endgame.models.bayesian.structure.learning import (
     greedy_hill_climbing,
 )
+from typing import Any
 
 
-class AutoSLE:
+class AutoSLE(GlassboxMixin):
     """
     Scalable structure learning for massive variable sets.
 
@@ -583,3 +585,25 @@ class AutoSLE:
             edge for edge, conf in self.edge_confidence_.items()
             if conf >= min_confidence
         ]
+
+
+    _structure_type = "bayesian_network"
+
+    def _structure_content(self) -> dict[str, Any]:
+        if self.structure_ is None:
+            raise RuntimeError("AutoSLE has not been fitted.")
+        return {
+            "nodes": [str(n) for n in self.structure_.nodes()],
+            "edges": [[str(u), str(v)] for u, v in self.structure_.edges()],
+            "edge_confidence": {
+                f"{u}->{v}": float(c)
+                for (u, v), c in (self.edge_confidence_ or {}).items()
+            },
+            "cluster_assignments": (
+                np.asarray(self.cluster_assignments_).tolist()
+                if self.cluster_assignments_ is not None else []
+            ),
+            "n_nodes": int(self.structure_.number_of_nodes()),
+            "n_edges": int(self.structure_.number_of_edges()),
+            "note": "AutoSLE learns structure only — no CPTs are fitted.",
+        }

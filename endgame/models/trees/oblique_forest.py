@@ -29,6 +29,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 from endgame.models.trees.oblique_tree import (
     ObliqueDecisionTreeClassifier,
     ObliqueDecisionTreeRegressor,
@@ -112,7 +115,7 @@ def _fit_single_tree_regressor(
     return tree, indices
 
 
-class ObliqueRandomForestClassifier(ClassifierMixin, BaseEstimator):
+class ObliqueRandomForestClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Random Forest with oblique (linear combination) splits.
 
     Unlike standard Random Forest which uses axis-aligned splits on single
@@ -518,7 +521,7 @@ class ObliqueRandomForestClassifier(ClassifierMixin, BaseEstimator):
         return len(self.estimators_) if hasattr(self, "estimators_") else 0
 
 
-class ObliqueRandomForestRegressor(BaseEstimator, RegressorMixin):
+class ObliqueRandomForestRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):
     """Oblique Random Forest for regression.
 
     Same as ObliqueRandomForestClassifier but for continuous targets.
@@ -835,3 +838,33 @@ class ObliqueRandomForestRegressor(BaseEstimator, RegressorMixin):
     def n_estimators_(self) -> int:
         """Number of fitted estimators."""
         return len(self.estimators_) if hasattr(self, "estimators_") else 0
+
+
+def _oblique_forest_structure(self, class_names: list[Any] | None) -> dict[str, Any]:
+    from endgame.models.trees.oblique_tree import _oblique_node_to_dict
+    check_is_fitted(self, ["estimators_"])
+    feature_names = self._structure_feature_names(self.n_features_in_)
+    trees = [
+        {
+            "tree": {
+                "root": _oblique_node_to_dict(est.tree_, feature_names, class_names),
+                "max_depth": int(est.get_depth()),
+                "n_leaves": int(est.get_n_leaves()),
+            },
+            "oblique_method": est.oblique_method,
+        }
+        for est in self.estimators_
+    ]
+    return {
+        "trees": trees,
+        "n_trees": len(self.estimators_),
+        "feature_importances": self.feature_importances_.tolist(),
+    }
+
+
+ObliqueRandomForestClassifier._structure_type = "tree_ensemble"
+ObliqueRandomForestClassifier._structure_content = lambda self: _oblique_forest_structure(
+    self, self.classes_.tolist()
+)
+ObliqueRandomForestRegressor._structure_type = "tree_ensemble"
+ObliqueRandomForestRegressor._structure_content = lambda self: _oblique_forest_structure(self, None)

@@ -33,6 +33,9 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.core.glassbox import GlassboxMixin
+from typing import Any
+
 
 class SplitType(Enum):
     """Type of split condition."""
@@ -139,7 +142,7 @@ class ADTreeSplitterNode:
     node_id: int = 0
 
 
-class AlternatingDecisionTreeClassifier(ClassifierMixin, BaseEstimator):
+class AlternatingDecisionTreeClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """Alternating Decision Tree Classifier.
 
     The ADTree is a boosting-based classification algorithm that combines
@@ -808,19 +811,10 @@ class AlternatingDecisionTreeClassifier(ClassifierMixin, BaseEstimator):
         """Set feature importances."""
         self._feature_importances = value
 
-    def get_structure(self, feature_names: list[str] | None = None) -> str:
-        """Get a human-readable representation of the tree structure.
+    _structure_type = "tree"
 
-        Parameters
-        ----------
-        feature_names : list of str, optional
-            Names for the features. If None, uses feature indices.
-
-        Returns
-        -------
-        structure : str
-            Text representation of the tree.
-        """
+    def summary(self, feature_names: list[str] | None = None) -> str:
+        """Human-readable representation of the alternating decision tree."""
         check_is_fitted(self, ["root_"])
 
         if feature_names is None:
@@ -844,6 +838,60 @@ class AlternatingDecisionTreeClassifier(ClassifierMixin, BaseEstimator):
                 self._format_prediction_node(self._ovr_trees[c], feature_names, lines, indent=0)
 
         return "\n".join(lines)
+
+    def _prediction_node_to_dict(
+        self,
+        node: ADTreePredictionNode,
+        feature_names: list[str],
+        depth: int = 0,
+    ) -> dict[str, Any]:
+        out: dict[str, Any] = {
+            "type": "prediction",
+            "depth": depth,
+            "prediction": float(node.prediction),
+            "n_samples": float(node.n_samples),
+            "splitters": [],
+        }
+        for splitter in node.children:
+            cond = splitter.condition
+            feat_idx = cond.feature_idx
+            out["splitters"].append({
+                "feature_index": int(feat_idx),
+                "feature": feature_names[feat_idx] if feat_idx < len(feature_names) else f"x{feat_idx}",
+                "split_type": cond.split_type.name.lower(),
+                "threshold": float(cond.threshold) if cond.threshold is not None else None,
+                "yes": self._prediction_node_to_dict(splitter.yes_child, feature_names, depth + 1),
+                "no": self._prediction_node_to_dict(splitter.no_child, feature_names, depth + 1),
+            })
+        return out
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, ["root_"])
+        feature_names = self._structure_feature_names(self.n_features_in_)
+        if self._binary:
+            tree = self._prediction_node_to_dict(self.root_, feature_names)
+            return {
+                "tree": tree,
+                "n_iterations": int(self.n_iterations),
+                "n_nodes": int(self.n_nodes_),
+                "strategy": "binary",
+                "feature_importances": self.feature_importances_.tolist(),
+            }
+        trees = [
+            {
+                "class_index": i,
+                "class": self.classes_[i].item() if hasattr(self.classes_[i], "item") else self.classes_[i],
+                "tree": self._prediction_node_to_dict(self._ovr_trees[i], feature_names),
+            }
+            for i in range(self.n_classes_)
+        ]
+        return {
+            "trees": trees,
+            "n_iterations": int(self.n_iterations),
+            "n_nodes": int(self.n_nodes_),
+            "strategy": "ovr",
+            "feature_importances": self.feature_importances_.tolist(),
+        }
 
     def _format_prediction_node(
         self,
@@ -873,11 +921,6 @@ class AlternatingDecisionTreeClassifier(ClassifierMixin, BaseEstimator):
                 lines.append(f"{prefix}  ELSE ({feat_name} != {cond.threshold}):")
 
             self._format_prediction_node(splitter.no_child, feature_names, lines, indent + 2)
-
-    def summary(self, feature_names: list[str] | None = None) -> str:
-        """Alias for get_structure for API consistency."""
-        return self.get_structure(feature_names)
-
 
 @dataclass
 class AMTreeLinearModel:
@@ -976,7 +1019,7 @@ class AMTreeSplitterNode:
     node_id: int = 0
 
 
-class AlternatingModelTreeRegressor(BaseEstimator, RegressorMixin):
+class AlternatingModelTreeRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):
     """Alternating Model Tree Regressor.
 
     The AMT extends the concept of Alternating Decision Trees to regression
@@ -1586,19 +1629,10 @@ class AlternatingModelTreeRegressor(BaseEstimator, RegressorMixin):
             return self._importance_accumulator / total
         return np.zeros(self.n_features_in_)
 
-    def get_structure(self, feature_names: list[str] | None = None) -> str:
-        """Get a human-readable representation of the tree structure.
+    _structure_type = "tree"
 
-        Parameters
-        ----------
-        feature_names : list of str, optional
-            Names for the features. If None, uses feature indices.
-
-        Returns
-        -------
-        structure : str
-            Text representation of the tree.
-        """
+    def summary(self, feature_names: list[str] | None = None) -> str:
+        """Human-readable representation of the alternating model tree."""
         check_is_fitted(self, ["root_"])
 
         if feature_names is None:
@@ -1617,6 +1651,53 @@ class AlternatingModelTreeRegressor(BaseEstimator, RegressorMixin):
         self._format_prediction_node(self.root_, feature_names, lines, indent=0)
 
         return "\n".join(lines)
+
+    def _prediction_node_to_dict(
+        self,
+        node: AMTreePredictionNode,
+        feature_names: list[str],
+        depth: int = 0,
+    ) -> dict[str, Any]:
+        model = node.model
+        model_dict = {
+            "intercept": float(model.intercept),
+            "feature_indices": [int(i) for i in model.feature_indices],
+            "coefficients": [float(c) for c in model.coefficients],
+            "features": [
+                feature_names[i] if i < len(feature_names) else f"x{i}"
+                for i in model.feature_indices
+            ],
+        }
+        out: dict[str, Any] = {
+            "type": "prediction",
+            "depth": depth,
+            "n_samples": float(node.n_samples),
+            "linear_model": model_dict,
+            "splitters": [],
+        }
+        for splitter in node.children:
+            cond = splitter.condition
+            feat_idx = cond.feature_idx
+            out["splitters"].append({
+                "feature_index": int(feat_idx),
+                "feature": feature_names[feat_idx] if feat_idx < len(feature_names) else f"x{feat_idx}",
+                "split_type": cond.split_type.name.lower(),
+                "threshold": float(cond.threshold) if cond.threshold is not None else None,
+                "yes": self._prediction_node_to_dict(splitter.yes_child, feature_names, depth + 1),
+                "no": self._prediction_node_to_dict(splitter.no_child, feature_names, depth + 1),
+            })
+        return out
+
+    def _structure_content(self) -> dict[str, Any]:
+        check_is_fitted(self, ["root_"])
+        feature_names = self._structure_feature_names(self.n_features_in_)
+        return {
+            "tree": self._prediction_node_to_dict(self.root_, feature_names),
+            "n_iterations": int(self.n_iterations),
+            "n_nodes": int(self.n_nodes_),
+            "model_type": self.model_type,
+            "feature_importances": self.feature_importances_.tolist(),
+        }
 
     def _format_prediction_node(
         self,
@@ -1659,7 +1740,3 @@ class AlternatingModelTreeRegressor(BaseEstimator, RegressorMixin):
                 lines.append(f"{prefix}  ELSE ({feat_name} != {cond.threshold}):")
 
             self._format_prediction_node(splitter.no_child, feature_names, lines, indent + 2)
-
-    def summary(self, feature_names: list[str] | None = None) -> str:
-        """Alias for get_structure for API consistency."""
-        return self.get_structure(feature_names)

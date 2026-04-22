@@ -28,6 +28,8 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 from sklearn.utils.validation import check_is_fitted
 
+from endgame.core.glassbox import GlassboxMixin
+
 try:
     import torch
     import torch.nn as nn
@@ -309,7 +311,7 @@ class _NodeGAMModule(nn.Module):
         return importance
 
 
-class NodeGAMClassifier(ClassifierMixin, BaseEstimator):
+class NodeGAMClassifier(GlassboxMixin, ClassifierMixin, BaseEstimator):
     """NODE-GAM Classifier.
 
     Neural Oblivious Decision Ensembles combined with GAM structure.
@@ -680,7 +682,7 @@ class NodeGAMClassifier(ClassifierMixin, BaseEstimator):
         return np.vstack(all_contributions)
 
 
-class NodeGAMRegressor(RegressorMixin, BaseEstimator):
+class NodeGAMRegressor(GlassboxMixin, RegressorMixin, BaseEstimator):
     """NODE-GAM Regressor.
 
     Same architecture as NodeGAMClassifier but with MSE loss.
@@ -936,3 +938,30 @@ class NodeGAMRegressor(RegressorMixin, BaseEstimator):
                 all_contributions.append(contributions.cpu().numpy())
 
         return np.vstack(all_contributions)
+
+
+def _nodegam_structure(self, *, link: str) -> dict[str, Any]:
+    check_is_fitted(self, "model_")
+    feature_names = self._structure_feature_names(self.n_features_in_)
+    return {
+        "link": link,
+        "terms": [
+            {
+                "name": feature_names[i],
+                "feature_index": i,
+                "type": "main",
+                "importance": float(self.feature_importances_[i]),
+            }
+            for i in range(self.n_features_in_)
+        ],
+        "n_trees_per_feature": int(getattr(self, "n_trees_per_feature", 0)),
+        "tree_depth": int(getattr(self, "depth", 0)),
+        "feature_importances": self.feature_importances_.tolist(),
+        "note": "Shape functions are learned neural oblivious trees; use get_feature_contributions(X) for per-sample effects.",
+    }
+
+
+NodeGAMClassifier._structure_type = "additive"
+NodeGAMClassifier._structure_content = lambda self: _nodegam_structure(self, link="logit")
+NodeGAMRegressor._structure_type = "additive"
+NodeGAMRegressor._structure_content = lambda self: _nodegam_structure(self, link="identity")

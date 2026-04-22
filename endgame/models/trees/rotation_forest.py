@@ -11,6 +11,8 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.base import EndgameEstimator
+from endgame.core.glassbox import GlassboxMixin, sklearn_tree_to_dict
+from typing import Any
 
 
 class BaseRotationForest(EndgameEstimator):
@@ -268,7 +270,7 @@ class BaseRotationForest(EndgameEstimator):
         return self
 
 
-class RotationForestClassifier(ClassifierMixin, BaseRotationForest):
+class RotationForestClassifier(GlassboxMixin, ClassifierMixin, BaseRotationForest):
     """Rotation Forest for classification.
 
     Parameters
@@ -383,7 +385,7 @@ class RotationForestClassifier(ClassifierMixin, BaseRotationForest):
         return proba
 
 
-class RotationForestRegressor(BaseRotationForest, RegressorMixin):
+class RotationForestRegressor(GlassboxMixin, BaseRotationForest, RegressorMixin):
     """Rotation Forest for regression.
 
     Parameters
@@ -455,3 +457,32 @@ class RotationForestRegressor(BaseRotationForest, RegressorMixin):
         # Average predictions
         predictions = np.mean(all_predictions, axis=0)
         return predictions
+
+
+def _rotation_forest_structure(self, class_names: list[Any] | None) -> dict[str, Any]:
+    check_is_fitted(self, ["estimators_"])
+    n_features = self._structure_n_features()
+    feature_names = self._structure_feature_names(n_features)
+    trees = []
+    for est, R in zip(self.estimators_, self.rotation_matrices_):
+        rotated_names = [f"r{i}" for i in range(R.shape[1])]
+        trees.append({
+            "rotation_matrix": np.asarray(R).tolist(),
+            "tree": sklearn_tree_to_dict(est.tree_, rotated_names, class_names),
+        })
+    importances = getattr(self, "feature_importances_", None)
+    return {
+        "trees": trees,
+        "n_trees": len(self.estimators_),
+        "input_feature_names": feature_names,
+        "feature_importances": importances.tolist() if importances is not None else [],
+        "note": "Each tree's splits are on rotated (PCA) features. Use rotation_matrix to map back to inputs.",
+    }
+
+
+RotationForestClassifier._structure_type = "tree_ensemble"
+RotationForestClassifier._structure_content = lambda self: _rotation_forest_structure(
+    self, self.classes_.tolist() if hasattr(self, "classes_") and self.classes_ is not None else None
+)
+RotationForestRegressor._structure_type = "tree_ensemble"
+RotationForestRegressor._structure_content = lambda self: _rotation_forest_structure(self, None)
