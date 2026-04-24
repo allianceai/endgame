@@ -27,6 +27,9 @@ from endgame.visualization.arc_diagram import ArcDiagramVisualizer
 
 # Tier 1 — Critical charts
 from endgame.visualization.bar_chart import BarChartVisualizer
+from endgame.visualization.bayesian_network_visualizer import (
+    BayesianNetworkVisualizer,
+)
 
 # Tier 2 — Important charts
 from endgame.visualization.box_violin import BoxPlotVisualizer, ViolinPlotVisualizer
@@ -84,6 +87,7 @@ __all__ = [
     "DIVERGING",
     # Existing
     "TreeVisualizer",
+    "BayesianNetworkVisualizer",
     # Tier 1
     "BarChartVisualizer",
     "HeatmapVisualizer",

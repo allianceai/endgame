@@ -7,6 +7,7 @@ embedded chart sections, and an optional interpretability section.
 from __future__ import annotations
 
 from endgame.visualization._html_template import _BASE_CSS, _SHARED_JS
+from endgame.visualization._structure_section import STRUCTURE_SECTION_CSS
 
 
 def render_report(
@@ -71,6 +72,7 @@ def render_report(
 <style>
 {_BASE_CSS}
 {_REPORT_CSS}
+{STRUCTURE_SECTION_CSS}
 </style>
 </head>
 <body>

@@ -32,6 +32,13 @@ from sklearn.metrics import (
 
 from endgame.visualization._palettes import DEFAULT_CATEGORICAL, get_palette
 from endgame.visualization._report_template import render_report
+from endgame.visualization._structure_section import (
+    render_structure_section,
+    save_structure_json,
+    try_save_bn_sidecar,
+    try_save_structure_sidecar,
+    try_save_tree_sidecar,
+)
 from endgame.visualization.classification_report import (
     _extract_linear_coefs,
     _extract_tree_rules,
@@ -86,9 +93,14 @@ class RegressionReport:
         theme: str = "dark",
     ):
         self.model = model
+        from endgame.visualization.classification_report import _infer_feature_names
+        self.feature_names = (
+            list(feature_names)
+            if feature_names is not None
+            else _infer_feature_names(X, model)
+        )
         self.X = np.asarray(X)
         self.y = np.asarray(y).ravel().astype(float)
-        self.feature_names = list(feature_names) if feature_names is not None else None
         self.model_name = model_name or type(model).__name__
         self.dataset_name = dataset_name or ""
         self.palette = palette
@@ -100,6 +112,11 @@ class RegressionReport:
 
         # Compute metrics
         self._metrics = self._compute_metrics()
+
+        # Sidecar links — set by save() when the sidecar files are produced.
+        self._tree_link_href: str | None = None
+        self._bn_link_href: str | None = None
+        self._structure_export_href: str | None = None
 
     def _compute_metrics(self) -> dict[str, Any]:
         m = {}
@@ -142,14 +159,59 @@ class RegressionReport:
         if not filepath.suffix:
             filepath = filepath.with_suffix(".html")
 
-        html = self._render()
-        filepath.write_text(html, encoding="utf-8")
+        prior_tree = self._tree_link_href
+        prior_bn = self._bn_link_href
+        prior_struct = self._structure_export_href
+        tree_sidecar = try_save_tree_sidecar(
+            self.model,
+            filepath,
+            feature_names=self.feature_names,
+            class_names=None,
+        )
+        bn_sidecar = try_save_bn_sidecar(
+            self.model,
+            filepath,
+            feature_names=self.feature_names,
+            class_names=None,
+        )
+        structure_sidecar = try_save_structure_sidecar(
+            self.model,
+            filepath,
+            feature_names=self.feature_names,
+        )
+        self._tree_link_href = tree_sidecar
+        self._bn_link_href = bn_sidecar
+        self._structure_export_href = structure_sidecar
+        try:
+            html = self._render()
+            filepath.write_text(html, encoding="utf-8")
+        finally:
+            self._tree_link_href = prior_tree
+            self._bn_link_href = prior_bn
+            self._structure_export_href = prior_struct
 
         if open_browser:
             import webbrowser
             webbrowser.open(filepath.resolve().as_uri())
 
         return filepath.resolve()
+
+    def export_structure(
+        self,
+        path: str | Path,
+        *,
+        indent: int = 2,
+    ) -> Path | None:
+        """Write the model's ``get_structure()`` dict to ``path`` as JSON.
+
+        Returns the resolved path on success, ``None`` if the model isn't glassbox.
+        """
+        return save_structure_json(
+            self.model,
+            path,
+            feature_names=self.feature_names,
+            indent=indent,
+        )
 
     def _repr_html_(self) -> str:
         """Jupyter inline display."""
@@ -326,8 +388,15 @@ class RegressionReport:
         }
 
     def _section_importances(self, w, h, colors):
+        from endgame.visualization.classification_report import _infer_feature_names
         imp = self.model.feature_importances_
-        names = self.feature_names or [f"Feature {i}" for i in range(len(imp))]
+        names = (
+            self.feature_names
+            or _infer_feature_names(None, self.model)
+            or [f"Feature {i}" for i in range(len(imp))]
+        )
+        if len(names) != len(imp):
+            names = [f"Feature {i}" for i in range(len(imp))]
         top_n = min(20, len(imp))
         idx = np.argsort(imp)[::-1][:top_n]
 
@@ -379,31 +448,61 @@ class RegressionReport:
     def _build_interpretability_footer(self) -> str:
         parts = []
 
-        if _is_decision_tree(self.model):
-            rules = _extract_tree_rules(self.model, self.feature_names, None)
-            if rules:
-                parts.append('<div class="interp-section">')
-                parts.append("<h2>Decision Tree Rules</h2>")
-                parts.append('<ol class="rules-list">')
-                for rule in rules[:30]:
-                    parts.append(f"<li>{html_module.escape(rule)}</li>")
-                if len(rules) > 30:
-                    parts.append(f"<li>... and {len(rules) - 30} more rules</li>")
-                parts.append("</ol></div>")
+        # Glassbox estimators expose a unified `get_structure()` dict.
+        structure_html = render_structure_section(
+            self.model,
+            feature_names=self.feature_names,
+            tree_link_href=self._tree_link_href,
+            bn_link_href=self._bn_link_href,
+            structure_export_href=self._structure_export_href,
+        )
+        if structure_html:
+            parts.append(structure_html)
+        else:
+            if self._tree_link_href:
+                parts.append(
+                    '<div class="interp-section struct-section">'
+                    "<h2>Tree Visualization</h2>"
+                    '<p class="tree-link-wrapper">'
+                    f'<a class="tree-link" href="{html_module.escape(self._tree_link_href)}" '
+                    'target="_blank" rel="noopener">'
+                    "Open interactive tree visualization →"
+                    "</a></p></div>"
+                )
+            if self._bn_link_href:
+                parts.append(
+                    '<div class="interp-section struct-section">'
+                    "<h2>Bayesian Network Visualization</h2>"
+                    '<p class="tree-link-wrapper">'
+                    f'<a class="tree-link" href="{html_module.escape(self._bn_link_href)}" '
+                    'target="_blank" rel="noopener">'
+                    "Open interactive Bayesian network →"
+                    "</a></p></div>"
+                )
 
-        if _is_linear(self.model):
-            coefs = _extract_linear_coefs(self.model, self.feature_names)
-            if coefs:
-                parts.append('<div class="interp-section">')
-                parts.append("<h2>Model Coefficients (Top 20 by |coef|)</h2>")
-                parts.append('<ol class="rules-list">')
-                for name, coef in coefs[:20]:
-                    sign = "+" if coef >= 0 else ""
-                    parts.append(f"<li>{html_module.escape(name)}: {sign}{coef:.4f}</li>")
-                if hasattr(self.model, "intercept_"):
-                    intercept = float(np.asarray(self.model.intercept_).ravel()[0])
-                    parts.append(f"<li>Intercept: {intercept:.4f}</li>")
-                parts.append("</ol></div>")
+            if _is_decision_tree(self.model):
+                rules = _extract_tree_rules(self.model, self.feature_names, None)
+                if rules:
+                    parts.append('<div class="interp-section">')
+                    parts.append("<h2>Decision Tree Rules</h2>")
+                    parts.append('<ol class="rules-list">')
+                    for rule in rules:
+                        parts.append(f"<li>{html_module.escape(rule)}</li>")
+                    parts.append("</ol></div>")
+
+            if _is_linear(self.model):
+                coefs = _extract_linear_coefs(self.model, self.feature_names)
+                if coefs:
+                    parts.append('<div class="interp-section">')
+                    parts.append("<h2>Model Coefficients</h2>")
+                    parts.append('<ol class="rules-list">')
+                    for name, coef in coefs:
+                        sign = "+" if coef >= 0 else ""
+                        parts.append(f"<li>{html_module.escape(name)}: {sign}{coef:.4f}</li>")
+                    if hasattr(self.model, "intercept_"):
+                        intercept = float(np.asarray(self.model.intercept_).ravel()[0])
+                        parts.append(f"<li>Intercept: {intercept:.4f}</li>")
+                    parts.append("</ol></div>")
 
         # Residual summary
         parts.append('<div class="report-footer">')
