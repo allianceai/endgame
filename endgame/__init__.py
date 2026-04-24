@@ -25,7 +25,7 @@ Usage:
     ensemble.fit(oof_predictions, y_train)
 """
 
-__version__ = "1.0.2"
+__version__ = "1.1.0"
 
 # Note: models imported lazily for heavyweight optional dependencies
 # from endgame import models
