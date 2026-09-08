@@ -43,6 +43,7 @@ Key Features
    guides/models
    guides/preprocessing
    guides/ensembles
+   guides/panel_ranking
    guides/calibration
    guides/timeseries
    guides/signal
@@ -57,6 +58,7 @@ Key Features
    :caption: API Reference
 
    api/validation
+   api/ranking
    api/preprocessing
    api/models
    api/ensemble

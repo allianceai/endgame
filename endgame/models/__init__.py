@@ -231,7 +231,9 @@ __all__.extend([
 ])
 
 # Simple baselines for ensemble diversity (ELM, Naive Bayes, Discriminant Analysis, KNN, Linear)
+from endgame.models.block_stacking import BlockStackingClassifier
 from endgame.models.baselines import (
+    PLSDAClassifier,
     ELMClassifier,
     ELMRegressor,
     KNNClassifier,
@@ -254,6 +256,8 @@ __all__.extend([
     "KNNClassifier",
     "KNNRegressor",
     "LinearClassifier",
+    "PLSDAClassifier",
+    "BlockStackingClassifier",
     "LinearRegressor",
 ])
 

@@ -174,6 +174,44 @@ resnet.fit(X_train, y_train)
 
 ---
 
+## PLS-DA (many correlated features, few samples)
+
+`PLSDAClassifier` projects the features onto a few latent components that maximise covariance
+with the class indicator and fits a logistic head on those scores — the standard chemometrics /
+metabolomics / neuroimaging baseline when features outnumber subjects.
+
+```python
+from endgame.models import PLSDAClassifier
+
+clf = PLSDAClassifier(n_components=3).fit(X_train, y_train)
+proba = clf.predict_proba(X_test)
+scores = clf.transform(X_test)          # latent components
+top = clf.feature_importances_.argsort()[::-1][:10]
+```
+
+## Block-wise stacking (multi-modal late fusion)
+
+`BlockStackingClassifier` fits one base model per named feature block (e.g. structural-MRI volumes,
+diffusion metrics, PET/SPECT measures, demographics), turns each block into out-of-fold class
+probabilities on the training data, and fits a logistic meta-model on those probabilities. Compared
+with concatenating all blocks ("early fusion"), a small informative block is not swamped by a large
+noisy one, each block can use the model that suits it, and subjects missing a whole modality still get
+a prediction (the block score falls back to its training mean). `passthrough` names blocks whose raw
+features also reach the meta-model.
+
+```python
+from endgame.models import BlockStackingClassifier
+from sklearn.linear_model import LogisticRegression
+
+blocks = {"t1": t1_cols, "dwi": dwi_cols, "demo": ["age", "sex", "LRRK2"]}
+clf = BlockStackingClassifier(blocks, base_estimator={"t1": LogisticRegression(max_iter=2000),
+                                                       "dwi": LogisticRegression(max_iter=2000),
+                                                       "demo": LogisticRegression()},
+                              passthrough=["demo"], cv=5).fit(X_train, y_train)
+proba = clf.predict_proba(X_test)
+clf.block_scores(X_test)      # per-block probabilities: which modality drives the prediction
+```
+
 ## Custom Trees
 
 ### Rotation Forest

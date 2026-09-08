@@ -115,6 +115,9 @@ endgame/
 - `SafeTargetEncoder`: M-estimate smoothing with inner-fold encoding
 - `AutoAggregator`: "Magic feature" group aggregations
 - `SMOTEResampler`, `ADASYNResampler`, `AutoBalancer`: Full imbalanced learning suite (18 samplers)
+- `ComBatHarmonizer`: Leakage-safe ComBat site/scanner harmonization (fit on training folds only)
+- `NormativeDeviation`: covariate-adjusted deviation scores (W-scores) against a reference group
+- `BlockwiseHarmonizer`, `MissingBlockIndicator`: per-modality ComBat (each block its own batch column) and block-availability indicators for multi-modal tables
 
 ### Models (100+ total)
 - **GBDTs**: `LGBMWrapper`, `XGBWrapper`, `CatBoostWrapper` with presets
@@ -124,9 +127,14 @@ endgame/
 - **Deep Tabular**: `FTTransformer`, `SAINT`, `NODE`, `TabPFN`, `NAM`, `GANDALF`, `TabularResNet`, `TabTransformer`
 - **Probabilistic**: `NGBoostClassifier`, `BARTClassifier`
 - **Kernel**: `GPClassifier`, `SVMClassifier`
-- **Baselines**: `ELMClassifier`, `NaiveBayesClassifier`, `LDA/QDA/RDA`, `KNNClassifier`, `LinearClassifier`
+- **Baselines**: `ELMClassifier`, `NaiveBayesClassifier`, `LDA/QDA/RDA`, `KNNClassifier`, `LinearClassifier`, `PLSDAClassifier`
 - **Interpretable**: `EBMClassifier`, `MARSClassifier`, `SymbolicRegressor`
 - **Subgroup**: `PRIMClassifier` (bump hunting)
+
+### Evaluation utilities (`eg.utils`)
+- `bootstrap_ci`, `paired_bootstrap_diff`, `delong_test`: metric CIs and paired model comparisons on the same subjects
+- `decision_curve`: net-benefit decision-curve analysis
+- `batch_leakage_check`: how predictable a batch/site is from the features (before vs after harmonisation)
 
 ### Calibration
 - `ConformalClassifier`, `ConformalRegressor`: Prediction sets/intervals with coverage guarantees

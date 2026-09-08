@@ -439,7 +439,7 @@ Endgame is organized into 26 modules following the ML workflow:
 
 | Module | Description | Key Classes |
 |---|---|---|
-| `eg.models` | 100+ estimators: GBDTs, deep tabular, trees, rules, Bayesian, kernel, neural, baselines | `LGBMWrapper`, `FTTransformerClassifier`, `RotationForestClassifier`, `TANClassifier` |
+| `eg.models` | 100+ estimators: GBDTs, deep tabular, trees, rules, Bayesian, kernel, neural, baselines (incl. PLS-DA), block-wise stacking | `LGBMWrapper`, `FTTransformerClassifier`, `RotationForestClassifier`, `TANClassifier`, `PLSDAClassifier`, `BlockStackingClassifier` |
 | `eg.models.interpretable` | 30+ glass-box models: EBM, GAM, GAMI-Net, NODE-GAM, NAM, CORELS, GOSDT, SLIM, FasterRisk, PySR | `EBMClassifier`, `GAMClassifier`, `GOSDTClassifier`, `CORELSClassifier`, `SLIMClassifier` |
 | `eg.ensemble` | Ensemble methods: voting, bagging, boosting, stacking, Super Learner, BMA, NCL, cascades | `SuperLearner`, `VotingClassifier`, `AdaBoostClassifier`, `CascadeEnsemble` |
 | `eg.calibration` | Conformal prediction, Venn-ABERS, temperature/Platt/beta/isotonic scaling | `ConformalClassifier`, `VennABERS`, `TemperatureScaling` |
@@ -449,7 +449,7 @@ Endgame is organized into 26 modules following the ML workflow:
 
 | Module | Description | Key Classes |
 |---|---|---|
-| `eg.preprocessing` | 45+ transformers: encoding, imputation, aggregation, imbalanced learning (25 samplers), noise detection | `SafeTargetEncoder`, `AutoAggregator`, `MissForestImputer`, `SMOTEResampler` |
+| `eg.preprocessing` | 45+ transformers: encoding, imputation, aggregation, imbalanced learning (25 samplers), noise detection, batch harmonization (leakage-safe ComBat), normative deviation scores | `SafeTargetEncoder`, `AutoAggregator`, `MissForestImputer`, `SMOTEResampler`, `ComBatHarmonizer`, `NormativeDeviation` |
 | `eg.validation` | 8 CV strategies, adversarial validation, drift detection | `PurgedTimeSeriesSplit`, `CombinatorialPurgedKFold`, `AdversarialValidator` |
 | `eg.anomaly` | Isolation Forest, LOF, GritBot, PyOD (39+ algorithms) | `IsolationForestDetector`, `GritBotDetector`, `PyODDetector` |
 | `eg.semi_supervised` | Self-training for classification and regression | `SelfTrainingClassifier`, `SelfTrainingRegressor` |

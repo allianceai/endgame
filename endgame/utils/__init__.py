@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from endgame.utils.data import load_dataset, split
 from endgame.utils.metrics import (
+    bootstrap_ci,
+    paired_bootstrap_diff,
+    delong_test,
+    decision_curve,
     competition_metric,
     map_at_k,
     ndcg_at_k,
@@ -25,7 +29,14 @@ from endgame.utils.sharpe import (
 )
 from endgame.utils.submission import SubmissionHelper
 
+from endgame.utils.diagnostics import batch_leakage_check
+
 __all__ = [
+    "bootstrap_ci",
+    "paired_bootstrap_diff",
+    "delong_test",
+    "decision_curve",
+    "batch_leakage_check",
     # Data loading
     "load_dataset",
     "split",

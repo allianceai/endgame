@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `preprocessing.BlockwiseHarmonizer`: one leakage-safe ComBat per feature block with the block's own batch column (multi-modal data where each modality has its own scanner); rows lacking a block or its batch pass through, batch levels below `min_batch_n` are left un-adjusted.
+- `preprocessing.MissingBlockIndicator`: per-block availability indicator plus mean imputation, so early-fusion models see missingness instead of an imputed modality.
+- `utils.paired_bootstrap_diff` and `utils.delong_test`: paired comparison of two models' metrics on the same subjects (difference with its own CI and p-value), the right way to claim "A beats B".
+- `utils.decision_curve`: decision-curve analysis (net benefit vs treat-all / treat-none).
+- `utils.batch_leakage_check`: cross-validated one-vs-rest AUROC of the features for predicting the batch, before and after harmonisation.
+- `models.BlockStackingClassifier`: late-fusion stacking over named feature blocks (one base model per modality, out-of-fold block probabilities, logistic meta-model, optional raw passthrough block, missing-block fallback).
+- `preprocessing.NormativeDeviation`: covariate-adjusted deviation (W/z) scores against a reference group, fitted in `fit` only (normative modelling as a pipeline step).
+- `models.PLSDAClassifier`: PLS-DA with a logistic head, latent-score `transform`, per-feature importances.
+- `utils.bootstrap_ci`: stratified percentile-bootstrap confidence intervals for any score metric.
+- `preprocessing.ComBatHarmonizer`: leakage-safe ComBat batch harmonization (fit/transform split, empirical Bayes, biological covariates preserved, unseen-batch passthrough option, near-constant features passed through instead of becoming batch identifiers). Matches `neuroCombat` on training data.
+
 ## [1.0.0] - 2026-02-22
 
 First stable release of Endgame.

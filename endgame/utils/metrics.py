@@ -315,3 +315,147 @@ def competition_metric(metric_name: str) -> Callable:
             f"Unknown metric: {metric_name}. "
             f"Available custom metrics: {list(custom_metrics.keys())}"
         )
+
+
+def bootstrap_ci(
+    metric: Callable[[np.ndarray, np.ndarray], float],
+    y_true,
+    y_score,
+    n_boot: int = 1000,
+    ci: float = 0.95,
+    stratified: bool = True,
+    random_state: int | None = 0,
+) -> tuple[float, float, float]:
+    """Point estimate and percentile bootstrap confidence interval of a metric.
+
+    Resamples (y_true, y_score) pairs with replacement, by class when ``stratified``
+    (keeps the class balance of every replicate, which matters for AUROC/AUPRC on
+    imbalanced data). Returns (estimate, lower, upper).
+
+    Examples
+    --------
+    >>> from sklearn.metrics import roc_auc_score
+    >>> from endgame.utils.metrics import bootstrap_ci
+    >>> auc, lo, hi = bootstrap_ci(roc_auc_score, y_test, proba[:, 1])
+    """
+    y_true, y_score = np.asarray(y_true), np.asarray(y_score)
+    rng = np.random.RandomState(random_state)
+    groups = [np.flatnonzero(y_true == c) for c in np.unique(y_true)] if stratified else [np.arange(len(y_true))]
+    stats = []
+    for _ in range(n_boot):
+        idx = np.concatenate([rng.choice(g, size=len(g), replace=True) for g in groups])
+        try:
+            stats.append(metric(y_true[idx], y_score[idx]))
+        except ValueError:  # e.g. a replicate with a single class
+            continue
+    alpha = (1 - ci) / 2
+    lo, hi = np.percentile(stats, [100 * alpha, 100 * (1 - alpha)])
+    return float(metric(y_true, y_score)), float(lo), float(hi)
+
+
+def paired_bootstrap_diff(
+    metric: Callable[[np.ndarray, np.ndarray], float],
+    y_true,
+    score_a,
+    score_b,
+    n_boot: int = 1000,
+    ci: float = 0.95,
+    stratified: bool = True,
+    random_state: int | None = 0,
+) -> dict:
+    """Paired bootstrap of ``metric(a) - metric(b)`` for two score vectors on the *same* subjects.
+
+    Two overlapping confidence intervals do not tell whether model A beats model B; resampling the same
+    subjects for both keeps the pairing and gives the interval of the difference directly. Returns a dict
+    with the point estimates, the difference, its percentile CI, and a two-sided bootstrap p-value
+    (fraction of replicates on the other side of zero, doubled, floored at 1/n_boot).
+
+    Examples
+    --------
+    >>> from sklearn.metrics import roc_auc_score
+    >>> paired_bootstrap_diff(roc_auc_score, y, p_imaging, p_genetics_only)
+    {'metric_a': 0.80, 'metric_b': 0.65, 'diff': 0.15, 'ci_lo': 0.09, 'ci_hi': 0.21, 'p_value': 0.001, 'n_boot': 1000}
+    """
+    y_true, a, b = np.asarray(y_true), np.asarray(score_a), np.asarray(score_b)
+    rng = np.random.RandomState(random_state)
+    groups = [np.flatnonzero(y_true == c) for c in np.unique(y_true)] if stratified else [np.arange(len(y_true))]
+    diffs = []
+    for _ in range(n_boot):
+        idx = np.concatenate([rng.choice(g, size=len(g), replace=True) for g in groups])
+        try:
+            diffs.append(metric(y_true[idx], a[idx]) - metric(y_true[idx], b[idx]))
+        except ValueError:
+            continue
+    diffs = np.asarray(diffs)
+    d = metric(y_true, a) - metric(y_true, b)
+    alpha = (1 - ci) / 2
+    p = 2 * min((diffs <= 0).mean(), (diffs >= 0).mean()) if len(diffs) else np.nan
+    return {"metric_a": float(metric(y_true, a)), "metric_b": float(metric(y_true, b)), "diff": float(d),
+            "ci_lo": float(np.quantile(diffs, alpha)), "ci_hi": float(np.quantile(diffs, 1 - alpha)),
+            "p_value": float(max(p, 1.0 / max(len(diffs), 1))), "n_boot": int(len(diffs))}
+
+
+def _auc_placements(y_true, score):
+    pos, neg = score[y_true == 1], score[y_true == 0]
+    # placement values (DeLong 1988 / Sun & Xu 2014 fast implementation)
+    order = np.argsort(np.concatenate([pos, neg]))
+    ranks = np.empty(len(order))
+    ranks[order] = np.arange(1, len(order) + 1)
+    all_scores = np.concatenate([pos, neg])
+    # midranks for ties
+    _, inv, counts = np.unique(all_scores, return_inverse=True, return_counts=True)
+    start = np.cumsum(np.r_[0, counts[:-1]]) + 1
+    mid = start + (counts - 1) / 2.0
+    ranks = mid[inv]
+    m, n = len(pos), len(neg)
+    v10 = (ranks[:m] - np.arange(1, m + 1)) / n  # placement of positives among negatives (with tie midranks)
+    # exact placements: fraction of negatives below each positive (+0.5 ties)
+    v10 = np.array([((neg < p_).mean() + 0.5 * (neg == p_).mean()) for p_ in pos])
+    v01 = np.array([((pos > n_).mean() + 0.5 * (pos == n_).mean()) for n_ in neg])
+    return v10, v01
+
+
+def delong_test(y_true, score_a, score_b) -> dict:
+    """DeLong (1988) test for the difference of two correlated AUROCs on the same subjects.
+
+    Returns the two AUCs, their difference, its standard error, the 95 % CI and the two-sided p-value.
+    Exact placement values (O(m*n)); fine for the sample sizes of tabular biomarker studies.
+    """
+    from scipy import stats
+
+    y_true, a, b = np.asarray(y_true).astype(int), np.asarray(score_a, float), np.asarray(score_b, float)
+    va10, va01 = _auc_placements(y_true, a)
+    vb10, vb01 = _auc_placements(y_true, b)
+    auc_a, auc_b = va10.mean(), vb10.mean()
+    m, n = len(va10), len(va01)
+    s10 = np.cov(np.vstack([va10, vb10]))
+    s01 = np.cov(np.vstack([va01, vb01]))
+    S = s10 / m + s01 / n
+    var_diff = S[0, 0] + S[1, 1] - 2 * S[0, 1]
+    se = float(np.sqrt(max(var_diff, 1e-12)))
+    z = (auc_a - auc_b) / se
+    p = float(2 * stats.norm.sf(abs(z)))
+    return {"auc_a": float(auc_a), "auc_b": float(auc_b), "diff": float(auc_a - auc_b), "se": se,
+            "ci_lo": float(auc_a - auc_b - 1.96 * se), "ci_hi": float(auc_a - auc_b + 1.96 * se), "z": float(z), "p_value": p}
+
+
+def decision_curve(y_true, proba, thresholds=None) -> "pd.DataFrame":
+    """Decision-curve analysis (Vickers & Elkin 2006): net benefit of treating when P(positive) >= threshold,
+    against treating everyone and treating no one.
+
+    net benefit = TP/N - FP/N * t/(1-t). Returns a DataFrame with columns threshold, net_benefit_model,
+    net_benefit_all, net_benefit_none, and the fraction flagged.
+    """
+    import pandas as pd
+
+    y_true, proba = np.asarray(y_true).astype(int), np.asarray(proba, float)
+    thresholds = np.linspace(0.01, 0.99, 99) if thresholds is None else np.asarray(thresholds, float)
+    N, prev = len(y_true), y_true.mean()
+    rows = []
+    for t in thresholds:
+        flag = proba >= t
+        tp, fp = float((flag & (y_true == 1)).sum()), float((flag & (y_true == 0)).sum())
+        w = t / (1 - t)
+        rows.append({"threshold": t, "net_benefit_model": tp / N - fp / N * w, "net_benefit_all": prev - (1 - prev) * w,
+                     "net_benefit_none": 0.0, "fraction_flagged": float(flag.mean())})
+    return pd.DataFrame(rows)

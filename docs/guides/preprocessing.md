@@ -343,6 +343,45 @@ X = rolls.fit_transform(X)
 
 ---
 
+## Batch Harmonization
+
+### ComBatHarmonizer
+
+Removes additive and multiplicative site/scanner effects from tabular features (for example
+imaging-derived phenotypes) while preserving biological covariates. Unlike whole-dataset
+ComBat, the estimates are learned in `fit` and re-applied in `transform`, so the transformer
+can sit inside a cross-validation fold without leaking test-batch statistics.
+
+```python
+from endgame.preprocessing import ComBatHarmonizer
+
+h = ComBatHarmonizer(batch="scanner", covariates=["age"], categorical=["sex"])
+X_train_h = h.fit_transform(X_train)   # DataFrame in, DataFrame out (batch column dropped)
+X_test_h = h.transform(X_test)         # uses training estimates and each row's own covariates
+```
+
+Options: `eb=False` for plain location/scale adjustment, `mean_only=True` to adjust means only,
+`unknown_batch="passthrough"` to leave unseen batches un-adjusted instead of raising.
+
+## Normative Deviation Scores
+
+### NormativeDeviation
+
+Expresses each feature as its standardized residual from a covariate-adjusted norm fitted on a
+reference group (for example healthy controls adjusted for age, sex and head size), the
+W-score / normative-modelling approach used in neuroimaging and biomarker studies. The norm
+is fitted in `fit` only, so it is safe inside cross-validation.
+
+```python
+from endgame.preprocessing import NormativeDeviation
+
+nd = NormativeDeviation(covariates=["age", "sex", "icv"], reference="is_control")
+Z_train = nd.fit_transform(X_train)   # features replaced by deviation scores; covariates kept
+Z_test = nd.transform(X_test)
+```
+
+Omit `reference` to residualize on all training rows.
+
 ## Noise Detection
 
 ### ConfidentLearningFilter
@@ -435,3 +474,26 @@ See the [API Reference](../api/preprocessing) for the full parameter list of eac
 - **Target Transformation**: `TargetTransformer`, `TargetQuantileTransformer`
 - **Feature Selection**: `AdversarialFeatureSelector`, `PermutationImportanceSelector`, `NullImportanceSelector`
 - **Discretization**: `BayesianDiscretizer`
+
+## Multi-modal blocks: harmonise each modality by its own scanner
+
+When features come from several acquisitions, one ComBat keyed on the structural scanner harmonises the
+diffusion, PET/SPECT or neuromelanin features by the wrong batch. `BlockwiseHarmonizer` runs one ComBat per
+block with that block's batch column; rows without the block (or its batch) pass through untouched, and unseen
+batch levels are passed through by ComBat itself. `MissingBlockIndicator` adds a `<block>_missing` flag and
+mean-imputes the block, so a model can learn from the missingness pattern rather than treat an imputed
+modality as observed. `utils.batch_leakage_check` quantifies how predictable the batch still is afterwards.
+
+```python
+from endgame.preprocessing import BlockwiseHarmonizer, MissingBlockIndicator
+from endgame.utils import batch_leakage_check
+
+blocks = {"t1": {"features": t1_cols, "batch": "scanner_batch"},
+          "dwi": {"features": dwi_cols, "batch": "dwi_batch"},
+          "nm": {"features": nm_cols, "batch": "nm_batch"}}
+h = BlockwiseHarmonizer(blocks, covariates=["age", "sex"]).fit(train)
+train_h, test_h = h.transform(train), h.transform(test)
+mbi = MissingBlockIndicator({b: s["features"] for b, s in blocks.items()}).fit(train_h)
+X_train, X_test = mbi.transform(train_h), mbi.transform(test_h)
+batch_leakage_check(train_h[dwi_cols], train_h["dwi_batch"])     # residual scanner predictability
+```

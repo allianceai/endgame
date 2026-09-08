@@ -53,6 +53,9 @@ from endgame.preprocessing.imbalance import (
     # Utilities
     get_imbalance_ratio,
 )
+from endgame.preprocessing.harmonization import ComBatHarmonizer
+from endgame.preprocessing.blocks import BlockwiseHarmonizer, MissingBlockIndicator
+from endgame.preprocessing.normative import NormativeDeviation
 from endgame.preprocessing.imbalance_geometric import (
     GEOMETRIC_SAMPLERS as _GEO_SAMPLERS,
 )
@@ -157,6 +160,11 @@ __all__ = [
     "OverlapRegionDetector",
     # Auto-balancer
     "AutoBalancer",
+    # Harmonization / normative scoring
+    "ComBatHarmonizer",
+    "BlockwiseHarmonizer",
+    "MissingBlockIndicator",
+    "NormativeDeviation",
     # Utilities
     "get_imbalance_ratio",
     "get_class_distribution",

@@ -69,6 +69,12 @@ This document tracks all implemented features and planned additions for the Endg
 #### Deep Learning Preprocessing
 - [x] `DenoisingAutoEncoder` - DAE for representation learning (PyTorch)
 
+#### Batch Harmonization
+- [x] `ComBatHarmonizer` - Leakage-safe ComBat (fit on train, transform test) with empirical Bayes, covariate preservation, unseen-batch handling; reproduces neuroCombat
+
+#### Normative Modelling
+- [x] `NormativeDeviation` - Covariate-adjusted W/z deviation scores against a reference group (e.g. controls), leakage-safe
+
 #### Class Balancing (25+ samplers)
 
 **Over-sampling:**
@@ -205,6 +211,7 @@ This document tracks all implemented features and planned additions for the Endg
 - [x] `ELMClassifier` / `ELMRegressor` - Extreme Learning Machine (no backprop)
 
 #### Simple Baselines
+- [x] `PLSDAClassifier` - PLS-DA (latent components + logistic head) for many-correlated-features / few-samples problems
 - [x] `NaiveBayesClassifier` - Auto-selecting Naive Bayes (Gaussian/Bernoulli/Multinomial)
 - [x] `LDAClassifier` / `QDAClassifier` / `RDAClassifier` - Discriminant Analysis suite
 - [x] `KNNClassifier` / `KNNRegressor` - K-Nearest Neighbors with auto-scaling
