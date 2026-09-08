@@ -26,7 +26,7 @@ Performance Notes
 """
 
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
@@ -35,7 +35,6 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.utils import check_random_state
 
 from endgame.core.glassbox import GlassboxMixin
-from typing import Any
 
 # Try to import numba for JIT compilation
 try:

@@ -25,7 +25,6 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.fuzzy.core.membership import GaussianMF
 
-
 # ---------------------------------------------------------------------------
 # Internal fuzzy tree used as the base estimator
 # ---------------------------------------------------------------------------

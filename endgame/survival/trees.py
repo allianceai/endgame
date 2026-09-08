@@ -20,16 +20,16 @@ from typing import Any
 import numpy as np
 
 from endgame.survival.base import (
+    SURVIVAL_DTYPE,
     BaseSurvivalEstimator,
     _check_survival_y,
     _get_time_event,
-    SURVIVAL_DTYPE,
 )
 
 try:
-    from sksurv.ensemble import RandomSurvivalForest as _RSF
     from sksurv.ensemble import ExtraSurvivalTrees as _EST
     from sksurv.ensemble import GradientBoostingSurvivalAnalysis as _GBSA
+    from sksurv.ensemble import RandomSurvivalForest as _RSF
 
     HAS_SKSURV = True
 except ImportError:

@@ -8,7 +8,6 @@ from endgame.core.base import (
     EndgameRegressorMixin,
     PolarsTransformer,
 )
-from endgame.core.glassbox import GlassboxMixin, sklearn_tree_to_dict
 from endgame.core.config import (
     CATBOOST_ENDGAME_DEFAULTS,
     LGBM_ENDGAME_DEFAULTS,
@@ -17,6 +16,7 @@ from endgame.core.config import (
     XGB_FAST_DEFAULTS,
     get_preset,
 )
+from endgame.core.glassbox import GlassboxMixin, sklearn_tree_to_dict
 from endgame.core.polars_ops import (
     from_lazyframe,
     infer_categorical_columns,

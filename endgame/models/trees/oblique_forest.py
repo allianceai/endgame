@@ -22,6 +22,8 @@ Breiman, L. (2001). "Random Forests." Machine Learning, 45(1), 5-32.
 """
 
 
+from typing import Any
+
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
@@ -30,8 +32,6 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin
-from typing import Any
-
 from endgame.models.trees.oblique_tree import (
     ObliqueDecisionTreeClassifier,
     ObliqueDecisionTreeRegressor,

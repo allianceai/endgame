@@ -3,14 +3,15 @@ from __future__ import annotations
 """Utils module: Metrics, submission helpers, and reproducibility."""
 
 from endgame.utils.data import load_dataset, split
+from endgame.utils.diagnostics import batch_leakage_check
 from endgame.utils.metrics import (
     bootstrap_ci,
-    paired_bootstrap_diff,
-    delong_test,
-    decision_curve,
     competition_metric,
+    decision_curve,
+    delong_test,
     map_at_k,
     ndcg_at_k,
+    paired_bootstrap_diff,
     quadratic_weighted_kappa,
 )
 from endgame.utils.reproducibility import SeedEverything, seed_everything
@@ -28,8 +29,6 @@ from endgame.utils.sharpe import (
     sharpe_ratio_std,
 )
 from endgame.utils.submission import SubmissionHelper
-
-from endgame.utils.diagnostics import batch_leakage_check
 
 __all__ = [
     "bootstrap_ci",

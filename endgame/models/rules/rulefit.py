@@ -12,6 +12,8 @@ The Annals of Applied Statistics, 2(3), 916-954.
 """
 
 
+from typing import Any
+
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, clone
 from sklearn.preprocessing import LabelEncoder
@@ -19,7 +21,6 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin
 from endgame.models.rules.extraction import extract_rules_from_ensemble
-from typing import Any
 
 
 def _preprocess_linear_features(
@@ -374,12 +375,18 @@ class RuleFitRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):
 
     def _fit_lasso(self, X_combined, y, sample_weight):
         """Fit Lasso model on combined features."""
+        import inspect
+
         from sklearn.linear_model import Lasso, LassoCV
 
         if self.alpha is None:
+            # sklearn >=1.7 accepts an integer in alphas and deprecates
+            # n_alphas; older supported releases require n_alphas instead.
+            param = inspect.signature(LassoCV).parameters.get("n_alphas")
+            grid = {"n_alphas": 50} if param is not None and param.default != "deprecated" else {"alphas": 50}
             lasso_cv = LassoCV(
                 cv=self.cv,
-                n_alphas=50,
+                **grid,
                 n_jobs=self.n_jobs,
                 random_state=self.random_state,
                 max_iter=1000,

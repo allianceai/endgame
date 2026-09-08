@@ -26,6 +26,30 @@ jobs:
       - name: Lint
         run: ruff check endgame/
 
+  scientific:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements/scientific-ci.txt
+      - name: Install scientific reference environment
+        run: pip install -c requirements/scientific-ci.txt -e ".[dev,scientific]"
+      - name: Require reference implementations
+        run: python -c "import neuroCombat, lightgbm"
+      - name: Scientific regression and leakage tests
+        run: >
+          pytest tests/test_harmonization.py tests/test_block_stacking.py
+          tests/test_normative_plsda.py tests/test_study_additions.py
+          tests/test_panel_ranking.py tests/test_scientific_safety.py
+          -W error::RuntimeWarning --tb=short
+
   test:
     runs-on: ubuntu-latest
     strategy:

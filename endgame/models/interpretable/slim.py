@@ -26,6 +26,8 @@ Example
 """
 
 
+from typing import Any
+
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import LogisticRegression
@@ -33,7 +35,6 @@ from sklearn.preprocessing import KBinsDiscretizer, LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin
-from typing import Any
 
 
 def _round_to_integers(

@@ -21,17 +21,17 @@ StackedFuzzySystem
     Meta-learning with fuzzy TSK combiner over base estimator outputs.
 """
 
-from endgame.fuzzy.ensemble.fuzzy_random_forest import (
-    FuzzyRandomForestClassifier,
-    FuzzyRandomForestRegressor,
+from endgame.fuzzy.ensemble.fuzzy_bagging import (
+    FuzzyBaggingClassifier,
+    FuzzyBaggingRegressor,
 )
 from endgame.fuzzy.ensemble.fuzzy_boosted_trees import (
     FuzzyBoostedTreesClassifier,
     FuzzyBoostedTreesRegressor,
 )
-from endgame.fuzzy.ensemble.fuzzy_bagging import (
-    FuzzyBaggingClassifier,
-    FuzzyBaggingRegressor,
+from endgame.fuzzy.ensemble.fuzzy_random_forest import (
+    FuzzyRandomForestClassifier,
+    FuzzyRandomForestRegressor,
 )
 from endgame.fuzzy.ensemble.stacked_fuzzy import StackedFuzzySystem
 

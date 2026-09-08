@@ -5,18 +5,19 @@ fuzzy attention mechanisms, differentiable fuzzy systems, TSK with
 privileged information, and self-evolving Type-2 networks.
 """
 
-from endgame.fuzzy.modern.htsk import HTSKClassifier, HTSKRegressor
-from endgame.fuzzy.modern.mbgd_rda import MBGDRDATrainer, MBGDRDARegressor
 from endgame.fuzzy.modern.fcm_rdpa import FCMRDpAClassifier, FCMRDpARegressor
-from endgame.fuzzy.modern.tsk_plus import TSKPlusClassifier, TSKPlusRegressor
+from endgame.fuzzy.modern.htsk import HTSKClassifier, HTSKRegressor
+from endgame.fuzzy.modern.mbgd_rda import MBGDRDARegressor, MBGDRDATrainer
 from endgame.fuzzy.modern.seit2fnn import SEIT2FNNClassifier
+from endgame.fuzzy.modern.tsk_plus import TSKPlusClassifier, TSKPlusRegressor
+
 
 # PyTorch-dependent imports (lazy)
 def __getattr__(name: str):
     if name in ("FuzzyAttentionLayer", "FuzzyAttentionClassifier"):
         from endgame.fuzzy.modern.fuzzy_attention import (
-            FuzzyAttentionLayer,
             FuzzyAttentionClassifier,
+            FuzzyAttentionLayer,
         )
         return {"FuzzyAttentionLayer": FuzzyAttentionLayer,
                 "FuzzyAttentionClassifier": FuzzyAttentionClassifier}[name]

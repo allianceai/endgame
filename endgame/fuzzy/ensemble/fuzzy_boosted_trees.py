@@ -23,7 +23,6 @@ from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
-
 # ---------------------------------------------------------------------------
 # Internal fuzzy boosting tree (single weak learner)
 # ---------------------------------------------------------------------------

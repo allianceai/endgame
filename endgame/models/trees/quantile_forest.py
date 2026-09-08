@@ -28,6 +28,8 @@ Journal of Machine Learning Research, 7, 983-999.
 """
 
 
+from typing import Any
+
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator, RegressorMixin
@@ -36,7 +38,6 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin, sklearn_tree_to_dict
-from typing import Any
 
 
 def _build_leaf_samples(tree: DecisionTreeRegressor, X: np.ndarray, y: np.ndarray) -> dict[int, np.ndarray]:

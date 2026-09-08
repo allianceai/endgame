@@ -2,13 +2,13 @@ from __future__ import annotations
 
 """Models module: GBDT wrappers, custom trees, EBMs, linear models, neural networks, and Bayesian classifiers."""
 
+from endgame.models.multiclass import is_binary_only, ovr_wrap
 from endgame.models.wrappers import (
     CatBoostWrapper,
     GBDTWrapper,
     LGBMWrapper,
     XGBWrapper,
 )
-from endgame.models.multiclass import is_binary_only, ovr_wrap
 
 # NGBoost for probabilistic prediction
 try:
@@ -231,9 +231,7 @@ __all__.extend([
 ])
 
 # Simple baselines for ensemble diversity (ELM, Naive Bayes, Discriminant Analysis, KNN, Linear)
-from endgame.models.block_stacking import BlockStackingClassifier
 from endgame.models.baselines import (
-    PLSDAClassifier,
     ELMClassifier,
     ELMRegressor,
     KNNClassifier,
@@ -242,9 +240,11 @@ from endgame.models.baselines import (
     LinearClassifier,
     LinearRegressor,
     NaiveBayesClassifier,
+    PLSDAClassifier,
     QDAClassifier,
     RDAClassifier,
 )
+from endgame.models.block_stacking import BlockStackingClassifier
 
 __all__.extend([
     "ELMClassifier",

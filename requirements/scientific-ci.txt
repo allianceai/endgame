@@ -1,0 +1,12 @@
+# Direct dependency versions for the Python 3.10-3.12 scientific CI matrix.
+# Keep reference implementations mandatory in the scientific CI job.
+numpy==1.26.4
+scipy==1.13.1
+scikit-learn==1.5.2
+pandas==2.2.3
+polars==1.32.3
+optuna==4.5.0
+networkx==3.4.2
+neuroCombat==0.2.12
+lightgbm==4.6.0
+pytest==8.3.5

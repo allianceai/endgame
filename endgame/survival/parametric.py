@@ -32,14 +32,13 @@ from scipy.stats import norm
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from endgame.survival.base import (
+    SURVIVAL_DTYPE,
     BaseSurvivalEstimator,
     SurvivalMixin,
     _check_survival_y,
     _get_time_event,
     make_survival_y,
-    SURVIVAL_DTYPE,
 )
-
 
 # ---------------------------------------------------------------------------
 # Exponential AFT
@@ -86,7 +85,7 @@ class ExponentialRegressor(BaseSurvivalEstimator):
         super().__init__(random_state=random_state, verbose=verbose)
         self.alpha = alpha
 
-    def fit(self, X: Any, y: Any) -> "ExponentialRegressor":
+    def fit(self, X: Any, y: Any) -> ExponentialRegressor:
         """Fit the exponential model via MLE.
 
         Parameters
@@ -242,7 +241,7 @@ class WeibullAFTRegressor(BaseSurvivalEstimator):
         super().__init__(random_state=random_state, verbose=verbose)
         self.alpha = alpha
 
-    def fit(self, X: Any, y: Any) -> "WeibullAFTRegressor":
+    def fit(self, X: Any, y: Any) -> WeibullAFTRegressor:
         """Fit the Weibull AFT model via MLE.
 
         Parameters
@@ -401,7 +400,7 @@ class LogNormalAFTRegressor(BaseSurvivalEstimator):
         super().__init__(random_state=random_state, verbose=verbose)
         self.alpha = alpha
 
-    def fit(self, X: Any, y: Any) -> "LogNormalAFTRegressor":
+    def fit(self, X: Any, y: Any) -> LogNormalAFTRegressor:
         """Fit the log-normal AFT model via MLE.
 
         Parameters
@@ -552,7 +551,7 @@ class LogLogisticAFTRegressor(BaseSurvivalEstimator):
         super().__init__(random_state=random_state, verbose=verbose)
         self.alpha = alpha
 
-    def fit(self, X: Any, y: Any) -> "LogLogisticAFTRegressor":
+    def fit(self, X: Any, y: Any) -> LogLogisticAFTRegressor:
         """Fit the log-logistic AFT model via MLE.
 
         Parameters

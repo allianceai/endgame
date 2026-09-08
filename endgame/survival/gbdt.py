@@ -19,10 +19,10 @@ from typing import Any, Literal
 import numpy as np
 
 from endgame.survival.base import (
+    SURVIVAL_DTYPE,
     BaseSurvivalEstimator,
     _check_survival_y,
     _get_time_event,
-    SURVIVAL_DTYPE,
 )
 
 # ---------------------------------------------------------------------------

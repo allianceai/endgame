@@ -27,14 +27,14 @@ import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
+from endgame.fuzzy.core.membership import (
+    IntervalType2GaussianMF,
+    IntervalType2TriangularMF,
+)
 from endgame.fuzzy.type2.it2_fls import (
     _create_it2_mfs,
     karnik_mendel,
     nie_tan,
-)
-from endgame.fuzzy.core.membership import (
-    IntervalType2GaussianMF,
-    IntervalType2TriangularMF,
 )
 
 

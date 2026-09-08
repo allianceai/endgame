@@ -79,6 +79,7 @@ def test_batch_leakage_check_detects_and_clears():
     df = _blocks_data()
     raw = batch_leakage_check(df[["vol_0", "vol_1", "vol_2"]], df["scanner_batch"], cv=3)
     assert raw.loc[raw.batch == "MACRO", "auroc"].item() > 0.75
-    h = BlockwiseHarmonizer({"t1": {"features": ["vol_0", "vol_1", "vol_2"], "batch": "scanner_batch"}}).fit(df)
-    harm = batch_leakage_check(h.transform(df)[["vol_0", "vol_1", "vol_2"]], df["scanner_batch"], cv=3)
+    h = BlockwiseHarmonizer({"t1": {"features": ["vol_0", "vol_1", "vol_2"], "batch": "scanner_batch"}})
+    harm = batch_leakage_check(df, df["scanner_batch"], cv=3, preprocessor=h,
+                               features=["vol_0", "vol_1", "vol_2"])
     assert harm.loc[harm.batch == "MACRO", "auroc"].item() < raw.loc[raw.batch == "MACRO", "auroc"].item() - 0.15

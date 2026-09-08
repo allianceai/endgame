@@ -3,6 +3,8 @@ from __future__ import annotations
 """Rotation Forest: Ensemble of trees trained on PCA-rotated feature subsets."""
 
 
+from typing import Any
+
 import numpy as np
 from joblib import Parallel, delayed
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin, clone
@@ -12,7 +14,6 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.base import EndgameEstimator
 from endgame.core.glassbox import GlassboxMixin, sklearn_tree_to_dict
-from typing import Any
 
 
 class BaseRotationForest(EndgameEstimator):

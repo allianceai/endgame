@@ -4,8 +4,8 @@ Combines fuzzy set theory with rough set theory for handling
 uncertainty in both feature values and class boundaries.
 """
 
-from endgame.fuzzy.rough.frnn import FuzzyRoughNNClassifier
 from endgame.fuzzy.rough.frfs import FuzzyRoughFeatureSelector
+from endgame.fuzzy.rough.frnn import FuzzyRoughNNClassifier
 
 __all__ = [
     "FuzzyRoughNNClassifier",

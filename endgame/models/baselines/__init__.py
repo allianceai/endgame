@@ -35,7 +35,6 @@ from endgame.models.baselines.linear import (
 from endgame.models.baselines.naive_bayes import (
     NaiveBayesClassifier,
 )
-
 from endgame.models.baselines.plsda import PLSDAClassifier
 
 __all__ = [

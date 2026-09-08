@@ -7,17 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Stack passthrough imputation now reuses training statistics; single-patient and batch predictions agree. Unavailable/single-class blocks use an explicit class-prior fallback, with stable patient indices and strict feature schemas.
+- ComBat excludes globally constant features from empirical-Bayes priors, rejects confounded/degenerate designs, and bounds convergence. One-active-feature and failed-prior cases require an explicit plain-adjustment policy. Adjustment reports expose raw passthrough and skipped blocks.
+- Normative reference markers reject missing/ambiguous membership and are optional at inference; rank, residual degrees of freedom, scale and extrapolation are checked.
+- Decision curves reject broadcasting-prone probability shapes and invalid labels/thresholds; optional target prevalence reweights net benefit. DeLong validates binary samples and handles identical predictions without fabricated variance.
+- PLS-DA remaps original-label class weights and checks rank and feature identity. Block transforms handle empty training features and partial missingness explicitly.
+- CI compatibility: constrain MCP to its supported v1 API, update MLflow tests/default local storage to SQLite, support old/new scikit-learn LassoCV parameters, and fix pandas string-label encoding and repository lint. Non-neural interpretable models no longer eagerly import torch models.
+
+### Changed
+- `bootstrap_ci` and `paired_bootstrap_diff` default to ordinary resampling; classification stratification is opt-in. Whole-patient `groups` and explicit `strata` are supported. Paired difference intervals use paired bootstrap draws; the p-value now uses paired score randomization with a plus-one correction and an explicit exchangeability assumption.
+- Stacking and scanner diagnostics accept grouped/custom/temporal folds. Initial chronological history is excluded from meta-training. Named block metadata supports fold-local base preprocessing; scanner diagnostics clone preprocessing and impute inside folds, with optional multiple probes.
+- MLflow's default local URI is `sqlite:///mlruns.db`; existing filesystem stores are not automatically migrated.
+
 ### Added
-- `preprocessing.BlockwiseHarmonizer`: one leakage-safe ComBat per feature block with the block's own batch column (multi-modal data where each modality has its own scanner); rows lacking a block or its batch pass through, batch levels below `min_batch_n` are left un-adjusted.
+- Mandatory scientific CI matrix (Python 3.10–3.12), pinned scientific dependencies, neuroCombat/LightGBM reference checks, and scientific regression tests with numerical runtime warnings treated as errors.
+- [Imaging validation guide](docs/guides/imaging_validation.md) covering new patients, new sites, repeated visits and group inference, including remaining cohort-specific validation gates.
+- `preprocessing.BlockwiseHarmonizer`: one train-fitted ComBat per feature block with the block's own batch column (multi-modal data where each modality has its own scanner); rows lacking a block or its batch pass through, batch levels below `min_batch_n` are left un-adjusted.
 - `preprocessing.MissingBlockIndicator`: per-block availability indicator plus mean imputation, so early-fusion models see missingness instead of an imputed modality.
-- `utils.paired_bootstrap_diff` and `utils.delong_test`: paired comparison of two models' metrics on the same subjects (difference with its own CI and p-value), the right way to claim "A beats B".
+- `utils.paired_bootstrap_diff` and `utils.delong_test`: paired comparison of two models' metrics on aligned subjects; inference requires the stated independence/exchangeability assumptions.
 - `utils.decision_curve`: decision-curve analysis (net benefit vs treat-all / treat-none).
 - `utils.batch_leakage_check`: cross-validated one-vs-rest AUROC of the features for predicting the batch, before and after harmonisation.
 - `models.BlockStackingClassifier`: late-fusion stacking over named feature blocks (one base model per modality, out-of-fold block probabilities, logistic meta-model, optional raw passthrough block, missing-block fallback).
 - `preprocessing.NormativeDeviation`: covariate-adjusted deviation (W/z) scores against a reference group, fitted in `fit` only (normative modelling as a pipeline step).
 - `models.PLSDAClassifier`: PLS-DA with a logistic head, latent-score `transform`, per-feature importances.
-- `utils.bootstrap_ci`: stratified percentile-bootstrap confidence intervals for any score metric.
-- `preprocessing.ComBatHarmonizer`: leakage-safe ComBat batch harmonization (fit/transform split, empirical Bayes, biological covariates preserved, unseen-batch passthrough option, near-constant features passed through instead of becoming batch identifiers). Matches `neuroCombat` on training data.
+- `utils.bootstrap_ci`: percentile-bootstrap confidence intervals with explicit classification stratification and patient-cluster resampling.
+- `preprocessing.ComBatHarmonizer`: ComBat batch harmonization with a fit/transform split, empirical Bayes, biological covariates and explicit unseen-batch handling. Reference parity is tested against `neuroCombat`; validation requires correct fold ownership and cohort-specific checks.
 
 ## [1.0.0] - 2026-02-22
 

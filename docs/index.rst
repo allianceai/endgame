@@ -42,6 +42,7 @@ Key Features
 
    guides/models
    guides/preprocessing
+   guides/imaging_validation
    guides/ensembles
    guides/panel_ranking
    guides/calibration

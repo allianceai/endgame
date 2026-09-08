@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -34,7 +35,6 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin
-from typing import Any
 
 
 class SplitType(Enum):

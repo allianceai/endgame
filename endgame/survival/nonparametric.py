@@ -29,7 +29,6 @@ from endgame.survival.base import (
     _get_time_event,
 )
 
-
 # ---------------------------------------------------------------------------
 # Kaplan-Meier
 # ---------------------------------------------------------------------------
@@ -82,7 +81,7 @@ class KaplanMeierEstimator(BaseEstimator):
     def __init__(self, confidence_level: float = 0.95):
         self.confidence_level = confidence_level
 
-    def fit(self, y: Any) -> "KaplanMeierEstimator":
+    def fit(self, y: Any) -> KaplanMeierEstimator:
         """Fit the Kaplan-Meier estimator.
 
         Parameters
@@ -317,7 +316,7 @@ class NelsonAalenEstimator(BaseEstimator):
     def __init__(self, confidence_level: float = 0.95):
         self.confidence_level = confidence_level
 
-    def fit(self, y: Any) -> "NelsonAalenEstimator":
+    def fit(self, y: Any) -> NelsonAalenEstimator:
         """Fit the Nelson-Aalen estimator.
 
         Parameters

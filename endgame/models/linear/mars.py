@@ -20,6 +20,8 @@ Milborrow, S. Earth package vignette (R implementation reference).
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
@@ -28,7 +30,6 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin
 from endgame.models.linear.basis import BasisFunction, HingeSpec, LinearBasisFunction
-from typing import Any
 
 
 class MARSRegressor(GlassboxMixin, BaseEstimator, RegressorMixin):

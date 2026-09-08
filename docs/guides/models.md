@@ -196,8 +196,11 @@ diffusion metrics, PET/SPECT measures, demographics), turns each block into out-
 probabilities on the training data, and fits a logistic meta-model on those probabilities. Compared
 with concatenating all blocks ("early fusion"), a small informative block is not swamped by a large
 noisy one, each block can use the model that suits it, and subjects missing a whole modality still get
-a prediction (the block score falls back to its training mean). `passthrough` names blocks whose raw
-features also reach the meta-model.
+a prediction (the block score falls back to the current training fold's class prior). `passthrough`
+names blocks whose raw features also reach the meta-model, using a training-fitted imputer.
+Pass patient IDs to `fit(..., groups=patient_ids)` for grouped inner folds; custom temporal
+folds are also supported. Each base pipeline must own its learned preprocessing. See the
+[imaging validation guide](imaging_validation.md) for fold boundaries, metadata routing and limitations.
 
 ```python
 from endgame.models import BlockStackingClassifier
@@ -209,7 +212,7 @@ clf = BlockStackingClassifier(blocks, base_estimator={"t1": LogisticRegression(m
                                                        "demo": LogisticRegression()},
                               passthrough=["demo"], cv=5).fit(X_train, y_train)
 proba = clf.predict_proba(X_test)
-clf.block_scores(X_test)      # per-block probabilities: which modality drives the prediction
+clf.block_scores(X_test)      # indexed per-block scores, not causal attributions
 ```
 
 ## Custom Trees

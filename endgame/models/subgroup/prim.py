@@ -21,14 +21,13 @@ References
 """
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
 from sklearn.preprocessing import LabelEncoder
 
 from endgame.core.glassbox import GlassboxMixin
-from typing import Any
 
 
 @dataclass

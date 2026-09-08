@@ -12,7 +12,7 @@ but can be used standalone for interpretable oblique splits.
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 from sklearn.base import BaseEstimator, ClassifierMixin, RegressorMixin
@@ -21,8 +21,6 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin
-from typing import Any
-
 from endgame.models.trees.oblique_splits import (
     ObliqueSplit,
     compute_entropy,

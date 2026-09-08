@@ -17,7 +17,6 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-
 # --- T-Norm Implementations ---
 
 

@@ -23,7 +23,6 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin
-
 from endgame.models.symbolic._constant_optimizer import optimize_constants
 from endgame.models.symbolic._expression import (
     Node,

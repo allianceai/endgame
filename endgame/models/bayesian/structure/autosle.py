@@ -20,6 +20,7 @@ Greedy Search. JMLR, 3.
 
 import warnings
 from concurrent.futures import ThreadPoolExecutor
+from typing import Any
 
 import networkx as nx
 import numpy as np
@@ -28,7 +29,6 @@ from endgame.core.glassbox import GlassboxMixin
 from endgame.models.bayesian.structure.learning import (
     greedy_hill_climbing,
 )
-from typing import Any
 
 
 class AutoSLE(GlassboxMixin):

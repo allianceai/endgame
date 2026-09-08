@@ -6,6 +6,8 @@ Multiclass: one-vs-rest with softmax over symbolic regressors.
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.base import BaseEstimator, ClassifierMixin
@@ -14,7 +16,6 @@ from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
 from endgame.core.glassbox import GlassboxMixin
 from endgame.models.symbolic.symbolic_regressor import SymbolicRegressor
-from typing import Any
 
 
 class SymbolicClassifier(GlassboxMixin, BaseEstimator, ClassifierMixin):

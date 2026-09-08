@@ -33,7 +33,6 @@ from sklearn.preprocessing import LabelEncoder
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.utils.validation import check_array, check_is_fitted, check_X_y
 
-
 # ---------------------------------------------------------------------------
 # Fuzzy C-Means helpers
 # ---------------------------------------------------------------------------

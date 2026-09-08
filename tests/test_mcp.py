@@ -566,3 +566,19 @@ class TestEndToEnd:
         )
         # Should be valid Python (compile without error)
         compile(script, "<generated>", "exec")
+
+
+def test_nullable_string_encoders_are_reused():
+    from endgame.mcp.tools._encoding import encode_features, encode_target, fit_feature_encoders
+
+    train = pd.DataFrame({"site": pd.Series(["B", "A", "B"], dtype="string")})
+    encoded, encoders = fit_feature_encoders(train)
+    assert encoded.site.tolist() == [1, 0, 1]
+    test = pd.DataFrame({"site": pd.Series(["A", "C"], dtype="string")})
+    assert encode_features(test, encoders).site.tolist() == [0, -1]
+    y, target = encode_target(pd.Series(["PD", "control", "PD"], dtype="string"))
+    assert target is not None
+    expected = target.transform(["control", "PD"])
+    actual, reused = encode_target(pd.Series(["control", "PD"], dtype="string"), target)
+    np.testing.assert_array_equal(actual, expected)
+    assert reused is target

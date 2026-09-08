@@ -317,145 +317,247 @@ def competition_metric(metric_name: str) -> Callable:
         )
 
 
-def bootstrap_ci(
-    metric: Callable[[np.ndarray, np.ndarray], float],
-    y_true,
-    y_score,
-    n_boot: int = 1000,
-    ci: float = 0.95,
-    stratified: bool = True,
-    random_state: int | None = 0,
-) -> tuple[float, float, float]:
-    """Point estimate and percentile bootstrap confidence interval of a metric.
+def _score_inputs(y_true, *scores, binary=False):
+    import pandas as pd
 
-    Resamples (y_true, y_score) pairs with replacement, by class when ``stratified``
-    (keeps the class balance of every replicate, which matters for AUROC/AUPRC on
-    imbalanced data). Returns (estimate, lower, upper).
+    y = np.asarray(y_true)
+    if y.ndim != 1 or not len(y) or pd.isna(y).any():
+        raise ValueError("y_true must be a nonempty, nonmissing one-dimensional vector")
+    if y.dtype.kind in "fiu" and not np.isfinite(y).all():
+        raise ValueError("y_true must be finite")
+    if binary and (not np.isin(y, [0, 1]).all() or len(np.unique(y)) != 2):
+        raise ValueError("y_true must contain both binary labels 0 and 1")
+    arrays = []
+    for values in scores:
+        a = np.asarray(values, dtype=float)
+        if a.ndim not in (1, 2) or len(a) != len(y) or not np.isfinite(a).all():
+            raise ValueError("scores must be finite and aligned with y_true")
+        arrays.append(a)
+    return y, arrays
 
-    Examples
-    --------
-    >>> from sklearn.metrics import roc_auc_score
-    >>> from endgame.utils.metrics import bootstrap_ci
-    >>> auc, lo, hi = bootstrap_ci(roc_auc_score, y_test, proba[:, 1])
+
+def _resampling_units(y, stratified, groups, strata):
+    """Lists of independent row/cluster units and unit indices per stratum."""
+    import pandas as pd
+    from sklearn.utils.multiclass import type_of_target
+
+    from endgame.validation._study import aligned_vector
+
+    if not isinstance(stratified, (bool, np.bool_)):
+        raise ValueError("stratified must be boolean; use strata for explicit labels")
+    if stratified and strata is not None:
+        raise ValueError("choose stratified=True or explicit strata, not both")
+    if stratified:
+        if type_of_target(y) not in ("binary", "multiclass"):
+            raise ValueError("class stratification is invalid for continuous outcomes; use stratified=False")
+        strata = y
+    labels = np.zeros(len(y), dtype=int) if strata is None else aligned_vector(strata, len(y), "strata")
+    if groups is None:
+        units = [np.array([i]) for i in range(len(y))]
+    else:
+        g = aligned_vector(groups, len(y), "groups")
+        codes, unique = pd.factorize(g, sort=False)
+        units = [np.flatnonzero(codes == k) for k in range(len(unique))]
+    if len(units) < 2:
+        raise ValueError("at least two independent resampling units are required")
+    unit_strata = []
+    for unit in units:
+        values = pd.unique(labels[unit])
+        if len(values) != 1:
+            raise ValueError("each patient/group must have a single stratum; use explicit group-level strata")
+        unit_strata.append(values[0])
+    codes, unique = pd.factorize(np.asarray(unit_strata, dtype=object), sort=False)
+    strata_units = [np.flatnonzero(codes == k) for k in range(len(unique))]
+    if all(len(s) == 1 for s in strata_units):
+        raise ValueError("all strata are singletons: bootstrap cannot estimate sampling uncertainty")
+    return units, strata_units
+
+
+def _bootstrap_options(n_boot, ci):
+    if isinstance(n_boot, bool) or not isinstance(n_boot, (int, np.integer)) or n_boot < 2:
+        raise ValueError("n_boot must be an integer >= 2")
+    if not np.isfinite(ci) or not 0 < ci < 1:
+        raise ValueError("ci must be in (0, 1)")
+
+
+def _metric_value(metric, y, score):
+    value = float(metric(y, score))
+    if not np.isfinite(value):
+        raise ValueError("metric returned a nonfinite value")
+    return value
+
+
+def _replicate_value(metric, y, score):
+    import warnings
+
+    from sklearn.exceptions import UndefinedMetricWarning
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UndefinedMetricWarning)
+        return _metric_value(metric, y, score)
+
+
+def _sample_rows(rng, units, strata_units):
+    selected = np.concatenate([rng.choice(s, len(s), replace=True) for s in strata_units])
+    return np.concatenate([units[i] for i in selected])
+
+
+def _check_replicates(values, requested):
+    import warnings
+
+    if len(values) < max(2, requested // 2):
+        raise ValueError("too few valid resamples to estimate uncertainty")
+    if len(values) < requested:
+        warnings.warn(f"Only {len(values)}/{requested} resamples had a defined finite metric", UserWarning, stacklevel=3)
+
+
+def bootstrap_ci(metric, y_true, y_score, n_boot=1000, ci=0.95, stratified=False,
+                 random_state=0, *, groups=None, strata=None):
+    """Percentile interval from paired observation or whole-patient resampling.
+
+    Default resampling is unstratified and works for continuous outcomes.
+    ``stratified=True`` explicitly requests class strata; ``strata`` supplies
+    other row-aligned strata. With ``groups``, entire patients are resampled,
+    and a stratum must be constant within each patient. This interval conditions
+    on the supplied predictions; it does not include model-fitting uncertainty.
     """
-    y_true, y_score = np.asarray(y_true), np.asarray(y_score)
+    _bootstrap_options(n_boot, ci)
+    y, (s,) = _score_inputs(y_true, y_score)
+    estimate = _metric_value(metric, y, s)
+    units, strata_units = _resampling_units(y, stratified, groups, strata)
     rng = np.random.RandomState(random_state)
-    groups = [np.flatnonzero(y_true == c) for c in np.unique(y_true)] if stratified else [np.arange(len(y_true))]
-    stats = []
+    values = []
     for _ in range(n_boot):
-        idx = np.concatenate([rng.choice(g, size=len(g), replace=True) for g in groups])
+        idx = _sample_rows(rng, units, strata_units)
         try:
-            stats.append(metric(y_true[idx], y_score[idx]))
-        except ValueError:  # e.g. a replicate with a single class
-            continue
-    alpha = (1 - ci) / 2
-    lo, hi = np.percentile(stats, [100 * alpha, 100 * (1 - alpha)])
-    return float(metric(y_true, y_score)), float(lo), float(hi)
-
-
-def paired_bootstrap_diff(
-    metric: Callable[[np.ndarray, np.ndarray], float],
-    y_true,
-    score_a,
-    score_b,
-    n_boot: int = 1000,
-    ci: float = 0.95,
-    stratified: bool = True,
-    random_state: int | None = 0,
-) -> dict:
-    """Paired bootstrap of ``metric(a) - metric(b)`` for two score vectors on the *same* subjects.
-
-    Two overlapping confidence intervals do not tell whether model A beats model B; resampling the same
-    subjects for both keeps the pairing and gives the interval of the difference directly. Returns a dict
-    with the point estimates, the difference, its percentile CI, and a two-sided bootstrap p-value
-    (fraction of replicates on the other side of zero, doubled, floored at 1/n_boot).
-
-    Examples
-    --------
-    >>> from sklearn.metrics import roc_auc_score
-    >>> paired_bootstrap_diff(roc_auc_score, y, p_imaging, p_genetics_only)
-    {'metric_a': 0.80, 'metric_b': 0.65, 'diff': 0.15, 'ci_lo': 0.09, 'ci_hi': 0.21, 'p_value': 0.001, 'n_boot': 1000}
-    """
-    y_true, a, b = np.asarray(y_true), np.asarray(score_a), np.asarray(score_b)
-    rng = np.random.RandomState(random_state)
-    groups = [np.flatnonzero(y_true == c) for c in np.unique(y_true)] if stratified else [np.arange(len(y_true))]
-    diffs = []
-    for _ in range(n_boot):
-        idx = np.concatenate([rng.choice(g, size=len(g), replace=True) for g in groups])
-        try:
-            diffs.append(metric(y_true[idx], a[idx]) - metric(y_true[idx], b[idx]))
+            values.append(_replicate_value(metric, y[idx], s[idx]))
         except ValueError:
             continue
-    diffs = np.asarray(diffs)
-    d = metric(y_true, a) - metric(y_true, b)
-    alpha = (1 - ci) / 2
-    p = 2 * min((diffs <= 0).mean(), (diffs >= 0).mean()) if len(diffs) else np.nan
-    return {"metric_a": float(metric(y_true, a)), "metric_b": float(metric(y_true, b)), "diff": float(d),
-            "ci_lo": float(np.quantile(diffs, alpha)), "ci_hi": float(np.quantile(diffs, 1 - alpha)),
-            "p_value": float(max(p, 1.0 / max(len(diffs), 1))), "n_boot": int(len(diffs))}
+    _check_replicates(values, n_boot)
+    alpha = (1-ci)/2
+    lo, hi = np.quantile(values, [alpha, 1-alpha])
+    return estimate, float(lo), float(hi)
+
+
+def paired_bootstrap_diff(metric, y_true, score_a, score_b, n_boot=1000, ci=0.95,
+                          stratified=False, random_state=0, *, groups=None, strata=None):
+    """Paired bootstrap CI and paired-randomization test for two fixed models.
+
+    The CI resamples the same observations/patients for both models. The p-value
+    is a two-sided Monte Carlo paired permutation test: swap model predictions
+    within each independent unit with probability 1/2, count absolute metric
+    differences at least as extreme, and use (extreme+1)/(valid+1). Its null is
+    exchangeability of the paired model predictions, not an unrestricted test
+    of equal metrics. All visits of a patient swap together when groups is set.
+    Training/model selection must be evaluated separately on independent data.
+    """
+    _bootstrap_options(n_boot, ci)
+    y, (a, b) = _score_inputs(y_true, score_a, score_b)
+    if a.shape != b.shape:
+        raise ValueError("paired model score shapes must agree")
+    ma, mb = _metric_value(metric, y, a), _metric_value(metric, y, b)
+    diff = ma-mb
+    units, strata_units = _resampling_units(y, stratified, groups, strata)
+    rng = np.random.RandomState(random_state)
+    diffs = []
+    for _ in range(n_boot):
+        idx = _sample_rows(rng, units, strata_units)
+        try:
+            diffs.append(_replicate_value(metric, y[idx], a[idx]) - _replicate_value(metric, y[idx], b[idx]))
+        except ValueError:
+            continue
+    _check_replicates(diffs, n_boot)
+    extreme = valid = 0
+    for _ in range(n_boot):
+        swap = np.zeros(len(y), bool)
+        for unit, choose in zip(units, rng.randint(0, 2, len(units))):
+            swap[unit] = choose
+        mask = swap if a.ndim == 1 else swap[:, None]
+        pa, pb = np.where(mask, b, a), np.where(mask, a, b)
+        try:
+            null_diff = _replicate_value(metric, y, pa) - _replicate_value(metric, y, pb)
+        except ValueError:
+            continue
+        valid += 1
+        extreme += abs(null_diff) >= abs(diff) - 1e-12
+    if valid < max(2, n_boot//2):
+        raise ValueError("too few valid paired permutations")
+    alpha = (1-ci)/2
+    lo, hi = np.quantile(diffs, [alpha, 1-alpha])
+    return {"metric_a": ma, "metric_b": mb, "diff": diff, "ci_lo": float(lo), "ci_hi": float(hi),
+            "p_value": float((extreme+1)/(valid+1)), "n_boot": len(diffs), "n_permutations": valid,
+            "p_value_method": "paired_permutation"}
 
 
 def _auc_placements(y_true, score):
     pos, neg = score[y_true == 1], score[y_true == 0]
-    # placement values (DeLong 1988 / Sun & Xu 2014 fast implementation)
-    order = np.argsort(np.concatenate([pos, neg]))
-    ranks = np.empty(len(order))
-    ranks[order] = np.arange(1, len(order) + 1)
-    all_scores = np.concatenate([pos, neg])
-    # midranks for ties
-    _, inv, counts = np.unique(all_scores, return_inverse=True, return_counts=True)
-    start = np.cumsum(np.r_[0, counts[:-1]]) + 1
-    mid = start + (counts - 1) / 2.0
-    ranks = mid[inv]
-    m, n = len(pos), len(neg)
-    v10 = (ranks[:m] - np.arange(1, m + 1)) / n  # placement of positives among negatives (with tie midranks)
-    # exact placements: fraction of negatives below each positive (+0.5 ties)
-    v10 = np.array([((neg < p_).mean() + 0.5 * (neg == p_).mean()) for p_ in pos])
-    v01 = np.array([((pos > n_).mean() + 0.5 * (pos == n_).mean()) for n_ in neg])
+    v10 = np.array([((neg < p).mean() + .5*(neg == p).mean()) for p in pos])
+    v01 = np.array([((pos > n).mean() + .5*(pos == n).mean()) for n in neg])
     return v10, v01
 
 
-def delong_test(y_true, score_a, score_b) -> dict:
-    """DeLong (1988) test for the difference of two correlated AUROCs on the same subjects.
+def delong_test(y_true, score_a, score_b):
+    """Correlated binary AUROC comparison for independent test subjects.
 
-    Returns the two AUCs, their difference, its standard error, the 95 % CI and the two-sided p-value.
-    Exact placement values (O(m*n)); fine for the sample sizes of tabular biomarker studies.
+    Requires finite one-dimensional scores and at least two subjects per class.
+    Repeated visits require a clustered method instead. Exact zero empirical
+    variance is reported as zero (with a warning), not an invented variance floor.
     """
+    import warnings
+
     from scipy import stats
 
-    y_true, a, b = np.asarray(y_true).astype(int), np.asarray(score_a, float), np.asarray(score_b, float)
-    va10, va01 = _auc_placements(y_true, a)
-    vb10, vb01 = _auc_placements(y_true, b)
-    auc_a, auc_b = va10.mean(), vb10.mean()
-    m, n = len(va10), len(va01)
-    s10 = np.cov(np.vstack([va10, vb10]))
-    s01 = np.cov(np.vstack([va01, vb01]))
-    S = s10 / m + s01 / n
-    var_diff = S[0, 0] + S[1, 1] - 2 * S[0, 1]
-    se = float(np.sqrt(max(var_diff, 1e-12)))
-    z = (auc_a - auc_b) / se
-    p = float(2 * stats.norm.sf(abs(z)))
-    return {"auc_a": float(auc_a), "auc_b": float(auc_b), "diff": float(auc_a - auc_b), "se": se,
-            "ci_lo": float(auc_a - auc_b - 1.96 * se), "ci_hi": float(auc_a - auc_b + 1.96 * se), "z": float(z), "p_value": p}
+    y, (a, b) = _score_inputs(y_true, score_a, score_b, binary=True)
+    if a.ndim != 1 or b.ndim != 1:
+        raise ValueError("DeLong scores must be one-dimensional")
+    m, n = int((y == 1).sum()), int((y == 0).sum())
+    if min(m, n) < 2:
+        raise ValueError("DeLong needs at least two subjects per class")
+    va10, va01 = _auc_placements(y, a)
+    vb10, vb01 = _auc_placements(y, b)
+    diff = float(va10.mean()-vb10.mean())
+    # Covariance of the paired difference, algebraically equivalent to c' S c.
+    var = float(np.var(va10-vb10, ddof=1)/m + np.var(va01-vb01, ddof=1)/n)
+    se = float(np.sqrt(var))
+    if se == 0:
+        z, p = (0., 1.) if diff == 0 else (float(np.copysign(np.inf, diff)), 0.)
+        if diff != 0:
+            warnings.warn("Zero empirical AUROC-difference variance; asymptotic inference is degenerate", UserWarning, stacklevel=2)
+    else:
+        z = diff/se
+        p = float(2*stats.norm.sf(abs(z)))
+    return {"auc_a": float(va10.mean()), "auc_b": float(vb10.mean()), "diff": diff, "se": se,
+            "ci_lo": diff-1.96*se, "ci_hi": diff+1.96*se, "z": z, "p_value": p}
 
 
-def decision_curve(y_true, proba, thresholds=None) -> "pd.DataFrame":
-    """Decision-curve analysis (Vickers & Elkin 2006): net benefit of treating when P(positive) >= threshold,
-    against treating everyone and treating no one.
+def decision_curve(y_true, proba, thresholds=None, *, prevalence=None):
+    """Binary uncensored net benefit with explicit probability/shape validation.
 
-    net benefit = TP/N - FP/N * t/(1-t). Returns a DataFrame with columns threshold, net_benefit_model,
-    net_benefit_all, net_benefit_none, and the fraction flagged.
+    Pass positive-class probabilities as a vector, not an (n,1)/(n,2) matrix.
+    Optional target-population prevalence weights sensitivity and false-positive
+    rate for case-control sampling; it assumes these rates transport. It does not
+    calibrate model probabilities. fraction_flagged describes the observed sample.
+    Continuous progression or censored outcomes need different estimators.
     """
     import pandas as pd
 
-    y_true, proba = np.asarray(y_true).astype(int), np.asarray(proba, float)
-    thresholds = np.linspace(0.01, 0.99, 99) if thresholds is None else np.asarray(thresholds, float)
-    N, prev = len(y_true), y_true.mean()
+    y, (p,) = _score_inputs(y_true, proba, binary=True)
+    if p.ndim != 1 or (p < 0).any() or (p > 1).any():
+        raise ValueError("proba must be a one-dimensional probability vector in [0, 1]")
+    thresholds = np.linspace(.01, .99, 99) if thresholds is None else np.asarray(thresholds, float)
+    if (thresholds.ndim != 1 or not len(thresholds) or not np.isfinite(thresholds).all()
+            or (thresholds <= 0).any() or (thresholds >= 1).any()):
+        raise ValueError("thresholds must be finite and strictly in (0, 1)")
+    prev = float(y.mean()) if prevalence is None else float(prevalence)
+    if not np.isfinite(prev) or not 0 < prev < 1:
+        raise ValueError("prevalence must be in (0, 1)")
+    pos, neg = y == 1, y == 0
     rows = []
     for t in thresholds:
-        flag = proba >= t
-        tp, fp = float((flag & (y_true == 1)).sum()), float((flag & (y_true == 0)).sum())
-        w = t / (1 - t)
-        rows.append({"threshold": t, "net_benefit_model": tp / N - fp / N * w, "net_benefit_all": prev - (1 - prev) * w,
-                     "net_benefit_none": 0.0, "fraction_flagged": float(flag.mean())})
+        flag = p >= t
+        w = t/(1-t)
+        benefit = prev*flag[pos].mean() - (1-prev)*flag[neg].mean()*w
+        rows.append({"threshold": t, "net_benefit_model": float(benefit),
+                     "net_benefit_all": prev-(1-prev)*w, "net_benefit_none": 0.,
+                     "fraction_flagged": float(flag.mean())})
     return pd.DataFrame(rows)

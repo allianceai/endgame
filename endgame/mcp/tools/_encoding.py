@@ -13,6 +13,13 @@ import numpy as np
 import pandas as pd
 
 
+def _categorical_columns(X: pd.DataFrame) -> list:
+    """Include pandas nullable/string dtypes without depending on inference rules."""
+    return [col for col in X if (pd.api.types.is_object_dtype(X[col].dtype)
+            or pd.api.types.is_string_dtype(X[col].dtype)
+            or isinstance(X[col].dtype, pd.CategoricalDtype))]
+
+
 def encode_features(
     X: pd.DataFrame,
     label_encoders: dict | None = None,
@@ -29,7 +36,7 @@ def encode_features(
         # No encoders stored — model handles categoricals natively (e.g. LightGBM, CatBoost)
         return X
 
-    cat_cols = X.select_dtypes(include=["object", "category"]).columns
+    cat_cols = _categorical_columns(X)
     if len(cat_cols) == 0:
         return X
 
@@ -71,7 +78,8 @@ def encode_target(
     if hasattr(vals, "categories"):
         vals = np.array(vals, dtype=object)
 
-    if vals.dtype == object:
+    if not pd.api.types.is_numeric_dtype(vals.dtype):
+        vals = np.asarray(vals)
         if target_encoder is not None:
             known = set(target_encoder.classes_)
             encoded = np.array([
@@ -93,7 +101,7 @@ def fit_feature_encoders(X: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     Returns ``(encoded_X, encoders_dict)`` where ``encoders_dict`` maps
     column names to fitted ``LabelEncoder`` instances.
     """
-    cat_cols = X.select_dtypes(include=["object", "category"]).columns
+    cat_cols = _categorical_columns(X)
     if len(cat_cols) == 0:
         return X, {}
 
@@ -124,7 +132,7 @@ def apply_encoders(
 
     if fill_missing and X.isna().any().any():
         X = X.fillna(X.median(numeric_only=True))
-        for col in X.select_dtypes(include=["object", "category"]).columns:
+        for col in _categorical_columns(X):
             mode = X[col].mode()
             X[col] = X[col].fillna(mode.iloc[0] if not mode.empty else "missing")
 

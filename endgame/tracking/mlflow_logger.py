@@ -40,8 +40,9 @@ class MLflowLogger(ExperimentLogger):
 
     Parameters
     ----------
-    tracking_uri : str, default="mlruns"
-        MLflow tracking server URI or local directory.
+    tracking_uri : str, default="sqlite:///mlruns.db"
+        MLflow tracking server or database URI. Legacy filesystem stores require
+        explicit MLflow opt-in or migration; no existing store is migrated here.
     experiment_name : str, default="endgame"
         Default experiment name.
     auto_log : bool, default=False
@@ -57,7 +58,7 @@ class MLflowLogger(ExperimentLogger):
 
     def __init__(
         self,
-        tracking_uri: str = "mlruns",
+        tracking_uri: str = "sqlite:///mlruns.db",
         experiment_name: str = "endgame",
         auto_log: bool = False,
     ):

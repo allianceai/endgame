@@ -172,7 +172,7 @@ class TestMLflowLogger:
         from endgame.tracking.mlflow_logger import MLflowLogger
 
         logger = MLflowLogger(
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="test",
         )
         run_id = logger.start_run("test_run")
@@ -184,7 +184,7 @@ class TestMLflowLogger:
         from endgame.tracking.mlflow_logger import MLflowLogger
 
         logger = MLflowLogger(
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="test",
         )
         logger.start_run()
@@ -196,7 +196,7 @@ class TestMLflowLogger:
         from endgame.tracking.mlflow_logger import MLflowLogger
 
         logger = MLflowLogger(
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="test",
         )
         logger.start_run()
@@ -208,7 +208,7 @@ class TestMLflowLogger:
         from endgame.tracking.mlflow_logger import MLflowLogger
 
         logger = MLflowLogger(
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="test",
         )
         logger.start_run()
@@ -221,7 +221,7 @@ class TestMLflowLogger:
         from endgame.tracking.mlflow_logger import MLflowLogger
 
         logger = MLflowLogger(
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="test",
         )
         logger.start_run()
@@ -235,7 +235,7 @@ class TestMLflowLogger:
         from endgame.tracking.mlflow_logger import MLflowLogger
 
         logger = MLflowLogger(
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="initial",
         )
         logger.set_experiment("updated")
@@ -246,7 +246,7 @@ class TestMLflowLogger:
         from endgame.tracking.mlflow_logger import MLflowLogger
 
         with MLflowLogger(
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="test",
         ) as logger:
             logger.log_params({"key": "value"})
@@ -256,7 +256,7 @@ class TestMLflowLogger:
         from endgame.tracking.mlflow_logger import MLflowLogger
 
         logger = MLflowLogger(
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="test",
         )
         assert "MLflowLogger" in repr(logger)
@@ -287,7 +287,7 @@ class TestGetLogger:
 
         logger = get_logger(
             "mlflow",
-            tracking_uri=str(tmp_path / "mlruns"),
+            tracking_uri=f"sqlite:///{tmp_path / 'mlruns.db'}",
             experiment_name="test",
         )
         from endgame.tracking.mlflow_logger import MLflowLogger

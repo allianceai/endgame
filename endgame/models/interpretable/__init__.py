@@ -28,9 +28,7 @@ Example
 
 from endgame.models.interpretable.corels import CORELSClassifier
 from endgame.models.interpretable.gam import GAMClassifier, GAMRegressor
-from endgame.models.interpretable.gami_net import GAMINetClassifier, GAMINetRegressor
 from endgame.models.interpretable.gosdt import GOSDTClassifier
-from endgame.models.interpretable.node_gam import NodeGAMClassifier, NodeGAMRegressor
 from endgame.models.interpretable.slim import FasterRiskClassifier, SLIMClassifier
 
 __all__ = [
@@ -45,3 +43,14 @@ __all__ = [
     "GAMRegressor",
     "GOSDTClassifier",
 ]
+
+
+def __getattr__(name: str):
+    # Non-neural glassbox models must remain usable without the torch extra.
+    from importlib import import_module
+
+    modules = {"GAMINetClassifier": "gami_net", "GAMINetRegressor": "gami_net",
+               "NodeGAMClassifier": "node_gam", "NodeGAMRegressor": "node_gam"}
+    if name in modules:
+        return getattr(import_module(f"{__name__}.{modules[name]}"), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

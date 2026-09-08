@@ -19,10 +19,10 @@ FLEXFISRegressor
     Flexible Fuzzy Inference System with incremental eClustering.
 """
 
-from endgame.fuzzy.evolving.ets import EvolvingTSK, EvolvingTSKPlus
-from endgame.fuzzy.evolving.panfis import PANFISClassifier, PANFISRegressor
 from endgame.fuzzy.evolving.autocloud import AutoCloudClassifier
+from endgame.fuzzy.evolving.ets import EvolvingTSK, EvolvingTSKPlus
 from endgame.fuzzy.evolving.flexfis import FLEXFISRegressor
+from endgame.fuzzy.evolving.panfis import PANFISClassifier, PANFISRegressor
 
 __all__ = [
     "EvolvingTSK",

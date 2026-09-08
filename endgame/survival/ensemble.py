@@ -27,7 +27,6 @@ from endgame.survival.base import (
 from endgame.survival.metrics import concordance_index
 from endgame.survival.validation import SurvivalStratifiedKFold
 
-
 # ---------------------------------------------------------------------------
 # Stacking Ensemble
 # ---------------------------------------------------------------------------
@@ -86,7 +85,7 @@ class SurvivalStackingEnsemble(BaseSurvivalEstimator):
         self.meta_estimator = meta_estimator
         self.cv = cv
 
-    def fit(self, X: np.ndarray, y: Any) -> "SurvivalStackingEnsemble":
+    def fit(self, X: np.ndarray, y: Any) -> SurvivalStackingEnsemble:
         """Fit the stacking ensemble.
 
         1. Generate OOF risk score predictions for each base model.
@@ -249,7 +248,7 @@ class SurvivalHillClimbingEnsemble(BaseSurvivalEstimator):
         self,
         oof_predictions: dict[int, np.ndarray] | list[np.ndarray] | np.ndarray,
         y: Any,
-    ) -> "SurvivalHillClimbingEnsemble":
+    ) -> SurvivalHillClimbingEnsemble:
         """Fit by greedy forward selection on OOF predictions.
 
         Parameters
@@ -468,7 +467,7 @@ class SurvivalVotingEnsemble(BaseSurvivalEstimator):
         self.estimators = estimators or []
         self.weights = weights
 
-    def fit(self, X: np.ndarray, y: Any) -> "SurvivalVotingEnsemble":
+    def fit(self, X: np.ndarray, y: Any) -> SurvivalVotingEnsemble:
         """Fit all base estimators.
 
         Parameters

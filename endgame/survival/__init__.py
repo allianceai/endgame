@@ -55,30 +55,6 @@ from endgame.survival.base import (
     make_survival_y,
 )
 
-# Nonparametric estimators (pure NumPy, always available)
-from endgame.survival.nonparametric import (
-    KaplanMeierEstimator,
-    NelsonAalenEstimator,
-)
-
-# Metrics (concordance_index is pure NumPy, always available)
-from endgame.survival.metrics import (
-    brier_score,
-    calibration_curve_survival,
-    concordance_index,
-    concordance_index_censored,
-    cumulative_dynamic_auc,
-    integrated_brier_score,
-)
-
-# Validation (always available)
-from endgame.survival.validation import (
-    SurvivalStratifiedKFold,
-    SurvivalTimeSeriesSplit,
-    evaluate_survival,
-    survival_train_test_split,
-)
-
 # Datasets (always available, with optional fallbacks)
 from endgame.survival.datasets import (
     load_gbsg2,
@@ -93,6 +69,30 @@ from endgame.survival.ensemble import (
     SurvivalHillClimbingEnsemble,
     SurvivalStackingEnsemble,
     SurvivalVotingEnsemble,
+)
+
+# Metrics (concordance_index is pure NumPy, always available)
+from endgame.survival.metrics import (
+    brier_score,
+    calibration_curve_survival,
+    concordance_index,
+    concordance_index_censored,
+    cumulative_dynamic_auc,
+    integrated_brier_score,
+)
+
+# Nonparametric estimators (pure NumPy, always available)
+from endgame.survival.nonparametric import (
+    KaplanMeierEstimator,
+    NelsonAalenEstimator,
+)
+
+# Validation (always available)
+from endgame.survival.validation import (
+    SurvivalStratifiedKFold,
+    SurvivalTimeSeriesSplit,
+    evaluate_survival,
+    survival_train_test_split,
 )
 
 __all__ = [

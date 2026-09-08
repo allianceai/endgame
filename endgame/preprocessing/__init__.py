@@ -7,6 +7,7 @@ from endgame.preprocessing.aggregation import (
     InteractionFeatures,
     RankFeatures,
 )
+from endgame.preprocessing.blocks import BlockwiseHarmonizer, MissingBlockIndicator
 from endgame.preprocessing.discretize import (
     BayesianDiscretizer,
 )
@@ -16,6 +17,7 @@ from endgame.preprocessing.encoding import (
     LeaveOneOutEncoder,
     SafeTargetEncoder,
 )
+from endgame.preprocessing.harmonization import ComBatHarmonizer
 from endgame.preprocessing.imbalance import (
     ALL_SAMPLERS,
     COMBINED_SAMPLERS,
@@ -53,9 +55,6 @@ from endgame.preprocessing.imbalance import (
     # Utilities
     get_imbalance_ratio,
 )
-from endgame.preprocessing.harmonization import ComBatHarmonizer
-from endgame.preprocessing.blocks import BlockwiseHarmonizer, MissingBlockIndicator
-from endgame.preprocessing.normative import NormativeDeviation
 from endgame.preprocessing.imbalance_geometric import (
     GEOMETRIC_SAMPLERS as _GEO_SAMPLERS,
 )
@@ -80,6 +79,7 @@ from endgame.preprocessing.noise_detection import (
     ConsensusFilter,
     CrossValNoiseDetector,
 )
+from endgame.preprocessing.normative import NormativeDeviation
 from endgame.preprocessing.selection import (
     AdversarialFeatureSelector,
     NullImportanceSelector,

@@ -361,7 +361,13 @@ X_test_h = h.transform(X_test)         # uses training estimates and each row's 
 ```
 
 Options: `eb=False` for plain location/scale adjustment, `mean_only=True` to adjust means only,
-`unknown_batch="passthrough"` to leave unseen batches un-adjusted instead of raising.
+`unknown_batch="passthrough"` to leave unseen batches un-adjusted with a warning instead of raising.
+Inspect `adjustment_report(X)` to distinguish adjusted rows from raw passthrough.
+Empirical Bayes requires at least two active features and valid, convergent priors;
+`eb_fallback="no_eb"` explicitly opts into warned plain adjustment. Globally constant
+features are excluded from estimation. Rank-deficient designs and nonconstant features
+perfectly explained by batch/covariates fail by default.
+See [imaging validation](imaging_validation.md) before using these transforms in a study.
 
 ## Normative Deviation Scores
 
@@ -370,7 +376,8 @@ Options: `eb=False` for plain location/scale adjustment, `mean_only=True` to adj
 Expresses each feature as its standardized residual from a covariate-adjusted norm fitted on a
 reference group (for example healthy controls adjusted for age, sex and head size), the
 W-score / normative-modelling approach used in neuroimaging and biomarker studies. The norm
-is fitted in `fit` only, so it is safe inside cross-validation.
+is fitted in `fit` only. Fit it separately inside every applicable training fold,
+including inner stacking folds; global preprocessing still leaks information.
 
 ```python
 from endgame.preprocessing import NormativeDeviation
@@ -380,7 +387,11 @@ Z_train = nd.fit_transform(X_train)   # features replaced by deviation scores; c
 Z_test = nd.transform(X_test)
 ```
 
-Omit `reference` to residualize on all training rows.
+Omit `reference` to residualize on all training rows. A supplied marker must be
+nonmissing boolean/0/1 and may be omitted at transform time. Reference designs
+must have full rank, positive residual degrees of freedom and nonzero residual
+scale. Continuous covariate extrapolation warns by default. Validate W-score
+distributions on independent controls; residual scale is not predictive uncertainty.
 
 ## Noise Detection
 
@@ -480,7 +491,9 @@ See the [API Reference](../api/preprocessing) for the full parameter list of eac
 When features come from several acquisitions, one ComBat keyed on the structural scanner harmonises the
 diffusion, PET/SPECT or neuromelanin features by the wrong batch. `BlockwiseHarmonizer` runs one ComBat per
 block with that block's batch column; rows without the block (or its batch) pass through untouched, and unseen
-batch levels are passed through by ComBat itself. `MissingBlockIndicator` adds a `<block>_missing` flag and
+batch levels follow the explicit unknown-batch policy. Partial feature missingness
+raises by default; `partial_missing="passthrough"` excludes those rows from estimation.
+Inspect `adjustment_report` for rare/missing batches and skipped blocks. `MissingBlockIndicator` adds a `<block>_missing` flag and
 mean-imputes the block, so a model can learn from the missingness pattern rather than treat an imputed
 modality as observed. `utils.batch_leakage_check` quantifies how predictable the batch still is afterwards.
 
@@ -495,5 +508,8 @@ h = BlockwiseHarmonizer(blocks, covariates=["age", "sex"]).fit(train)
 train_h, test_h = h.transform(train), h.transform(test)
 mbi = MissingBlockIndicator({b: s["features"] for b, s in blocks.items()}).fit(train_h)
 X_train, X_test = mbi.transform(train_h), mbi.transform(test_h)
-batch_leakage_check(train_h[dwi_cols], train_h["dwi_batch"])     # residual scanner predictability
+# The diagnostic must refit harmonization inside its own validation folds.
+batch_leakage_check(train, train["dwi_batch"], groups=patient_ids,
+                    preprocessor=BlockwiseHarmonizer(blocks, covariates=["age", "sex"]),
+                    features=dwi_cols)
 ```

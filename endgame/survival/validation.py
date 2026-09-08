@@ -27,7 +27,6 @@ from sklearn.model_selection import StratifiedKFold
 from endgame.survival.base import _check_survival_y, _get_time_event
 from endgame.survival.metrics import concordance_index
 
-
 # ---------------------------------------------------------------------------
 # Stratified K-Fold for survival
 # ---------------------------------------------------------------------------

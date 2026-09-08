@@ -105,7 +105,8 @@ def purged_panel_oof(estimator, X, y, times, label_end_times, *, cv=None, fit_gr
     predictions = np.full(len(X), np.nan)
     fold_id = np.full(len(X), -1, dtype=int)
     folds = []
-    take = lambda obj, rows: obj.iloc[rows] if hasattr(obj, 'iloc') else np.asarray(obj)[rows]
+    def take(obj, rows):
+        return obj.iloc[rows] if hasattr(obj, 'iloc') else np.asarray(obj)[rows]
     for i, (train, valid) in enumerate(splitter.split(X, groups=t, label_end_times=ends)):
         if (fold_id[valid] >= 0).any():
             raise ValueError('OOF validation folds overlap')

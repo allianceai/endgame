@@ -24,10 +24,10 @@ import numpy as np
 from scipy import optimize, stats
 
 from endgame.survival.base import (
+    SURVIVAL_DTYPE,
     BaseSurvivalEstimator,
     _check_survival_y,
     _get_time_event,
-    SURVIVAL_DTYPE,
 )
 
 try:
