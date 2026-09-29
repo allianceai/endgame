@@ -104,7 +104,66 @@ Endgame's built-in [Model Context Protocol](docs/guides/mcp_server.md) (MCP) ser
 <!-- GIF of MCP agent session will be added here -->
 <!-- <p align="center"><img src="assets/mcp_agent_demo.gif" width="800" alt="MCP Agent Demo"></p> -->
 
-**Quick start** --- train, evaluate, and export in one conversation:
+### Connect your agent
+
+1. Install Endgame with the MCP extra and the gradient-boosting models most tasks use:
+
+   ```bash
+   pip install "endgame-ml[tabular,mcp]"
+   ```
+
+2. Register the server with your agent. It is a standard stdio MCP server: the command is the Python you installed Endgame into, run with `-m endgame.mcp`.
+
+   | Agent | How |
+   |---|---|
+   | Claude Code | `claude mcp add endgame -- /path/to/.venv/bin/python -m endgame.mcp` |
+   | Claude Desktop, Cursor and most MCP clients | Add the entry below to the client's MCP config (`claude_desktop_config.json`, `.cursor/mcp.json`, or a project `.mcp.json`) |
+   | VS Code (Copilot agent mode) | The same entry in `.vscode/mcp.json`, under `"servers"` instead of `"mcpServers"`, with `"type": "stdio"` |
+   | Your own agent (Claude Agent SDK, OpenAI Agents SDK, LangChain, ...) | Start `python -m endgame.mcp` with the SDK's stdio MCP client |
+
+   ```json
+   {
+     "mcpServers": {
+       "endgame": {
+         "command": "/path/to/.venv/bin/python",
+         "args": ["-m", "endgame.mcp"],
+         "env": {"OMP_NUM_THREADS": "4"}
+       }
+     }
+   }
+   ```
+
+3. Check it. Ask your agent "What Endgame tools do you have?" and it should list 21, from `load_data` to `predict`. Or open the server in the MCP Inspector: `npx @modelcontextprotocol/inspector /path/to/.venv/bin/python -m endgame.mcp`.
+
+Tips:
+
+- Use the full path to the Python that has Endgame installed. A server that will not start is almost always the client launching a different Python.
+- `OMP_NUM_THREADS` caps the threads gradient-boosting models use. Without it they take every core, and on a busy machine we have seen a 0.2-second fit take minutes.
+- The server reads files itself, so give the agent absolute paths. Dataset and model IDs live in memory for as long as the server process runs.
+
+### Give it a task
+
+You do not need to know which model to pick. Describe the data and the question:
+
+```
+You: home_energy.csv has a year of my daily electricity use: day of week, high and
+     low temperature, hours I was home, guests, and kWh. Train a model to predict
+     kWh, tell me how accurate it is, then predict tomorrow: Wednesday, 96°F high,
+     74°F low, home for 14 hours, no guests.
+
+Agent -> load_data(source="/home/me/home_energy.csv", target_column="kwh")
+      -> train_model(dataset_id="ds_674f6a42", model_name="lgbm")
+      -> (writes tomorrow's row to /home/me/tomorrow.csv)
+      -> load_data(source="/home/me/tomorrow.csv")
+      -> predict(model_id="model_fa923457", dataset_id="ds_b283c574")
+
+Agent: LightGBM predicts your daily use to within about 2 kWh (5-fold CV: R² 0.89,
+       RMSE 2.04 kWh, MAE 1.58 kWh). Tomorrow: about 38.4 kWh.
+```
+
+The numbers above are from a real run on a synthetic year of data, where the true value for that day was 40.1 kWh. The same kind of question works for a grocery bill, a commute time or a sleep score: any table where one column depends on the others.
+
+**More examples** --- train, evaluate, and export in one conversation:
 
 ```
 You: Load the Adult Income dataset and build me the best classifier you can.
@@ -118,19 +177,6 @@ Agent -> load_data(source="openml:adult", target_column="class")
       -> export_script(model_id="model_e5f6g7h8")
 ```
 
-Setup takes one line in your project:
-
-```json
-// .mcp.json
-{
-  "mcpServers": {
-    "endgame": {
-      "command": "python",
-      "args": ["-m", "endgame.mcp"]
-    }
-  }
-}
-```
 
 <details>
 <summary><strong>Example: Competition-style model bakeoff with preprocessing</strong></summary>
@@ -471,7 +517,7 @@ Endgame is organized into 26 modules following the ML workflow:
 | `eg.automl` | Full AutoML: 15-stage pipeline with quality guardrails, HPO, constraint checking, explainability |
 | `eg.visualization` | 42 interactive chart types + model reports, all self-contained HTML |
 | `eg.tracking` | Experiment tracking: MLflow, console logger, abstract interface |
-| `eg.mcp` | MCP server: 20 tools + 6 resources for LLM-powered ML pipelines |
+| `eg.mcp` | MCP server: 21 tools + 6 resources for LLM-powered ML pipelines |
 | `eg.explain` | SHAP, LIME, PDP, feature interactions, counterfactuals |
 | `eg.fairness` | Fairness metrics, bias mitigation, HTML reports |
 | `eg.benchmark` | OpenML suite loading, meta-learning, learning curves |
@@ -498,7 +544,7 @@ Endgame is fully scikit-learn compatible --- it adds to your toolkit rather than
 | Production guardrails (leakage, drift, constraints) | Yes | --- | --- | --- |
 | Experiment tracking (MLflow) | Yes | --- | --- | Yes |
 | AutoML with deployment constraints | Yes | --- | --- | --- |
-| LLM agent integration (MCP) | Native MCP server (20 tools) | --- | Yes | --- |
+| LLM agent integration (MCP) | Native MCP server (21 tools) | --- | Yes | --- |
 
 ## Design Principles
 
