@@ -24,6 +24,8 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
     ) -> str:
         """Train a single model on a dataset with cross-validation.
 
+        model_name: a key from list_models, e.g. "lgbm", "xgb", "catboost", "rf" (random forest)
+        or "linear"; recommend_models suggests keys for a loaded dataset.
         params: hyperparameter overrides as a dict or JSON string, e.g. {"n_estimators": 500}.
         Returns a model ID with CV metrics.
         """
