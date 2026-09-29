@@ -249,19 +249,21 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
 
                 X = ds.df.drop(columns=[ds.target_column])
                 y = ds.df[ds.target_column]
+                # compare() fits the frame as given, so a text column (a date,
+                # a weekday) failed every model. Encode like train_model does.
+                from endgame.mcp.tools._encoding import fit_feature_encoders
+                X, _ = fit_feature_encoders(X)
 
                 task = "regression" if ds.task_type == "regression" else "classification"
 
-                result = compare(X, y, task=task, preset=preset)
+                result = compare(X, y, task=task, preset=preset,
+                                 metric=None if metric == "auto" else metric)
 
-                leaderboard = []
-                if hasattr(result, "leaderboard") and result.leaderboard is not None:
-                    for _, row in result.leaderboard.iterrows():
-                        entry = row.to_dict()
-                        leaderboard.append({
-                            k: round(v, 4) if isinstance(v, float) else v
-                            for k, v in entry.items()
-                        })
+                # compare() returns the leaderboard as a list of dicts.
+                leaderboard = [
+                    {k: round(v, 4) if isinstance(v, float) else v for k, v in entry.items()}
+                    for entry in (result.leaderboard or [])
+                ]
 
                 return ok_response({
                     "dataset": ds.name,

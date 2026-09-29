@@ -2,6 +2,7 @@ from __future__ import annotations
 
 """Unified wrappers for gradient boosting libraries."""
 
+import os
 from typing import Any, Literal
 
 import numpy as np
@@ -215,6 +216,16 @@ class GBDTWrapper(EndgameEstimator):
             params["verbosity"] = 0 if not self.verbose else 1
         elif self.backend == "catboost":
             params["verbose"] = self.verbose
+
+        # -1 starts one thread per core and LightGBM ignores OMP_NUM_THREADS.
+        # On small data or a busy machine those threads spin against each
+        # other: 2000 trees on 292 rows took 0.2 s on 4 threads and minutes
+        # on 20 under load. Honor the standard cap when one is set.
+        omp = os.environ.get("OMP_NUM_THREADS", "")
+        if omp.isdigit() and int(omp) > 0:
+            for key in ("n_jobs", "thread_count"):
+                if params.get(key) == -1:
+                    params[key] = int(omp)
 
         # Handle GPU
         use_gpu = self._detect_gpu()

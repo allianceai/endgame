@@ -1453,8 +1453,16 @@ def instantiate_model(
         # Fallback: try the original class path
         model_class = get_model_class(name)
 
-    # Combine default params with overrides
+    # Combine default params with overrides. Defaults are written for the
+    # registered class; a regressor swapped in for it keeps only the ones it
+    # takes ("linear" passed the classifier's C to LinearRegressor).
     params = info.default_params.copy()
+    if class_path != info.class_path:
+        import inspect
+
+        accepted = inspect.signature(model_class).parameters
+        if not any(p.kind is p.VAR_KEYWORD for p in accepted.values()):
+            params = {k: v for k, v in params.items() if k in accepted}
     params.update(override_params)
 
     return model_class(**params)

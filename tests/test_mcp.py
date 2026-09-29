@@ -582,3 +582,50 @@ def test_nullable_string_encoders_are_reused():
     actual, reused = encode_target(pd.Series(["control", "PD"], dtype="string"), target)
     np.testing.assert_array_equal(actual, expected)
     assert reused is target
+
+
+class TestSmallTaskEndToEnd:
+    """Sep 29: HALIE's first Endgame task, predicting a household's daily kWh
+    from a CSV with a date and a weekday column, hit three failures."""
+
+    @staticmethod
+    def _call(server, tool, **args):
+        import asyncio
+
+        out = asyncio.run(server.call_tool(tool, args))
+        blocks = out[0] if isinstance(out, tuple) else out
+        return json.loads(blocks[0].text)
+
+    def test_quick_compare_ranks_models_on_text_columns(self, tmp_path, monkeypatch):
+        from endgame.mcp.server import create_server
+
+        monkeypatch.setenv("OMP_NUM_THREADS", "2")
+        rng = np.random.default_rng(0)
+        n = 120
+        df = pd.DataFrame({
+            "date": pd.date_range("2025-01-01", periods=n).strftime("%Y-%m-%d"),
+            "day": rng.choice(["Mon", "Sat"], n),
+            "temp": rng.normal(80, 8, n),
+        })
+        df["kwh"] = 20 + 0.8 * np.maximum(0, df["temp"] - 75) + rng.normal(0, 1, n)
+        path = tmp_path / "energy.csv"
+        df.to_csv(path, index=False)
+
+        server = create_server()
+        ds = self._call(server, "load_data", source=str(path), target_column="kwh")
+        out = self._call(server, "quick_compare", dataset_id=ds["dataset_id"], preset="fast", metric="r2")
+        assert out["status"] == "ok", out
+        assert out["n_models"] >= 1 and out["leaderboard"][0]["model"]
+
+    def test_linear_model_builds_for_regression(self):
+        from endgame.automl.model_registry import instantiate_model
+
+        assert type(instantiate_model("linear", task_type="regression")).__name__ == "LinearRegressor"
+
+    def test_boosting_honors_the_thread_cap(self, monkeypatch):
+        from endgame.models.wrappers import LGBMWrapper
+
+        monkeypatch.setenv("OMP_NUM_THREADS", "3")
+        assert LGBMWrapper()._get_params()["n_jobs"] == 3
+        monkeypatch.delenv("OMP_NUM_THREADS")
+        assert LGBMWrapper()._get_params()["n_jobs"] == -1
