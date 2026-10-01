@@ -2089,7 +2089,9 @@ class ModelTrainingExecutor(BaseStageExecutor):
             kwargs[f"{prefix}eval_set"] = [(X_val_transformed, y_val)]
             kwargs[f"{prefix}verbose"] = False
         elif model_name == "catboost":
-            kwargs[f"{prefix}eval_set"] = (X_val_transformed, y_val)
+            # A list of pairs, like the others: Endgame's wrapper iterates pairs, so a
+            # bare (X, y) failed every CatBoost run (Oct 1); native CatBoost takes both.
+            kwargs[f"{prefix}eval_set"] = [(X_val_transformed, y_val)]
             kwargs[f"{prefix}early_stopping_rounds"] = early_stopping_rounds
             kwargs[f"{prefix}verbose"] = 0
         elif model_name == "ngboost":
@@ -2169,7 +2171,9 @@ class ModelTrainingExecutor(BaseStageExecutor):
             else:
                 raise ValueError(f"Unknown model: {config.model_name}")
 
-        return model_class(**config.model_params)
+        from endgame.automl.model_registry import with_known_task
+
+        return model_class(**with_known_task(model_class, dict(config.model_params), task_type))
 
 
 class _ImportanceMaskSelector:
@@ -3934,7 +3938,8 @@ class PipelineOrchestrator:
                 except Exception:
                     pass
 
-        best_score = max((r.score for r in results if r.success), default=0.0)
+        # -inf, not 0.0: with negative-error metrics 0.0 beat every real score (Oct 1)
+        best_score = max((r.score for r in results if r.success), default=float("-inf"))
         rounds_without_improvement = 0
         iteration = 0
         total_new_models = 0
@@ -4115,7 +4120,7 @@ class PipelineOrchestrator:
                 # ── Step 3: Check improvement ────────────────────────
                 round_best = max(
                     (r.score for r in new_results if r.success),
-                    default=0.0,
+                    default=float("-inf"),  # a round where every model failed is no improvement
                 )
                 if round_best > best_score + self.min_improvement:
                     improvement = round_best - best_score

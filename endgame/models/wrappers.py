@@ -123,6 +123,11 @@ class GBDTWrapper(EndgameEstimator):
             estimator_type = "classifier"
         elif self.task == "regression":
             estimator_type = "regressor"
+        elif self._task_type in ("classification", "regression"):
+            # task="auto" after fit: say what was fitted (Oct 1: a fitted
+            # regressor tagged "classifier" made tuning use stratified folds
+            # and a scorer that got no predictions, so every trial failed)
+            estimator_type = "classifier" if self._task_type == "classification" else "regressor"
         else:
             # Default to classifier for auto (most common use case)
             estimator_type = "classifier"
@@ -158,8 +163,7 @@ class GBDTWrapper(EndgameEstimator):
 
         regressor_tags = RegressorTags(
             poor_score=False,
-            multi_target=False,
-        ) if estimator_type == "regressor" else None
+        ) if estimator_type == "regressor" else None  # scikit-learn 1.7 has no multi_target
 
         return Tags(
             estimator_type=estimator_type,

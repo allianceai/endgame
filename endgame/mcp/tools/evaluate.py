@@ -25,6 +25,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
 
             with capture_stdout():
                 import numpy as np
+                import pandas as pd
                 from sklearn import metrics as sklearn_metrics
 
                 metric_list = None
@@ -64,6 +65,8 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     )
                     y_pred = model_art.oof_predictions
                     y_proba = None
+                    scored = ~pd.isna(y_pred)  # time-ordered CV never scores the earliest rows
+                    y_true, y_pred = np.asarray(y_true)[scored], np.asarray(y_pred)[scored]
 
                 # Default metrics
                 if metric_list is None:

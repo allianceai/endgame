@@ -21,12 +21,16 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         params: str | dict | None = None,
         cv_folds: int = 5,
         metric: str = "auto",
+        time_ordered: bool = False,
     ) -> str:
         """Train a single model on a dataset with cross-validation.
 
         model_name: a key from list_models, e.g. "lgbm", "xgb", "catboost", "rf" (random forest)
         or "linear"; recommend_models suggests keys for a loaded dataset.
         params: hyperparameter overrides as a dict or JSON string, e.g. {"n_estimators": 500}.
+        time_ordered: the rows are in time order (one per day, night, week...). Each fold
+        trains on earlier rows and is scored on later ones, so the metrics say how well it
+        predicts the future. Shuffled CV (the default) lets it see the rows around each one.
         Returns a model ID with CV metrics.
         """
         try:
@@ -54,12 +58,14 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 info = get_model_info(model_name)
 
                 # Prepare data
+                from endgame.mcp.tools._encoding import fit_feature_encoders, identifier_columns
                 X = ds.df.drop(columns=[ds.target_column])
+                dropped = identifier_columns(X)
+                X = X.drop(columns=dropped)
                 y = ds.df[ds.target_column]
 
                 # Always label-encode categorical features for MCP consistency
                 # (ensures eval/predict/visualize use the same encoders)
-                from endgame.mcp.tools._encoding import fit_feature_encoders
                 X, feature_encoders = fit_feature_encoders(X)
 
                 # Handle missing values for models that don't support them
@@ -79,27 +85,46 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 estimator = instantiate_model(model_name, task_type=task_type, **override_params)
 
                 # Cross-validation
-                if task_type == "regression":
+                if time_ordered:
+                    from sklearn.base import clone
+                    from sklearn.model_selection import TimeSeriesSplit
+                    cv = TimeSeriesSplit(n_splits=cv_folds)
+                elif task_type == "regression":
                     cv = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
                 else:
                     cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
 
                 start = _time.time()
                 with timeout_guard():
-                    oof_preds = cross_val_predict(estimator, X, y, cv=cv, method="predict")
+                    if time_ordered:
+                        # Oct 1: shuffled CV said 65 min on Ezra's nights; later nights said ~95.
+                        scored = np.concatenate([test for _, test in cv.split(X)])
+                        oof_preds = np.empty(len(scored), dtype=float if task_type == "regression" else object)
+                        at = 0
+                        for train_idx, test_idx in cv.split(X):
+                            fold = clone(estimator).fit(X.iloc[train_idx], y.iloc[train_idx])
+                            oof_preds[at:at + len(test_idx)] = fold.predict(X.iloc[test_idx])
+                            at += len(test_idx)
+                        y_scored = y.iloc[scored]
+                        oof_rows = np.full(len(y), np.nan, dtype=oof_preds.dtype if task_type == "regression" else object)
+                        oof_rows[scored] = oof_preds  # earliest rows were never scored
+                    else:
+                        oof_preds = cross_val_predict(estimator, X, y, cv=cv, method="predict")
+                        y_scored = y
+                        oof_rows = oof_preds
                 fit_time = _time.time() - start
 
                 # Compute metrics
                 computed_metrics = {}
                 if task_type == "regression":
-                    computed_metrics["rmse"] = float(np.sqrt(sklearn_metrics.mean_squared_error(y, oof_preds)))
-                    computed_metrics["r2"] = float(sklearn_metrics.r2_score(y, oof_preds))
-                    computed_metrics["mae"] = float(sklearn_metrics.mean_absolute_error(y, oof_preds))
+                    computed_metrics["rmse"] = float(np.sqrt(sklearn_metrics.mean_squared_error(y_scored, oof_preds)))
+                    computed_metrics["r2"] = float(sklearn_metrics.r2_score(y_scored, oof_preds))
+                    computed_metrics["mae"] = float(sklearn_metrics.mean_absolute_error(y_scored, oof_preds))
                 else:
-                    computed_metrics["accuracy"] = float(sklearn_metrics.accuracy_score(y, oof_preds))
-                    computed_metrics["f1"] = float(sklearn_metrics.f1_score(y, oof_preds, average="weighted"))
+                    computed_metrics["accuracy"] = float(sklearn_metrics.accuracy_score(y_scored, oof_preds))
+                    computed_metrics["f1"] = float(sklearn_metrics.f1_score(y_scored, oof_preds, average="weighted"))
                     try:
-                        if len(np.unique(y)) == 2:
+                        if len(np.unique(y)) == 2 and not time_ordered:
                             oof_proba = cross_val_predict(estimator, X, y, cv=cv, method="predict_proba")
                             computed_metrics["roc_auc"] = float(
                                 sklearn_metrics.roc_auc_score(y, oof_proba[:, 1])
@@ -124,7 +149,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     params=model_params,
                     fit_time=fit_time,
                     feature_names=list(X.columns),
-                    oof_predictions=oof_preds,
+                    oof_predictions=oof_rows,
                     label_encoders=feature_encoders if feature_encoders else None,
                     target_encoder=label_encoder,
                 )
@@ -135,9 +160,11 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     "display_name": info.display_name,
                     "task_type": task_type,
                     "cv_folds": cv_folds,
+                    "cv": "time_ordered" if time_ordered else "shuffled",
                     "metrics": {k: round(v, 4) for k, v in computed_metrics.items()},
                     "fit_time": round(fit_time, 2),
                     "n_features": X.shape[1],
+                    "dropped_columns": dropped,
                 })
 
         except MCPTimeoutError as e:
@@ -166,17 +193,22 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 return error_response("validation", "Dataset has no target column set")
 
             with capture_stdout():
+                import pandas as pd
+
                 from endgame.automl.tabular import TabularPredictor
 
+                from endgame.mcp.tools._encoding import identifier_columns
+                dropped = identifier_columns(ds.df.drop(columns=[ds.target_column]))
                 predictor = TabularPredictor(
                     label=ds.target_column,
                     presets=preset,
                     time_limit=time_limit,
                     verbosity=0,
+                    problem_type=ds.task_type if ds.task_type in ("regression", "binary", "multiclass") else "auto",
                 )
 
                 start = _time.time()
-                predictor.fit(ds.df, interpretable_only=interpretable_only)
+                predictor.fit(ds.df.drop(columns=dropped), interpretable_only=interpretable_only)
                 total_time = _time.time() - start
 
                 # Store predictor
@@ -186,6 +218,13 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 # Extract best model as ModelArtifact
                 summary = predictor.fit_summary_
                 best_model_name = summary.best_model if summary else "unknown"
+                if best_model_name == "fallback_hgb":
+                    # Oct 1: this came back as status ok with score 0.0.
+                    return error_response(
+                        "training_failed",
+                        "Every candidate model failed or ran out of time; AutoML returned its untuned "
+                        "fallback (HistGradientBoosting) with no score.",
+                        hint="Raise time_limit, try preset='fast', or train_model one model to see its error.")
                 best_estimator = predictor.get_model(best_model_name) if best_model_name != "unknown" else None
 
                 metrics = {}
@@ -207,9 +246,10 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 leaderboard = []
                 if predictor.leaderboard_ is not None and len(predictor.leaderboard_) > 0:
                     for _, row in predictor.leaderboard_.iterrows():
+                        score = row.get("score")
                         leaderboard.append({
                             "model": row.get("model", ""),
-                            "score": round(float(row.get("score", 0)), 4),
+                            "score": None if pd.isna(score) else round(float(score), 4),  # None = never scored
                             "fit_time": round(float(row.get("fit_time", 0)), 2),
                         })
 
@@ -222,6 +262,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     "n_models_trained": summary.n_models_trained if summary else 0,
                     "total_time": round(total_time, 2),
                     "leaderboard": leaderboard,
+                    "dropped_columns": dropped,
                 })
 
         except KeyError as e:
@@ -253,8 +294,8 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 y = ds.df[ds.target_column]
                 # compare() fits the frame as given, so a text column (a date,
                 # a weekday) failed every model. Encode like train_model does.
-                from endgame.mcp.tools._encoding import fit_feature_encoders
-                X, _ = fit_feature_encoders(X)
+                from endgame.mcp.tools._encoding import fit_feature_encoders, identifier_columns
+                X, _ = fit_feature_encoders(X.drop(columns=identifier_columns(X)))
 
                 task = "regression" if ds.task_type == "regression" else "classification"
 

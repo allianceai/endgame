@@ -629,3 +629,154 @@ class TestSmallTaskEndToEnd:
         assert LGBMWrapper()._get_params()["n_jobs"] == 3
         monkeypatch.delenv("OMP_NUM_THREADS")
         assert LGBMWrapper()._get_params()["n_jobs"] == -1
+
+
+class TestNightBottleRegression:
+    """Oct 1: HALIE's night-bottle predictor. A 344-night table with a per-night
+    date column and an integer target (first wake, in minutes). AutoML returned
+    a 'fallback_hgb' stub with score 0.0 as status ok; train_model used the date
+    as a feature and reported an optimistic CV error."""
+
+    @staticmethod
+    def _call(server, tool, **args):
+        return TestSmallTaskEndToEnd._call(server, tool, **args)
+
+    @staticmethod
+    def _nights(tmp_path, n=200):
+        rng = np.random.default_rng(1)
+        df = pd.DataFrame({
+            "night_date": pd.date_range("2025-10-09", periods=n).strftime("%Y-%m-%d"),
+            "last_daytime_feed_min": rng.integers(1080, 1260, n),
+            "daytime_oz": rng.normal(18, 4, n).round(2),
+            "age_days": np.arange(n),
+        })
+        df["first_night_wake_min"] = (1500 + 0.8 * (df.last_daytime_feed_min - 1170)
+                                      + rng.normal(0, 25, n)).round().astype(int)
+        path = tmp_path / "nights.csv"
+        df.to_csv(path, index=False)
+        return path
+
+    def test_boosting_wrappers_report_the_task_they_fit(self):
+        from sklearn.base import is_classifier, is_regressor
+
+        from endgame.models.wrappers import LGBMWrapper
+
+        assert is_regressor(LGBMWrapper(task="regression"))          # crashed: RegressorTags(multi_target=)
+        X = pd.DataFrame({"a": np.arange(60.0)})
+        fitted = LGBMWrapper(n_estimators=5).fit(X, np.linspace(0, 1, 60) ** 2)
+        assert is_regressor(fitted) and not is_classifier(fitted)     # was "classifier" for task="auto"
+        assert is_classifier(LGBMWrapper(n_estimators=5).fit(X, np.arange(60) % 2))
+
+    def test_automl_builds_boosting_models_for_the_task(self):
+        from endgame.automl.orchestrator import ModelTrainingExecutor
+        from endgame.automl.search.base import PipelineConfig
+
+        model = ModelTrainingExecutor._instantiate_model(None, PipelineConfig(model_name="lgbm"), "regression")
+        assert model.task == "regression"
+        from endgame.automl.model_registry import instantiate_model
+        assert instantiate_model("lgbm", task_type="regression").task == "regression"   # MCP train_model's path
+
+    def test_automl_reports_every_model_failing_as_an_error(self, tmp_path, monkeypatch):
+        from types import SimpleNamespace
+
+        import endgame.automl.tabular as tabular
+        from endgame.mcp.server import create_server
+
+        class _AllFailed:
+            def __init__(self, **kw):
+                self.kw = kw
+            def fit(self, df, **kw):
+                self.fit_summary_ = SimpleNamespace(best_model="fallback_hgb", best_score=0.0, n_models_trained=1)
+                self.leaderboard_ = pd.DataFrame([{"model": "fallback_hgb", "score": 0.0, "fit_time": 0.0}])
+                self.feature_names_ = list(df.columns)
+                return self
+            def get_model(self, name):
+                return None
+        monkeypatch.setattr(tabular, "TabularPredictor", _AllFailed)
+        server = create_server()
+        ds = self._call(server, "load_data", source=str(self._nights(tmp_path)), target_column="first_night_wake_min")
+        out = self._call(server, "automl", dataset_id=ds["dataset_id"], preset="fast", time_limit=30)
+        assert out["status"] == "error" and "fallback" in out["message"], out
+
+    def test_a_per_row_date_is_not_a_feature(self, tmp_path, monkeypatch):
+        from endgame.mcp.server import create_server
+
+        monkeypatch.setenv("OMP_NUM_THREADS", "2")
+        server = create_server()
+        ds = self._call(server, "load_data", source=str(self._nights(tmp_path)), target_column="first_night_wake_min")
+        out = self._call(server, "train_model", dataset_id=ds["dataset_id"], model_name="lgbm")
+        assert out["status"] == "ok" and out["n_features"] == 3 and out["dropped_columns"] == ["night_date"], out
+        pred = self._call(server, "predict", model_id=out["model_id"], dataset_id=ds["dataset_id"])
+        assert pred["status"] == "ok", pred
+
+    def test_automl_early_stopping_works_for_catboost(self):
+        # Oct 1: AutoML gave CatBoost eval_set=(X_val, y_val); the wrapper iterates
+        # pairs, so every CatBoost run failed "too many values to unpack".
+        from endgame.automl.model_registry import instantiate_model
+        from endgame.automl.orchestrator import ModelTrainingExecutor
+
+        rng = np.random.default_rng(0)
+        X, y = rng.normal(size=(120, 3)), rng.normal(size=120)
+        model = instantiate_model("catboost", task_type="regression", iterations=20, verbose=0)
+        kwargs = ModelTrainingExecutor._get_early_stopping_kwargs(model, "catboost", X[100:], y[100:], 5)
+        model.fit(X[:100], y[:100], **kwargs)
+        assert model.predict(X[:2]).shape == (2,)
+
+    def test_time_ordered_cv_scores_only_the_future(self, tmp_path, monkeypatch):
+        # Oct 1: shuffled CV reported a 65-minute error on Ezra's nights; scored on
+        # later nights only, the same model missed by ~95. A daily log needs the latter.
+        from endgame.mcp.server import create_server
+
+        monkeypatch.setenv("OMP_NUM_THREADS", "2")
+        n = 200
+        df = pd.DataFrame({"day": np.arange(n), "noise": np.random.default_rng(0).normal(size=n)})
+        df["y"] = df["day"] * 2.0 + df["noise"]          # a trend: shuffled folds interpolate it
+        path = tmp_path / "trend.csv"
+        df.to_csv(path, index=False)
+        server = create_server()
+        ds = self._call(server, "load_data", source=str(path), target_column="y")
+        shuffled = self._call(server, "train_model", dataset_id=ds["dataset_id"], model_name="lgbm")
+        ordered = self._call(server, "train_model", dataset_id=ds["dataset_id"], model_name="lgbm", time_ordered=True)
+        assert ordered["status"] == "ok" and ordered["cv"] == "time_ordered", ordered
+        assert ordered["metrics"]["mae"] > 5 * shuffled["metrics"]["mae"]
+        ev = self._call(server, "evaluate_model", model_id=ordered["model_id"])
+        assert ev["status"] == "ok" and abs(ev["metrics"]["mae"] - ordered["metrics"]["mae"]) < 1e-3, ev
+
+    def test_an_unscored_fallback_never_outranks_a_scored_model(self):
+        # Oct 1: lgbm scored -28.27 (negative RMSE); a later round's fallback,
+        # never evaluated, was recorded as 0.0 and became "best_model".
+        from types import SimpleNamespace
+
+        from endgame.automl.tabular import TabularPredictor
+
+        p = TabularPredictor(label="y", presets="fast")
+        p._models = {"lgbm": {"score": -28.27, "fit_time": 1.0}, "fallback_hgb": {"score": None, "fit_time": 0.0}}
+        p._build_leaderboard()
+        assert p.leaderboard_.model.tolist() == ["lgbm", "fallback_hgb"]
+        p._build_fit_summary(SimpleNamespace(metadata={}, stage_results={}, score=-28.27), 1.0)
+        assert p.fit_summary_.best_model == "lgbm" and p.fit_summary_.best_score == -28.27
+
+    def test_automl_on_night_feeds_trains_a_real_model(self, tmp_path):
+        # In a fresh process: once a GBDT has trained in-process (train_model, or an
+        # earlier test), AutoML's forked training children die and it falls back.
+        # That is a known open defect; this checks the MCP path itself.
+        import subprocess
+        import sys
+
+        path = self._nights(tmp_path)
+        script = f"""
+import asyncio, json
+from endgame.mcp.server import create_server
+s = create_server()
+def call(tool, **a):
+    out = asyncio.run(s.call_tool(tool, a)); b = out[0] if isinstance(out, tuple) else out
+    return json.loads(b[0].text)
+ds = call("load_data", source={str(path)!r}, target_column="first_night_wake_min")
+print("RESULT" + json.dumps(call("automl", dataset_id=ds["dataset_id"], preset="fast", time_limit=60)))
+"""
+        run = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=600,
+                             env={**os.environ, "OMP_NUM_THREADS": "2"})
+        line = next(l for l in run.stdout.splitlines() if l.startswith("RESULT"))
+        out = json.loads(line[len("RESULT"):])
+        assert out["status"] == "ok" and out["best_model"] != "fallback_hgb", out
+        assert "night_date" in out["dropped_columns"]

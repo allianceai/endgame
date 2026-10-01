@@ -20,6 +20,17 @@ def _categorical_columns(X: pd.DataFrame) -> list:
             or isinstance(X[col].dtype, pd.CategoricalDtype))]
 
 
+def identifier_columns(X: pd.DataFrame) -> list:
+    """Text columns with a different value in every row: an ID, or a date per night.
+
+    Oct 1: a per-night date went into training as a label-encoded feature; under
+    shuffled CV it stood in for time, and AutoML's own guardrail flagged it
+    (Cramer's V = 1.000) while still using it.
+    """
+    n = len(X)
+    return [c for c in _categorical_columns(X) if n >= 20 and X[c].nunique(dropna=False) == n]
+
+
 def encode_features(
     X: pd.DataFrame,
     label_encoders: dict | None = None,
@@ -128,6 +139,9 @@ def apply_encoders(
     Convenience function that combines ``encode_features``, ``encode_target``,
     and missing value imputation in a single call.
     """
+    names = list(getattr(model_art, "feature_names", None) or [])
+    if names and set(names) <= set(X.columns):
+        X = X[names]  # training left identifier columns out
     X = encode_features(X, label_encoders=model_art.label_encoders)
 
     if fill_missing and X.isna().any().any():

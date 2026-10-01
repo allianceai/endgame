@@ -1386,7 +1386,9 @@ class TabularPredictor(BasePredictor):
 
             self._models[model_name] = {
                 "estimator": model,
-                "score": best_result.score if best_result else 0.0,
+                # None = never scored (an all-failed round's fallback); 0.0 here
+                # outranked every negative-error regression score (Oct 1)
+                "score": best_result.score if best_result else None,
                 "fit_time": best_result.fit_time if best_result else 0.0,
                 "oof_predictions": all_oof.get(model_name),
                 "n_features": len(self.feature_names_) if self.feature_names_ else 0,
@@ -1435,16 +1437,17 @@ class TabularPredictor(BasePredictor):
         """Build the model leaderboard."""
         rows = []
         for name, info in self._models.items():
+            score = info.get("score")
             rows.append({
                 "model": name,
-                "score": info.get("score", 0.0),
+                "score": float("nan") if score is None else score,
                 "fit_time": info.get("fit_time", 0.0),
             })
 
         self.leaderboard_ = pd.DataFrame(rows)
         if len(rows) > 0:
             self.leaderboard_ = self.leaderboard_.sort_values(
-                "score", ascending=False
+                "score", ascending=False, na_position="last"
             ).reset_index(drop=True)
 
     def _build_fit_summary(
@@ -1469,11 +1472,11 @@ class TabularPredictor(BasePredictor):
         best_model = ""
         best_score = 0.0
         if self._models:
-            best_model = max(
-                self._models.keys(),
-                key=lambda k: self._models[k].get("score", 0.0)
-            )
-            best_score = self._models[best_model].get("score", 0.0)
+            def ranked(k):  # an unscored model ranks below every scored one
+                score = self._models[k].get("score")
+                return float("-inf") if score is None else score
+            best_model = max(self._models.keys(), key=ranked)
+            best_score = self._models[best_model].get("score") or 0.0
 
         # Get stage times
         stage_times = {}

@@ -1412,6 +1412,22 @@ def get_model_class(name: str) -> type:
         ) from e
 
 
+def with_known_task(model_class: type, params: dict, task_type: str) -> dict:
+    """Give a model left at task="auto" the task the caller knows.
+
+    Oct 1: an "auto" wrapper guesses from the target (an integer clock time
+    with <= 100 distinct values becomes a classifier) and is tagged a
+    classifier until fitted, so tuning a regression stratified its folds and
+    every trial failed.
+    """
+    import inspect
+
+    task = inspect.signature(model_class).parameters.get("task")
+    if "task" not in params and task is not None and task.default == "auto" and task_type:
+        params = {**params, "task": "regression" if task_type == "regression" else "classification"}
+    return params
+
+
 def instantiate_model(
     name: str,
     task_type: str = "classification",
@@ -1465,7 +1481,7 @@ def instantiate_model(
             params = {k: v for k, v in params.items() if k in accepted}
     params.update(override_params)
 
-    return model_class(**params)
+    return model_class(**with_known_task(model_class, params, task_type))
 
 
 def get_models_by_family() -> dict[str, list[str]]:
