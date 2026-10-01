@@ -120,6 +120,18 @@ if HAS_TORCH:
             globals()["xRFMClassifier"] = xRFMClassifier
             globals()["xRFMRegressor"] = xRFMRegressor
             return globals()[name]
+        if name == "EXAONETabularClassifier":
+            from endgame.models.tabular.exaone import EXAONETabularClassifier
+            globals()[name] = EXAONETabularClassifier
+            return EXAONETabularClassifier
+        if name == "TabFMClassifier":
+            from endgame.models.tabular.tabfm import TabFMClassifier
+            globals()[name] = TabFMClassifier
+            return TabFMClassifier
+        if name == "TabICLClassifier":
+            from endgame.models.tabular.tabicl import TabICLClassifier
+            globals()[name] = TabICLClassifier
+            return TabICLClassifier
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     __all__ = [
@@ -132,6 +144,9 @@ if HAS_TORCH:
         "TabDPTRegressor",
         "xRFMClassifier",
         "xRFMRegressor",
+        "EXAONETabularClassifier",
+        "TabFMClassifier",
+        "TabICLClassifier",
         "TabTransformerClassifier",
         "TabTransformerRegressor",
         "FTTransformerClassifier",
@@ -222,6 +237,18 @@ else:
             globals()["xRFMClassifier"] = xRFMClassifier
             globals()["xRFMRegressor"] = xRFMRegressor
             return globals()[name]
+        if name == "EXAONETabularClassifier":
+            from endgame.models.tabular.exaone import EXAONETabularClassifier
+            globals()[name] = EXAONETabularClassifier
+            return EXAONETabularClassifier
+        if name == "TabFMClassifier":
+            from endgame.models.tabular.tabfm import TabFMClassifier
+            globals()[name] = TabFMClassifier
+            return TabFMClassifier
+        if name == "TabICLClassifier":
+            from endgame.models.tabular.tabicl import TabICLClassifier
+            globals()[name] = TabICLClassifier
+            return TabICLClassifier
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     __all__ = [
@@ -234,6 +261,9 @@ else:
         "TabDPTRegressor",
         "xRFMClassifier",
         "xRFMRegressor",
+        "EXAONETabularClassifier",
+        "TabFMClassifier",
+        "TabICLClassifier",
         "TabTransformerClassifier",
         "TabTransformerRegressor",
         "FTTransformerClassifier",

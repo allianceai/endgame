@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `TabPFN25Classifier`/`TabPFN25Regressor` pin the requested checkpoint under `tabpfn >= 8` (whose constructor dropped `model_version` and defaults to TabPFN-3); the checkpoint used is recorded as `model_path_`. Previously the `model_version` argument was silently ignored on tabpfn 8.x.
 - Stack passthrough imputation now reuses training statistics; single-patient and batch predictions agree. Unavailable/single-class blocks use an explicit class-prior fallback, with stable patient indices and strict feature schemas.
 - ComBat excludes globally constant features from empirical-Bayes priors, rejects confounded/degenerate designs, and bounds convergence. One-active-feature and failed-prior cases require an explicit plain-adjustment policy. Adjustment reports expose raw passthrough and skipped blocks.
 - Normative reference markers reject missing/ambiguous membership and are optional at inference; rank, residual degrees of freedom, scale and extrapolation are checked.
@@ -21,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MLflow's default local URI is `sqlite:///mlruns.db`; existing filesystem stores are not automatically migrated.
 
 ### Added
+- Tabular foundation-model wrappers `EXAONETabularClassifier` (LG AI Research EXAONE-Tabular 1.0), `TabFMClassifier` (Google TabFM 1.0) and `TabICLClassifier` (TabICL v2), all optional imports with install hints; `TabPFN25Classifier(model_version="3")` selects TabPFN-3.
 - Mandatory scientific CI matrix (Python 3.10–3.12), pinned scientific dependencies, neuroCombat/LightGBM reference checks, and scientific regression tests with numerical runtime warnings treated as errors.
 - [Imaging validation guide](docs/guides/imaging_validation.md) covering new patients, new sites, repeated visits and group inference, including remaining cohort-specific validation gates.
 - `preprocessing.BlockwiseHarmonizer`: one train-fitted ComBat per feature block with the block's own batch column (multi-modal data where each modality has its own scanner); rows lacking a block or its batch pass through, batch levels below `min_batch_n` are left un-adjusted.

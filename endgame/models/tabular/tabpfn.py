@@ -744,6 +744,7 @@ class TabPFNv2Classifier(ClassifierMixin, BaseEstimator):
 
             try:
                 self._model = _TabPFNClf(**init_kwargs)
+                self.model_path_ = str(init_kwargs.get("model_path", "auto"))
                 fit_kwargs = {}
                 if self.fit_mode is not None:
                     import inspect
@@ -1103,6 +1104,17 @@ class TabPFNv2Regressor(RegressorMixin, BaseEstimator):
 # TabPFN v2.5 wrappers
 # ---------------------------------------------------------------------------
 
+def _checkpoint_for_version(cls, model_version):
+    """Checkpoint path for a TabPFN model version string ('2.5', '2.5_real', '2.6', '3') under tabpfn >= 8, where the
+    constructor takes ``model_path`` and ``"auto"`` means the newest model (TabPFN-3). Recorded as ``model_path_``."""
+    from tabpfn.constants import ModelVersion
+
+    key = {"2": "V2", "2.5": "V2_5", "2.5_real": "V2_5", "2.6": "V2_6", "3": "V3"}.get(str(model_version))
+    if key is None or not hasattr(ModelVersion, key):
+        raise ValueError(f"Unknown TabPFN model_version {model_version!r}; use one of 2, 2.5, 2.5_real, 2.6, 3")
+    return cls.create_default_for_version(getattr(ModelVersion, key)).model_path
+
+
 def _check_tabpfn_25_available():
     """Check if TabPFN v2.5 (tabpfn >= 2.5) is installed.
 
@@ -1294,6 +1306,9 @@ class TabPFN25Classifier(ClassifierMixin, BaseEstimator):
             _accepted = set(inspect.signature(_TabPFNClf.__init__).parameters)
             if "model_version" in _accepted:
                 init_kwargs["model_version"] = self.model_version
+            elif "model_path" in _accepted:
+                # tabpfn >= 8 has no model_version and defaults to TabPFN-3: pin the requested checkpoint explicitly
+                init_kwargs["model_path"] = _checkpoint_for_version(_TabPFNClf, self.model_version)
             if self.categorical_features_indices is not None:
                 init_kwargs["categorical_features_indices"] = (
                     self.categorical_features_indices
@@ -1305,6 +1320,7 @@ class TabPFN25Classifier(ClassifierMixin, BaseEstimator):
 
             try:
                 self._model = _TabPFNClf(**init_kwargs)
+                self.model_path_ = str(init_kwargs.get("model_path", "auto"))
                 fit_kwargs = {}
                 if self.fit_mode is not None:
                     _fit_accepted = set(inspect.signature(self._model.fit).parameters)
@@ -1565,6 +1581,8 @@ class TabPFN25Regressor(RegressorMixin, BaseEstimator):
             _accepted = set(inspect.signature(_TabPFNReg.__init__).parameters)
             if "model_version" in _accepted:
                 init_kwargs["model_version"] = self.model_version
+            elif "model_path" in _accepted:
+                init_kwargs["model_path"] = _checkpoint_for_version(_TabPFNReg, self.model_version)
             if self.categorical_features_indices is not None:
                 init_kwargs["categorical_features_indices"] = (
                     self.categorical_features_indices
