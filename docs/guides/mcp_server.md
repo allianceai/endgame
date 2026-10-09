@@ -280,6 +280,10 @@ These IDs are passed between tools to chain operations. The `endgame://session/s
 
 Artifacts live in memory for the duration of the server process. Files (visualizations, exported scripts, saved models) are written to the working directory (`/tmp/endgame_mcp` by default, configurable via `ENDGAME_MCP_WORKDIR`).
 
+### GPU memory and foundation models
+
+On a CUDA machine, foundation models (family `foundation`: Kumo-Tabular, LimiX-2, TabPFN, TabFM, Mitra, iLTM, ...) never hold GPU memory in the server process. `train_model` cross-validates them in a child process that exits when it is done, and the stored model fits itself in a single worker process the first time it is used (`predict`, `evaluate_model`, charts) and keeps serving calls from there. At most one worker lives at a time: training anything, or using a different foundation model, stops it, which frees all of its GPU memory. A session can therefore train any number of them on one small GPU; the price is a refit when you go back to an earlier model (seconds for in-context models, a minute or two for Mitra and iLTM, same parameters and seeds).
+
 ## Error Handling
 
 All tools return structured JSON with consistent format:

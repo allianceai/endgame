@@ -741,6 +741,10 @@ class TabPFNv2Classifier(ClassifierMixin, BaseEstimator):
                 init_kwargs["memory_saving_mode"] = True
             if self.post_hoc_ensembling:
                 init_kwargs["post_hoc_ensembling"] = True
+            import inspect
+            if "model_version" not in inspect.signature(_TabPFNClf.__init__).parameters:
+                # tabpfn >= 8 defaults to its newest model (TabPFN-3.5 on 9.x, licence-gated): pin v2
+                init_kwargs["model_path"] = _checkpoint_for_version(_TabPFNClf, "2")
 
             try:
                 self._model = _TabPFNClf(**init_kwargs)
@@ -753,6 +757,7 @@ class TabPFNv2Classifier(ClassifierMixin, BaseEstimator):
                         fit_kwargs["fit_mode"] = self.fit_mode
                 self._model.fit(X, y_encoded, **fit_kwargs)
             except Exception as exc:
+                _raise_if_unlicensed(exc)
                 warnings.warn(
                     f"Could not initialise TabPFN v2 classifier "
                     f"({type(exc).__name__}: {str(exc)[:200]}). "
@@ -1007,6 +1012,10 @@ class TabPFNv2Regressor(RegressorMixin, BaseEstimator):
                 init_kwargs["memory_saving_mode"] = True
             if self.post_hoc_ensembling:
                 init_kwargs["post_hoc_ensembling"] = True
+            import inspect
+            if "model_version" not in inspect.signature(_TabPFNReg.__init__).parameters:
+                # tabpfn >= 8 defaults to its newest model (TabPFN-3.5 on 9.x, licence-gated): pin v2
+                init_kwargs["model_path"] = _checkpoint_for_version(_TabPFNReg, "2")
 
             try:
                 self._model = _TabPFNReg(**init_kwargs)
@@ -1018,6 +1027,7 @@ class TabPFNv2Regressor(RegressorMixin, BaseEstimator):
                         fit_kwargs["fit_mode"] = self.fit_mode
                 self._model.fit(X, y, **fit_kwargs)
             except Exception as exc:
+                _raise_if_unlicensed(exc)
                 warnings.warn(
                     f"Could not initialise TabPFN v2 regressor "
                     f"({type(exc).__name__}: {str(exc)[:200]}). "
@@ -1103,6 +1113,13 @@ class TabPFNv2Regressor(RegressorMixin, BaseEstimator):
 # ---------------------------------------------------------------------------
 # TabPFN v2.5 wrappers
 # ---------------------------------------------------------------------------
+
+def _raise_if_unlicensed(exc):
+    """A model licence the user has not accepted (Prior Labs' one-time acceptance) is not a reason to fall back to
+    kNN quietly: re-raise it, its message says how to accept."""
+    if type(exc).__name__ == "TabPFNLicenseError":
+        raise exc
+
 
 def _checkpoint_for_version(cls, model_version):
     """Checkpoint path for a TabPFN model version string ('2.5', '2.5_real', '2.6', '3', '3.5', '3.5-fast') under
@@ -1332,6 +1349,7 @@ class TabPFN25Classifier(ClassifierMixin, BaseEstimator):
                         fit_kwargs["fit_mode"] = self.fit_mode
                 self._model.fit(X, y_encoded, **fit_kwargs)
             except Exception as exc:
+                _raise_if_unlicensed(exc)
                 warnings.warn(
                     f"Could not initialise TabPFN 2.5 classifier "
                     f"({type(exc).__name__}: {str(exc)[:200]}). "
@@ -1607,6 +1625,7 @@ class TabPFN25Regressor(RegressorMixin, BaseEstimator):
                         fit_kwargs["fit_mode"] = self.fit_mode
                 self._model.fit(X, y, **fit_kwargs)
             except Exception as exc:
+                _raise_if_unlicensed(exc)
                 warnings.warn(
                     f"Could not initialise TabPFN 2.5 regressor "
                     f"({type(exc).__name__}: {str(exc)[:200]}). "

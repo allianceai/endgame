@@ -6,6 +6,11 @@ import sys
 
 
 def main():
+    import os
+
+    # stdin/stdout carry the MCP protocol: tabpfn's licence flow would open a browser and poll stdin for an API key.
+    # Raise its licence error (which says how to accept) instead.
+    os.environ.setdefault("TABPFN_NO_BROWSER", "1")
     transport = "stdio"
     if "--sse" in sys.argv:
         transport = "sse"

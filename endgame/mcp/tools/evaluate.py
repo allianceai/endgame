@@ -193,8 +193,10 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
 
                     from sklearn.inspection import permutation_importance
 
-                    result = permutation_importance(
-                        estimator, X, y, n_repeats=10, random_state=42, n_jobs=-1
+                    from endgame.mcp.tools._isolated import IsolatedModel
+                    result = permutation_importance(   # parallel copies of an isolated model would each start a GPU worker
+                        estimator, X, y, n_repeats=10, random_state=42,
+                        n_jobs=1 if isinstance(estimator, IsolatedModel) else -1
                     )
 
                     pairs = sorted(

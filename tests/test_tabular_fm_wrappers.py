@@ -90,3 +90,20 @@ def test_reexport(module, name, pkg):
     else:
         with pytest.raises(ImportError, match="pip install"):
             getattr(mod, name)
+
+
+@pytest.mark.parametrize("name", ["kumo_tabular", "limix2", "tabpfn_35", "causilo", "mitra_v2", "exaone_tabular", "tabfm",
+                                  "tabldm", "tabicl", "iltm", "sap_rpt", "chimeraboost", "ctboost"])
+def test_registry_entry_builds_per_task(name):
+    # MCP train_model and AutoML build these through the registry; regression swaps Classifier -> Regressor
+    from sklearn.base import is_classifier, is_regressor
+
+    from endgame.automl.model_registry import MODEL_REGISTRY, instantiate_model
+
+    for task in MODEL_REGISTRY[name].task_types:
+        try:
+            est = instantiate_model(name, task_type=task)
+        except ImportError as exc:      # re-exported package classes need the package to exist at all
+            assert "pip install" in str(exc)
+            continue
+        assert is_regressor(est) if task == "regression" else is_classifier(est)

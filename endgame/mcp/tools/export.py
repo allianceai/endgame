@@ -59,9 +59,11 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 if path is None:
                     path = str(session.working_dir / f"model_{model_art.name}")
 
+                from endgame.mcp.tools._isolated import IsolatedModel
                 from endgame.persistence import save
 
-                saved_path = save(model_art.estimator, path)
+                est = model_art.estimator
+                saved_path = est.save(path) if isinstance(est, IsolatedModel) else save(est, path)
 
                 return ok_response({
                     "model_id": model_id,

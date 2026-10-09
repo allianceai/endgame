@@ -103,6 +103,18 @@ MODEL_FAMILIES = {
     "ensemble": "Ensemble Methods",
 }
 
+
+def _foundation(name, display_name, class_path, packages, notes, task_types=("classification", "regression"),
+                fit_time="medium", **kw) -> ModelInfo:
+    """A pretrained in-context foundation model over an optional package: no sample weights or importances, GPU,
+    native NaN and categoricals unless ``kw`` says otherwise."""
+    kw = {"supports_sample_weight": False, "supports_feature_importance": False, "supports_gpu": True,
+          "requires_torch": True, "handles_categorical": True, "handles_missing": True, "memory_usage": "high", **kw}
+    return ModelInfo(name=name, display_name=display_name, family="foundation", class_path=class_path,
+                     task_types=list(task_types), typical_fit_time=fit_time, required_packages=packages, notes=notes,
+                     **kw)
+
+
 # The main model registry
 MODEL_REGISTRY: dict[str, ModelInfo] = {
     # ==================== GBDT Models ====================
@@ -1025,7 +1037,7 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         min_samples=200,
         default_params={},
         required_packages=["tabdpt"],
-        notes="TabDPT: Tabular Data Pre-Training. In-context learning for tabular.",
+        notes="TabDPT: in-context learning for tabular. tabdpt>=1.3.1 gives TabArena's TabDPT-1.3.",
     ),
     "tabr": ModelInfo(
         name="tabr",
@@ -1110,6 +1122,80 @@ MODEL_REGISTRY: dict[str, ModelInfo] = {
         memory_usage="medium",
         default_params={},
         notes="Explainable Random Feature Model. Interpretable foundation model.",
+    ),
+
+    # ==================== Foundation Models (TabArena top 30, Oct 2026) ====================
+    "kumo_tabular": _foundation(
+        "kumo_tabular", "Kumo-Tabular", "endgame.models.tabular.kumo.KumoTabularClassifier", ["sdm"],
+        "NVIDIA Kumo-Tabular, TabArena #1. params size='large'|'medium'|'small'. Open weights, commercial use OK. "
+        "Install: pip install 'structured-data-models @ git+https://github.com/NVIDIA/structured-data-models.git'"),
+    "limix2": _foundation(
+        "limix2", "LimiX-2", "endgame.models.tabular.limix.LimiX2Classifier", ["limix"],
+        "StableAI LimiX-2, TabArena #2; 2-10 classes; non-commercial weights. Install: see endgame.models.tabular.limix",
+        fit_time="slow"),
+    "tabpfn_35": _foundation(
+        "tabpfn_35", "TabPFN-3.5", "endgame.models.tabular.tabpfn.TabPFN25Classifier", ["tabpfn"],
+        "Prior Labs TabPFN-3.5, TabArena #4 (params model_version='3.5-fast' for the Fast variant). Needs tabpfn>=9 "
+        "and the licence accepted at ux.priorlabs.ai; non-commercial weights.",
+        fit_time="fast", default_params={"model_version": "3.5"}),
+    "causilo": _foundation(
+        "causilo", "Causilo", "endgame.models.tabular.causilo.CausiloClassifier", ["causilo"],
+        "nums-ai Causilo, TabArena top 10; non-commercial weights. Install: pip install causilo", fit_time="fast"),
+    "mitra_v2": _foundation(
+        "mitra_v2", "Mitra-v2", "endgame.models.tabular.mitra.MitraClassifier", ["autogluon"],
+        "AutoGluon Mitra-v2 (fine-tuned in-context), TabArena top 10; <=10 classes; Apache-2.0. "
+        "Install: pip install 'autogluon.tabular[mitra]>=1.6'", task_types=["classification"]),
+    "exaone_tabular": _foundation(
+        "exaone_tabular", "EXAONE-Tabular", "endgame.models.tabular.exaone.EXAONETabularClassifier",
+        ["exaonetabular"], "LG EXAONE-Tabular 1.0, TabArena top 10; <=10 classes; research-only weights.",
+        task_types=["classification"], fit_time="fast"),
+    "tabfm": _foundation(
+        "tabfm", "TabFM", "endgame.models.tabular.tabfm.TabFMClassifier", ["tabfm"],
+        "Google TabFM 1.0 (1.6B params, several-GB download), TabArena top 10; <=10 classes; non-commercial weights.",
+        task_types=["classification"], fit_time="slow", handles_missing=False),
+    "tabldm": _foundation(
+        "tabldm", "Xiaomi-TabLDM", "endgame.models.tabular.tabldm.TabLDMEnhancedClassifier", ["tabldm"],
+        "Xiaomi TabLDM, TabArena top 15; Apache-2.0. Install: see endgame.models.tabular.tabldm", fit_time="fast"),
+    "tabicl": _foundation(
+        "tabicl", "TabICL v2", "endgame.models.tabular.tabicl.TabICLClassifier", ["tabicl"],
+        "TabICL v2, TabArena top 15; BSD-3 weights. Install: pip install tabicl",
+        task_types=["classification"], fit_time="fast"),
+    "iltm": _foundation(
+        "iltm", "iLTM", "endgame.models.tabular.iltm.iLTMClassifier", ["iltm"],
+        "iLTM: hypernetwork + tree embeddings, fine-tuned per dataset (2.2 GB checkpoint); Apache-2.0. "
+        "Install: pip install iltm", fit_time="slow"),
+    "sap_rpt": _foundation(
+        "sap_rpt", "SAP-RPT-OSS", "endgame.models.tabular.sap_rpt.SAPRPTClassifier", ["sap_rpt_oss"],
+        "SAP sap-rpt-1-oss (ConTextTab successor); gated HF weights (request access), research only.",
+        fit_time="slow"),
+
+    # ==================== New GBDTs (TabArena top 30, Oct 2026) ====================
+    "chimeraboost": ModelInfo(
+        name="chimeraboost",
+        display_name="ChimeraBoost",
+        family="gbdt",
+        class_path="endgame.models.boosters.ChimeraBoostClassifier",
+        handles_categorical=True,
+        handles_missing=True,
+        typical_fit_time="medium",
+        memory_usage="medium",
+        required_packages=["chimeraboost"],
+        notes="ChimeraBoost (numba, CPU); internal early stopping. Install: pip install chimeraboost",
+    ),
+    "ctboost": ModelInfo(
+        name="ctboost",
+        display_name="CTBoost",
+        family="gbdt",
+        class_path="endgame.models.boosters.CTBoostClassifier",
+        supports_gpu=True,
+        handles_categorical=True,
+        handles_missing=True,
+        typical_fit_time="medium",
+        memory_usage="medium",
+        default_params={"iterations": 1000, "learning_rate": 0.05, "subsample": 0.8, "bootstrap_type": "Bernoulli",
+                        "ordered_ctr": True, "max_cat_threshold": 64},
+        required_packages=["ctboost"],
+        notes="CTBoost: conditional-inference-test splits; TabArena's defaults. Install: pip install ctboost",
     ),
 
     # ==================== Subgroup Discovery ====================

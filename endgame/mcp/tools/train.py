@@ -12,6 +12,52 @@ from endgame.mcp.session import SessionManager
 from endgame.mcp.tools._timeout import MCPTimeoutError, timeout_guard
 
 
+def _cross_validate(model_name, task_type, override_params, X, y, cv_folds, time_ordered):
+    """Out-of-fold predictions of a fresh ``model_name`` (plus out-of-fold probabilities on shuffled binary tasks),
+    its CV time and parameters. Module level so a foundation model can run it in a child process (``_isolated``)."""
+    import numpy as np
+    from sklearn.base import clone
+    from sklearn.model_selection import KFold, StratifiedKFold, TimeSeriesSplit, cross_val_predict
+
+    from endgame.automl.model_registry import instantiate_model
+
+    estimator = instantiate_model(model_name, task_type=task_type, **override_params)
+    if time_ordered:
+        cv = TimeSeriesSplit(n_splits=cv_folds)
+    elif task_type == "regression":
+        cv = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+    else:
+        cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+
+    start = _time.time()
+    if time_ordered:
+        # Oct 1: shuffled CV said 65 min on Ezra's nights; later nights said ~95.
+        scored = np.concatenate([test for _, test in cv.split(X)])
+        oof_preds = np.empty(len(scored), dtype=float if task_type == "regression" else object)
+        at = 0
+        for train_idx, test_idx in cv.split(X):
+            fold = clone(estimator).fit(X.iloc[train_idx], y.iloc[train_idx])
+            oof_preds[at:at + len(test_idx)] = fold.predict(X.iloc[test_idx])
+            at += len(test_idx)
+        y_scored = y.iloc[scored]
+        oof_rows = np.full(len(y), np.nan, dtype=oof_preds.dtype if task_type == "regression" else object)
+        oof_rows[scored] = oof_preds  # earliest rows were never scored
+    else:
+        oof_preds = cross_val_predict(estimator, X, y, cv=cv, method="predict")
+        y_scored = y
+        oof_rows = oof_preds
+    fit_time = _time.time() - start
+
+    oof_proba = None
+    if task_type != "regression" and len(np.unique(y)) == 2 and not time_ordered:
+        try:
+            oof_proba = cross_val_predict(estimator, X, y, cv=cv, method="predict_proba")
+        except Exception:
+            pass
+    params = estimator.get_params() if hasattr(estimator, "get_params") else override_params
+    return oof_preds, y_scored, oof_rows, oof_proba, fit_time, params
+
+
 def register(mcp: FastMCP, session: SessionManager) -> None:
 
     @mcp.tool()
@@ -42,9 +88,15 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 import numpy as np
                 import pandas as pd
                 from sklearn import metrics as sklearn_metrics
-                from sklearn.model_selection import KFold, StratifiedKFold, cross_val_predict
 
                 from endgame.automl.model_registry import get_model_info, instantiate_model
+                from endgame.mcp.tools._isolated import (
+                    IsolatedClassifier,
+                    IsolatedRegressor,
+                    release,
+                    run_isolated,
+                    should_isolate,
+                )
 
                 # Parse params
                 if isinstance(params, dict):
@@ -81,38 +133,13 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     label_encoder = LabelEncoder()
                     y = pd.Series(label_encoder.fit_transform(y.astype(str)), name=y.name)
 
-                # Instantiate model
-                estimator = instantiate_model(model_name, task_type=task_type, **override_params)
-
-                # Cross-validation
-                if time_ordered:
-                    from sklearn.base import clone
-                    from sklearn.model_selection import TimeSeriesSplit
-                    cv = TimeSeriesSplit(n_splits=cv_folds)
-                elif task_type == "regression":
-                    cv = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
-                else:
-                    cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
-
-                start = _time.time()
+                # Cross-validate; a GPU foundation model does it in a child process, so its GPU memory is freed after
+                isolate = should_isolate(info)
+                release()   # a model worker left by an earlier call would hold GPU memory
+                args = (model_name, task_type, override_params, X, y, cv_folds, time_ordered)
                 with timeout_guard():
-                    if time_ordered:
-                        # Oct 1: shuffled CV said 65 min on Ezra's nights; later nights said ~95.
-                        scored = np.concatenate([test for _, test in cv.split(X)])
-                        oof_preds = np.empty(len(scored), dtype=float if task_type == "regression" else object)
-                        at = 0
-                        for train_idx, test_idx in cv.split(X):
-                            fold = clone(estimator).fit(X.iloc[train_idx], y.iloc[train_idx])
-                            oof_preds[at:at + len(test_idx)] = fold.predict(X.iloc[test_idx])
-                            at += len(test_idx)
-                        y_scored = y.iloc[scored]
-                        oof_rows = np.full(len(y), np.nan, dtype=oof_preds.dtype if task_type == "regression" else object)
-                        oof_rows[scored] = oof_preds  # earliest rows were never scored
-                    else:
-                        oof_preds = cross_val_predict(estimator, X, y, cv=cv, method="predict")
-                        y_scored = y
-                        oof_rows = oof_preds
-                fit_time = _time.time() - start
+                    cv_out = run_isolated(_cross_validate, *args) if isolate else _cross_validate(*args)
+                oof_preds, y_scored, oof_rows, oof_proba, fit_time, model_params = cv_out
 
                 # Compute metrics
                 computed_metrics = {}
@@ -123,21 +150,17 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 else:
                     computed_metrics["accuracy"] = float(sklearn_metrics.accuracy_score(y_scored, oof_preds))
                     computed_metrics["f1"] = float(sklearn_metrics.f1_score(y_scored, oof_preds, average="weighted"))
-                    try:
-                        if len(np.unique(y)) == 2 and not time_ordered:
-                            oof_proba = cross_val_predict(estimator, X, y, cv=cv, method="predict_proba")
-                            computed_metrics["roc_auc"] = float(
-                                sklearn_metrics.roc_auc_score(y, oof_proba[:, 1])
-                            )
-                    except Exception:
-                        pass
+                    if oof_proba is not None:
+                        computed_metrics["roc_auc"] = float(sklearn_metrics.roc_auc_score(y, oof_proba[:, 1]))
 
-                # Final fit on full data
-                with timeout_guard():
-                    estimator.fit(X, y)
-
-                # Get model params
-                model_params = estimator.get_params() if hasattr(estimator, "get_params") else override_params
+                # Final fit on full data; an isolated model fits in its worker on first use
+                if isolate:
+                    estimator = (IsolatedRegressor if task_type == "regression" else IsolatedClassifier)(
+                        model_name, task_type, override_params, X, y)
+                else:
+                    estimator = instantiate_model(model_name, task_type=task_type, **override_params)
+                    with timeout_guard():
+                        estimator.fit(X, y)
 
                 art = session.add_model(
                     estimator=estimator,
@@ -191,6 +214,9 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
             ds = session.get_dataset(dataset_id)
             if ds.target_column is None:
                 return error_response("validation", "Dataset has no target column set")
+
+            from endgame.mcp.tools._isolated import release
+            release()   # free the GPU memory of an idle model worker before training in-process
 
             with capture_stdout():
                 import pandas as pd
@@ -284,6 +310,9 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
             ds = session.get_dataset(dataset_id)
             if ds.target_column is None:
                 return error_response("validation", "Dataset has no target column set")
+
+            from endgame.mcp.tools._isolated import release
+            release()   # free the GPU memory of an idle model worker before training in-process
 
             with capture_stdout():
                 import pandas as pd

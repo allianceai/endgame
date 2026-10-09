@@ -216,7 +216,7 @@ class TestDiscoveryTools:
     def test_list_models_by_family(self):
         from endgame.automl.model_registry import list_models
         gbdt = list_models(family="gbdt")
-        assert all(m in ("lgbm", "xgb", "catboost", "ngboost") for m in gbdt)
+        assert all(m in ("lgbm", "xgb", "catboost", "ngboost", "chimeraboost", "ctboost") for m in gbdt)
 
     def test_get_model_info(self):
         from endgame.automl.model_registry import get_model_info
@@ -780,3 +780,46 @@ print("RESULT" + json.dumps(call("automl", dataset_id=ds["dataset_id"], preset="
         out = json.loads(line[len("RESULT"):])
         assert out["status"] == "ok" and out["best_model"] != "fallback_hgb", out
         assert "night_date" in out["dropped_columns"]
+
+
+class TestIsolatedFoundationModels:
+    """Oct 9: one session's foundation models filled an 8 GB GPU (iLTM ran out of memory after six others). On a
+    CUDA machine they now cross-validate in a child process and predict from one worker process at a time."""
+
+    @staticmethod
+    def _call(server, tool, **args):
+        import asyncio
+
+        out = asyncio.run(server.call_tool(tool, args))
+        blocks = out[0] if isinstance(out, tuple) else out
+        return json.loads(blocks[0].text)
+
+    def test_worker_serves_predictions_and_is_stopped_by_the_next_training(self, tmp_path, monkeypatch):
+        from endgame.mcp.server import create_server
+        from endgame.mcp.tools import _isolated
+
+        monkeypatch.setattr(_isolated, "should_isolate", lambda info: True)   # any model, no GPU needed
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame(rng.standard_normal((120, 4)), columns=list("abcd"))
+        df["label"] = np.where(df["a"] + 0.3 * rng.standard_normal(120) > 0, "yes", "no")
+        df.to_csv(tmp_path / "d.csv", index=False)
+
+        server = create_server()
+        ds = self._call(server, "load_data", source=str(tmp_path / "d.csv"), target_column="label")["dataset_id"]
+        out = self._call(server, "train_model", dataset_id=ds, model_name="knn", cv_folds=3)
+        assert out["status"] == "ok", out
+        assert out["metrics"]["roc_auc"] > 0.8 and not _isolated._WORKER     # CV ran in a child that has exited
+
+        pred = self._call(server, "predict", model_id=out["model_id"], dataset_id=ds, include_probabilities=True)
+        assert pred["status"] == "ok", pred
+        worker = _isolated._WORKER["proc"]
+        assert worker.is_alive()
+        model = out["model_id"]
+        assert self._call(server, "evaluate_model", model_id=model, dataset_id=ds)["status"] == "ok"
+        assert self._call(server, "explain_model", model_id=model, method="permutation")["status"] == "ok"
+        chart = self._call(server, "create_visualization", chart_type="roc_curve", model_id=model, dataset_id=ds)
+        assert chart["status"] == "ok", chart
+        assert _isolated._WORKER["proc"] is worker                              # all served by the one worker
+
+        assert self._call(server, "save_model", model_id=out["model_id"], path=str(tmp_path / "m"))["status"] == "ok"
+        assert not worker.is_alive() and not _isolated._WORKER                # saving fits in its own child
