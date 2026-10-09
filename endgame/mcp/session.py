@@ -47,6 +47,8 @@ class ModelArtifact:
     oof_predictions: np.ndarray | None = None
     label_encoders: dict | None = None
     target_encoder: Any | None = None
+    oof_proba: np.ndarray | None = None  # classifiers: out-of-fold class probabilities (shuffled CV)
+    cv: dict | None = None               # how the out-of-fold predictions were made (folds, time order)
 
 
 @dataclass
@@ -66,6 +68,7 @@ class SessionManager:
         self.models: dict[str, ModelArtifact] = {}
         self.visualizations: dict[str, VisualizationArtifact] = {}
         self.automl_predictors: dict[str, Any] = {}
+        self.code_namespace: dict[str, Any] | None = None  # run_python's variables
 
         wd = os.environ.get("ENDGAME_MCP_WORKDIR", "/tmp/endgame_mcp")
         self.working_dir = Path(wd)
@@ -121,6 +124,8 @@ class SessionManager:
         oof_predictions: np.ndarray | None = None,
         label_encoders: dict | None = None,
         target_encoder: Any | None = None,
+        oof_proba: np.ndarray | None = None,
+        cv: dict | None = None,
     ) -> ModelArtifact:
         model_id = _short_id("model")
         art = ModelArtifact(
@@ -137,6 +142,8 @@ class SessionManager:
             oof_predictions=oof_predictions,
             label_encoders=label_encoders,
             target_encoder=target_encoder,
+            oof_proba=oof_proba,
+            cv=cv,
         )
         self.models[model_id] = art
         return art

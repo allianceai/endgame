@@ -1806,3 +1806,117 @@ def get_interpretable_portfolio(
             unique_portfolio.append(m)
 
     return unique_portfolio
+
+
+# TabArena (Oct 2026, https://huggingface.co/spaces/TabArena/leaderboard) Elo of each model's default
+# configuration. Tuned LightGBM scores 1381 there, so every model listed beats a tuned GBDT on its benchmark
+# of 51 tables of 500 to 250k rows. Used to rank foundation models in recommendations.
+TABARENA_ELO: dict[str, int] = {
+    "kumo_tabular": 1979, "limix2": 1971, "tabpfn_35": 1882, "tabfm": 1800, "causilo": 1799,
+    "mitra_v2": 1780, "exaone_tabular": 1763, "tabldm": 1603, "tabicl": 1578, "tabdpt": 1535,
+    "tabpfn_25": 1515,
+}
+
+_LICENSED_TABPFN = ("tabpfn_25", "tabpfn_35")
+
+
+def model_availability(name: str) -> tuple[bool, str]:
+    """Whether a registry model can run here, and if not, what is missing (a package or a licence)."""
+    import importlib.util
+
+    info = get_model_info(name)
+    missing = [p for p in info.required_packages
+               if importlib.util.find_spec(p.split("[")[0].replace("-", "_")) is None]
+    if missing:
+        return False, f"pip install {' '.join(missing)}"
+    if name in _LICENSED_TABPFN:
+        from endgame.models.tabular.tabpfn import tabpfn_licence_available
+
+        version = (info.default_params or {}).get("model_version", "2.5")
+        if not tabpfn_licence_available(version):
+            return False, (f"accept the TabPFN-{version} licence at https://ux.priorlabs.ai with the token in "
+                           "TABPFN_TOKEN (or ~/.cache/tabpfn/auth_token)")
+    return True, ""
+
+
+def recommend_portfolio(
+    task_type: str = "classification",
+    n_samples: int = 10000,
+    n_features: int | None = None,
+    time_budget: str = "medium",
+    gpu: bool | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Models worth trying on a table, strongest families first, each with the reason it is there.
+
+    GBDTs always; on tables up to 50k rows and 500 features, the pretrained foundation models ranked by
+    TabArena Elo (without a GPU only the faster ones); neural nets and interpretable models with more time;
+    a linear baseline last. Models that cannot run here (package or licence missing) are returned
+    separately with what they need, so a caller knows they exist.
+
+    Parameters
+    ----------
+    task_type : str
+        "classification" or "regression".
+    n_samples, n_features : int
+        Table size.
+    time_budget : str
+        "fast", "medium", "high" or "unlimited".
+    gpu : bool, optional
+        Whether a CUDA GPU is available (detected when None).
+
+    Returns
+    -------
+    dict
+        ``recommended`` and ``unavailable``: lists of {name, display_name, family, fit_time, why[, needs]}.
+    """
+    if gpu is None:
+        try:
+            import torch
+
+            gpu = bool(torch.cuda.is_available())
+        except ImportError:
+            gpu = False
+
+    recommended: list[dict[str, Any]] = []
+    unavailable: list[dict[str, Any]] = []
+
+    def add(name: str, why: str) -> None:
+        info = MODEL_REGISTRY.get(name)
+        if info is None or any(r["name"] == name for r in recommended + unavailable):
+            return
+        if task_type not in info.task_types and "both" not in info.task_types:
+            return
+        if info.max_samples and n_samples > info.max_samples:
+            return
+        entry = {"name": name, "display_name": info.display_name, "family": info.family,
+                 "fit_time": info.typical_fit_time, "why": why}
+        ok, needs = model_availability(name)
+        (recommended if ok else unavailable).append(entry if ok else {**entry, "needs": needs})
+
+    add("lgbm", "strong, fast GBDT default")
+    if time_budget != "fast":
+        add("catboost", "GBDT with ordered boosting; strong on categoricals")
+        add("xgb", "GBDT; a different inductive bias for ensembling")
+
+    if n_samples <= 50_000 and (n_features or 0) <= 500:
+        n_fm = {"fast": 1, "medium": 3, "high": 6}.get(time_budget, len(TABARENA_ELO))
+        taken = 0
+        for name in sorted(TABARENA_ELO, key=TABARENA_ELO.get, reverse=True):
+            info = MODEL_REGISTRY.get(name)
+            if info is None or (not gpu and info.typical_fit_time in ("slow", "very_slow")):
+                continue
+            before = len(recommended)
+            add(name, f"pretrained tabular foundation model, TabArena Elo {TABARENA_ELO[name]} "
+                      "(tuned LightGBM: 1381); strongest on small and medium tables")
+            taken += len(recommended) > before
+            if taken >= n_fm:
+                break
+
+    if time_budget in ("high", "unlimited"):
+        add("realmlp", "tuned MLP with strong defaults; diversity for ensembling")
+        add("tabm", "parameter-efficient MLP ensemble")
+        add("ebm", "explainable boosting machine: near-GBDT accuracy, readable shape functions")
+        add("rotation_forest", "rotation forest; strong on dense numeric features")
+
+    add("linear", "baseline: if complex models barely beat it, the signal is weak or linear")
+    return {"recommended": recommended, "unavailable": unavailable}

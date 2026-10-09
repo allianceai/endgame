@@ -8,7 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- MCP server: agents can reach all 31 modules and are told how to run a full experiment, not just a GBDT.
+  - Guidance: server instructions name every module and the workflow; `guide(topic)` (workflow, validation, features, selection, models, ensembling, small data, time series, beyond tabular, code); resources `endgame://catalog/modules` and `endgame://guide/workflow`; examples rewritten around full experiments.
+  - Discovery: `list_modules` (every module, its members, search across modules) and `describe_api` (signature and docstring of any class or function).
+  - `engineer_features`: aggregate a long table per entity with statistics and `eg.signal` features (sample/permutation/spectral entropy, fractal dimension, Hurst, Hjorth, dominant frequency, ...), join tables, within-group normalisation, formulas, interactions, lags/rolling, out-of-fold target encoding, frequency encoding, datetime parts, ranks, AutoAggregator.
+  - `select_features`: 18 `eg.feature_selection` methods (mrmr, boruta, stability, knockoff, null importance, SHAP, ...), with `apply_to` for held-out sets.
+  - `transform_data`: any transformer by class path (Endgame or sklearn), including resamplers and `apply_to`.
+  - `compare_models`: several models on the same folds, ranked, each kept with out-of-fold predictions; failures are reported per model. `ensemble`: hill climbing, stacking (nested-CV score), Optuna-optimised weights, mean or rank average over those out-of-fold predictions; the result predicts like any model.
+  - `run_python`: Python in the session with `eg` and the session's datasets and models (annotated destructive; `ENDGAME_MCP_ALLOW_CODE=0` removes it).
+  - `train_model` takes any estimator class path and `group_column` (grouped folds); classifiers keep out-of-fold probabilities (multiclass too); `load_data(columns=...)` reads a subset of a large file.
+- `recommend_models` (and `endgame.automl.model_registry.recommend_portfolio`) recommends tabular foundation models ranked by TabArena Elo on tables up to 50k rows (without a GPU only the faster ones), more families with a bigger budget, a linear baseline, and lists models that need a package or licence. Before, a 510-row table got only GBDTs, a GP, linear and ELM. AutoML's `high_quality`, `best_quality` and `all` pools include Kumo-Tabular, TabPFN-3.5, TabICL and Causilo, skipped above 50k rows or without the TabPFN licence.
+- `tabpfn_licence_available(model_version)` asks Prior Labs' licence server whether the token accepted that model's licence (a token can cover TabPFN-2.5 but not 3.5).
 - `KaggleClient.notebook_status` and the MCP tool `kaggle_notebook_status`: whether a pushed notebook's Kaggle run is queued, running, complete or failed, its failure message and log, and optionally its output files.
+
+### Fixed
+- MCP `preprocess` target encoding used each category's mean target over all rows, which leaks the target (a category seen once was encoded as its own label); it is now out-of-fold (`SafeTargetEncoder`).
+- MCP training no longer uses an integer id column (`player_id`, `nfl_id`, `ID`; unique per row) as a feature; like unique text ids it is listed in `dropped_columns`.
 
 ## [1.2.1] - 2026-10-09
 

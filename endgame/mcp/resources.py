@@ -125,53 +125,79 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         """Current session state: loaded datasets, trained models, and visualizations."""
         return json.dumps(session.get_state_summary(), indent=2, default=str)
 
+    @mcp.resource("endgame://catalog/modules")
+    def catalog_modules() -> str:
+        """Every Endgame module: what it is for and which MCP tools reach it."""
+        from endgame.mcp.catalog import overview
+
+        return json.dumps(overview(), indent=2)
+
+    @mcp.resource("endgame://guide/workflow")
+    def guide_workflow() -> str:
+        """How to run a strong, honest ML experiment with Endgame (same text as the guide tool)."""
+        from endgame.mcp.guide import TOPICS
+
+        return "\n\n".join(TOPICS.values())
+
     @mcp.resource("endgame://guide/examples")
     def guide_examples() -> str:
         """Example tool-call workflows for common ML tasks."""
         examples = {
-            "classification": {
-                "description": "Train a classifier from CSV",
+            "tabular_experiment": {
+                "description": "A full experiment on one table",
                 "steps": [
-                    'load_data(source="data.csv", target_column="target")',
-                    'recommend_models(dataset_id="ds_...", time_budget="medium")',
-                    'train_model(dataset_id="ds_...", model_name="lgbm")',
-                    'evaluate_model(model_id="model_...", dataset_id="ds_...")',
-                    'create_visualization(chart_type="roc_curve", model_id="model_...", dataset_id="ds_...")',
-                    'export_script(model_id="model_...")',
+                    'guide()',
+                    'load_data(source="train.csv", target_column="target")',
+                    'check_data_quality(dataset_id="ds_a")',
+                    'split_data(dataset_id="ds_a", test_size=0.2)  # -> ds_train, ds_test',
+                    'compare_models(dataset_id="ds_train", models=["linear", "lgbm"])  # baselines',
+                    'engineer_features(dataset_id="ds_train", operations=[{"type": "interactions"}, '
+                    '{"type": "target_encode"}])',
+                    'select_features(dataset_id="ds_train_features", method="mrmr", n_features=30, '
+                    'apply_to=["ds_test"])',
+                    'recommend_models(dataset_id="ds_sel")',
+                    'compare_models(dataset_id="ds_sel")  # GBDTs + foundation models + baseline, same folds',
+                    'ensemble(model_ids=["model_1", "model_2", "model_3"], method="hill_climbing")',
+                    'evaluate_model(model_id="model_ens", dataset_id="ds_test_sel")',
+                    'explain_model(model_id="model_1")',
                 ],
             },
-            "regression": {
-                "description": "Train a regressor",
+            "entity_level_from_sensor_data": {
+                "description": "Per-entity prediction from a long table of sensor/tracking frames",
                 "steps": [
-                    'load_data(source="house_prices.csv", target_column="price")',
-                    'inspect_data(dataset_id="ds_...", operation="summary")',
-                    'train_model(dataset_id="ds_...", model_name="xgb")',
-                    'evaluate_model(model_id="model_...", dataset_id="ds_...")',
+                    'load_data(source="players.csv", target_column="outcome")  # one row per player',
+                    'load_data(source="tracking.csv")  # many rows per player',
+                    'engineer_features(dataset_id="ds_players", operations=[{"type": "aggregate", '
+                    '"source": "ds_tracking", "by": ["player_id"], "columns": ["speed", "accel"], '
+                    '"aggs": ["mean", "max", "q90", "sample_entropy", "higuchi_fd"], "order_by": "time"}, '
+                    '{"type": "group_normalize", "by": "position", "method": "zscore"}])',
+                    'compare_models(dataset_id="ds_players_features", group_column="team")',
+                ],
+            },
+            "time_ordered": {
+                "description": "Rows in time order (one per day/night/week)",
+                "steps": [
+                    'engineer_features(dataset_id="ds_a", operations=[{"type": "lags", "columns": ["y_prev"], '
+                    '"order_by": "date"}, {"type": "rolling", "windows": [3, 7], "order_by": "date"}])',
+                    'compare_models(dataset_id="ds_a_features", time_ordered=True)',
+                ],
+            },
+            "any_module": {
+                "description": "Use a module without a dedicated tool",
+                "steps": [
+                    'list_modules(search="conformal")',
+                    'describe_api(name="endgame.calibration.ConformalRegressor")',
+                    'run_python(code="X = dataset(\'ds_a\'); ...")',
+                    'transform_data(dataset_id="ds_a", transformer="endgame.dimensionality_reduction.UMAPReducer", '
+                    'params={"n_components": 5})',
+                    'train_model(dataset_id="ds_a", model_name="endgame.models.trees.RotationForestClassifier")',
                 ],
             },
             "automl": {
-                "description": "Full AutoML pipeline",
+                "description": "Full AutoML pipeline in one call",
                 "steps": [
                     'load_data(source="data.csv", target_column="label")',
-                    'automl(dataset_id="ds_...", preset="medium_quality")',
-                    'evaluate_model(model_id="model_...")',
-                ],
-            },
-            "compare_models": {
-                "description": "Compare multiple models quickly",
-                "steps": [
-                    'load_data(source="data.csv", target_column="target")',
-                    'quick_compare(dataset_id="ds_...", preset="medium_quality")',
-                ],
-            },
-            "explore_data": {
-                "description": "Explore and understand a dataset",
-                "steps": [
-                    'load_data(source="data.csv", target_column="target")',
-                    'inspect_data(dataset_id="ds_...", operation="summary")',
-                    'inspect_data(dataset_id="ds_...", operation="correlations")',
-                    'inspect_data(dataset_id="ds_...", operation="missing")',
-                    'create_visualization(chart_type="histogram", dataset_id="ds_...", params={"column": "age"})',
+                    'automl(dataset_id="ds_a", preset="high_quality")',
                 ],
             },
         }

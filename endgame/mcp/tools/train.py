@@ -1,9 +1,10 @@
-"""Training tools: train_model, automl, quick_compare."""
+"""Training tools: train_model, compare_models, automl, quick_compare."""
 
 from __future__ import annotations
 
 import json
 import time as _time
+from types import SimpleNamespace
 
 from mcp.server.fastmcp import FastMCP
 
@@ -12,22 +13,55 @@ from endgame.mcp.session import SessionManager
 from endgame.mcp.tools._timeout import MCPTimeoutError, timeout_guard
 
 
-def _cross_validate(model_name, task_type, override_params, X, y, cv_folds, time_ordered):
-    """Out-of-fold predictions of a fresh ``model_name`` (plus out-of-fold probabilities on shuffled binary tasks),
-    its CV time and parameters. Module level so a foundation model can run it in a child process (``_isolated``)."""
+def _model_info(model_name):
+    """Registry info for a model key, or a stand-in for an estimator given by class path."""
+    from endgame.automl.model_registry import MODEL_REGISTRY
+
+    if model_name in MODEL_REGISTRY or "." not in model_name:
+        from endgame.automl.model_registry import get_model_info
+        return get_model_info(model_name)
+    return SimpleNamespace(family="custom", handles_missing=False, display_name=model_name.rsplit(".", 1)[-1])
+
+
+def _make_estimator(model_name, task_type, params):
+    """A fresh estimator from a registry key ("lgbm") or a class path ("endgame.models.trees.RotationForestClassifier")."""
+    from endgame.automl.model_registry import MODEL_REGISTRY, instantiate_model
+
+    if model_name in MODEL_REGISTRY:
+        return instantiate_model(model_name, task_type=task_type, **params)
+    from endgame.mcp.catalog import resolve
+    return resolve(model_name)(**params)
+
+
+def _splitter(task_type, cv_folds, time_ordered, groups):
+    from sklearn.model_selection import (
+        GroupKFold,
+        KFold,
+        StratifiedGroupKFold,
+        StratifiedKFold,
+        TimeSeriesSplit,
+    )
+
+    if time_ordered:
+        return TimeSeriesSplit(n_splits=cv_folds)
+    if groups is not None:
+        if task_type == "regression":
+            return GroupKFold(n_splits=cv_folds)
+        return StratifiedGroupKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+    if task_type == "regression":
+        return KFold(n_splits=cv_folds, shuffle=True, random_state=42)
+    return StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+
+
+def _cross_validate(model_name, task_type, override_params, X, y, cv_folds, time_ordered, groups=None):
+    """Out-of-fold predictions of a fresh ``model_name`` (plus out-of-fold class probabilities), its CV time and
+    parameters. Module level so a foundation model can run it in a child process (``_isolated``)."""
     import numpy as np
     from sklearn.base import clone
-    from sklearn.model_selection import KFold, StratifiedKFold, TimeSeriesSplit, cross_val_predict
+    from sklearn.model_selection import cross_val_predict
 
-    from endgame.automl.model_registry import instantiate_model
-
-    estimator = instantiate_model(model_name, task_type=task_type, **override_params)
-    if time_ordered:
-        cv = TimeSeriesSplit(n_splits=cv_folds)
-    elif task_type == "regression":
-        cv = KFold(n_splits=cv_folds, shuffle=True, random_state=42)
-    else:
-        cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
+    estimator = _make_estimator(model_name, task_type, override_params)
+    cv = _splitter(task_type, cv_folds, time_ordered, groups)
 
     binary = task_type != "regression" and len(np.unique(y)) == 2
     start = _time.time()
@@ -50,18 +84,122 @@ def _cross_validate(model_name, task_type, override_params, X, y, cv_folds, time
         oof_rows = np.full(len(y), np.nan, dtype=float if task_type == "regression" else object)
         oof_rows[scored] = oof_preds  # earliest rows were never scored
     else:
-        oof_preds = cross_val_predict(estimator, X, y, cv=cv, method="predict")
+        oof_preds = cross_val_predict(estimator, X, y, cv=cv, groups=groups, method="predict")
         y_scored = y
         oof_rows = oof_preds
     fit_time = _time.time() - start
 
-    if binary and not time_ordered:
+    if task_type != "regression" and not time_ordered and hasattr(estimator, "predict_proba"):
         try:
-            oof_proba = cross_val_predict(estimator, X, y, cv=cv, method="predict_proba")
+            oof_proba = cross_val_predict(estimator, X, y, cv=cv, groups=groups, method="predict_proba")
         except Exception:
             pass
     params = estimator.get_params() if hasattr(estimator, "get_params") else override_params
     return oof_preds, y_scored, oof_rows, oof_proba, fit_time, params
+
+
+def _train_one(session, dataset_id, model_name, override_params, cv_folds, time_ordered, group_column=None):
+    """Cross-validate and fit one model on a session dataset; store it. Returns (artifact, response dict)."""
+    import numpy as np
+    import pandas as pd
+    from sklearn import metrics as sk
+
+    from endgame.mcp.tools._encoding import fit_feature_encoders, identifier_columns
+    from endgame.mcp.tools._isolated import (
+        IsolatedClassifier,
+        IsolatedRegressor,
+        release,
+        run_isolated,
+        should_isolate,
+    )
+
+    ds = session.get_dataset(dataset_id)
+    if ds.target_column is None or ds.target_column not in ds.df.columns:
+        raise ValueError("Dataset has no target column set")
+    task_type = ds.task_type or "classification"
+    info = _model_info(model_name)
+
+    X = ds.df.drop(columns=[ds.target_column])
+    groups = None
+    if group_column:
+        groups = X.pop(group_column).to_numpy()
+    dropped = identifier_columns(X)
+    X = X.drop(columns=dropped)
+    y = ds.df[ds.target_column]
+
+    # Always label-encode categorical features for MCP consistency (eval/predict/visualize use the same encoders)
+    X, feature_encoders = fit_feature_encoders(X)
+
+    # Handle missing values for models that don't support them
+    if not info.handles_missing and X.isna().any().any():
+        X = X.fillna(X.median(numeric_only=True))
+        for col in X.select_dtypes(include=["object", "category"]).columns:
+            X[col] = X[col].fillna(X[col].mode().iloc[0] if not X[col].mode().empty else "missing")
+
+    label_encoder = None
+    if task_type != "regression" and y.dtype in ("object", "category"):
+        from sklearn.preprocessing import LabelEncoder
+        label_encoder = LabelEncoder()
+        y = pd.Series(label_encoder.fit_transform(y.astype(str)), name=y.name)
+
+    # A GPU foundation model cross-validates in a child process, so its GPU memory is freed after
+    isolate = should_isolate(info)
+    release()   # a model worker left by an earlier call would hold GPU memory
+    args = (model_name, task_type, override_params, X, y, cv_folds, time_ordered, groups)
+    with timeout_guard():
+        cv_out = run_isolated(_cross_validate, *args) if isolate else _cross_validate(*args)
+    oof_preds, y_scored, oof_rows, oof_proba, fit_time, model_params = cv_out
+
+    metrics = {}
+    if task_type == "regression":
+        metrics["rmse"] = float(np.sqrt(sk.mean_squared_error(y_scored, oof_preds)))
+        metrics["r2"] = float(sk.r2_score(y_scored, oof_preds))
+        metrics["mae"] = float(sk.mean_absolute_error(y_scored, oof_preds))
+    else:
+        metrics["accuracy"] = float(sk.accuracy_score(y_scored, oof_preds))
+        metrics["f1"] = float(sk.f1_score(y_scored, oof_preds, average="weighted"))
+        if oof_proba is not None:
+            if oof_proba.shape[1] == 2:
+                metrics["roc_auc"] = float(sk.roc_auc_score(y_scored, oof_proba[:, 1]))
+            else:
+                metrics["roc_auc_ovr"] = float(sk.roc_auc_score(y_scored, oof_proba, multi_class="ovr"))
+            metrics["log_loss"] = float(sk.log_loss(y_scored, oof_proba))
+
+    # Final fit on full data; an isolated model fits in its worker on first use
+    if isolate:
+        estimator = (IsolatedRegressor if task_type == "regression" else IsolatedClassifier)(
+            model_name, task_type, override_params, X, y)
+    else:
+        estimator = _make_estimator(model_name, task_type, override_params)
+        with timeout_guard():
+            estimator.fit(X, y)
+
+    cv = {"folds": cv_folds, "time_ordered": time_ordered, "group_column": group_column}
+    art = session.add_model(
+        estimator=estimator, name=f"{model_name.rsplit('.', 1)[-1]}_1", model_type=model_name,
+        dataset_id=dataset_id, task_type=task_type, metrics=metrics, params=model_params, fit_time=fit_time,
+        feature_names=list(X.columns), oof_predictions=oof_rows,
+        label_encoders=feature_encoders if feature_encoders else None, target_encoder=label_encoder,
+        oof_proba=oof_proba, cv=cv,
+    )
+    return art, {
+        "model_id": art.id,
+        "model_name": model_name,
+        "display_name": info.display_name,
+        "task_type": task_type,
+        "cv_folds": cv_folds,
+        "cv": "time_ordered" if time_ordered else (f"grouped by {group_column}" if group_column else "shuffled"),
+        "metrics": {k: round(v, 4) for k, v in metrics.items()},
+        "fit_time": round(fit_time, 2),
+        "n_features": X.shape[1],
+        "dropped_columns": dropped,
+    }
+
+
+def _parse_params(params):
+    if isinstance(params, dict):
+        return params
+    return json.loads(params) if params else {}
 
 
 def register(mcp: FastMCP, session: SessionManager) -> None:
@@ -74,134 +212,85 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         cv_folds: int = 5,
         metric: str = "auto",
         time_ordered: bool = False,
+        group_column: str | None = None,
     ) -> str:
-        """Train a single model on a dataset with cross-validation.
+        """Train one model with cross-validation; stores its out-of-fold predictions (for ensemble) and a final fit.
 
-        model_name: a key from list_models, e.g. "lgbm", "xgb", "catboost", "rf" (random forest)
-        or "linear"; recommend_models suggests keys for a loaded dataset.
+        model_name: a registry key (list_models / recommend_models: "lgbm", "catboost", "kumo_tabular",
+        "tabpfn_35", "ebm", "realmlp", ...) or the class path of any estimator in any module, e.g.
+        "endgame.models.trees.RotationForestClassifier" or "endgame.fuzzy.ANFISRegressor".
         params: hyperparameter overrides as a dict or JSON string, e.g. {"n_estimators": 500}.
-        time_ordered: the rows are in time order (one per day, night, week...). Each fold
-        trains on earlier rows and is scored on later ones, so the metrics say how well it
-        predicts the future. Shuffled CV (the default) lets it see the rows around each one.
-        Returns a model ID with CV metrics.
+        time_ordered: rows are in time order; each fold trains on earlier rows and is scored on later ones.
+        group_column: rows sharing this column's value (a player, patient, site) stay in the same fold; the column
+        is not used as a feature. Use it whenever an entity appears in more than one row.
+        compare_models trains several on the same folds.
         """
         try:
-            ds = session.get_dataset(dataset_id)
-            if ds.target_column is None or ds.target_column not in ds.df.columns:
-                return error_response("validation", "Dataset has no target column set")
-
             with capture_stdout():
-                import numpy as np
-                import pandas as pd
-                from sklearn import metrics as sklearn_metrics
-
-                from endgame.automl.model_registry import get_model_info, instantiate_model
-                from endgame.mcp.tools._isolated import (
-                    IsolatedClassifier,
-                    IsolatedRegressor,
-                    release,
-                    run_isolated,
-                    should_isolate,
-                )
-
-                # Parse params
-                if isinstance(params, dict):
-                    override_params = params
-                elif isinstance(params, str):
-                    override_params = json.loads(params)
-                else:
-                    override_params = {}
-
-                task_type = ds.task_type or "classification"
-                info = get_model_info(model_name)
-
-                # Prepare data
-                from endgame.mcp.tools._encoding import fit_feature_encoders, identifier_columns
-                X = ds.df.drop(columns=[ds.target_column])
-                dropped = identifier_columns(X)
-                X = X.drop(columns=dropped)
-                y = ds.df[ds.target_column]
-
-                # Always label-encode categorical features for MCP consistency
-                # (ensures eval/predict/visualize use the same encoders)
-                X, feature_encoders = fit_feature_encoders(X)
-
-                # Handle missing values for models that don't support them
-                if not info.handles_missing and X.isna().any().any():
-                    X = X.fillna(X.median(numeric_only=True))
-                    for col in X.select_dtypes(include=["object", "category"]).columns:
-                        X[col] = X[col].fillna(X[col].mode().iloc[0] if not X[col].mode().empty else "missing")
-
-                # Encode target for classification if needed
-                label_encoder = None
-                if task_type != "regression" and y.dtype in ("object", "category"):
-                    from sklearn.preprocessing import LabelEncoder
-                    label_encoder = LabelEncoder()
-                    y = pd.Series(label_encoder.fit_transform(y.astype(str)), name=y.name)
-
-                # Cross-validate; a GPU foundation model does it in a child process, so its GPU memory is freed after
-                isolate = should_isolate(info)
-                release()   # a model worker left by an earlier call would hold GPU memory
-                args = (model_name, task_type, override_params, X, y, cv_folds, time_ordered)
-                with timeout_guard():
-                    cv_out = run_isolated(_cross_validate, *args) if isolate else _cross_validate(*args)
-                oof_preds, y_scored, oof_rows, oof_proba, fit_time, model_params = cv_out
-
-                # Compute metrics
-                computed_metrics = {}
-                if task_type == "regression":
-                    computed_metrics["rmse"] = float(np.sqrt(sklearn_metrics.mean_squared_error(y_scored, oof_preds)))
-                    computed_metrics["r2"] = float(sklearn_metrics.r2_score(y_scored, oof_preds))
-                    computed_metrics["mae"] = float(sklearn_metrics.mean_absolute_error(y_scored, oof_preds))
-                else:
-                    computed_metrics["accuracy"] = float(sklearn_metrics.accuracy_score(y_scored, oof_preds))
-                    computed_metrics["f1"] = float(sklearn_metrics.f1_score(y_scored, oof_preds, average="weighted"))
-                    if oof_proba is not None:
-                        computed_metrics["roc_auc"] = float(sklearn_metrics.roc_auc_score(y_scored, oof_proba[:, 1]))
-
-                # Final fit on full data; an isolated model fits in its worker on first use
-                if isolate:
-                    estimator = (IsolatedRegressor if task_type == "regression" else IsolatedClassifier)(
-                        model_name, task_type, override_params, X, y)
-                else:
-                    estimator = instantiate_model(model_name, task_type=task_type, **override_params)
-                    with timeout_guard():
-                        estimator.fit(X, y)
-
-                art = session.add_model(
-                    estimator=estimator,
-                    name=f"{model_name}_1",
-                    model_type=model_name,
-                    dataset_id=dataset_id,
-                    task_type=task_type,
-                    metrics=computed_metrics,
-                    params=model_params,
-                    fit_time=fit_time,
-                    feature_names=list(X.columns),
-                    oof_predictions=oof_rows,
-                    label_encoders=feature_encoders if feature_encoders else None,
-                    target_encoder=label_encoder,
-                )
-
-                return ok_response({
-                    "model_id": art.id,
-                    "model_name": model_name,
-                    "display_name": info.display_name,
-                    "task_type": task_type,
-                    "cv_folds": cv_folds,
-                    "cv": "time_ordered" if time_ordered else "shuffled",
-                    "metrics": {k: round(v, 4) for k, v in computed_metrics.items()},
-                    "fit_time": round(fit_time, 2),
-                    "n_features": X.shape[1],
-                    "dropped_columns": dropped,
-                })
-
+                _, response = _train_one(session, dataset_id, model_name, _parse_params(params), cv_folds,
+                                         time_ordered, group_column)
+                return ok_response(response)
         except MCPTimeoutError as e:
             return error_response("timeout", str(e), hint="Try a simpler model or smaller dataset.")
+        except ValueError as e:
+            return error_response("validation", str(e))
         except KeyError as e:
             return error_response("not_found", str(e), hint="Use list_models() to see available models")
         except ImportError as e:
             return error_response("missing_dependency", str(e))
+        except Exception as e:
+            return error_response("internal", str(e))
+
+    @mcp.tool()
+    def compare_models(
+        dataset_id: str,
+        models: list[str] | None = None,
+        time_budget: str = "medium",
+        cv_folds: int = 5,
+        time_ordered: bool = False,
+        group_column: str | None = None,
+        params: str | dict | None = None,
+    ) -> str:
+        """Train several models on the same folds and rank them; each is stored with its out-of-fold predictions,
+        so ensemble(model_ids) can combine them. models: registry keys or class paths; default: what
+        recommend_models picks for this table and time_budget (GBDTs, tabular foundation models such as
+        Kumo-Tabular / LimiX / TabPFN, more families with a bigger budget, and a linear baseline).
+        params: {"model_name": {overrides}}. A model that fails is reported, not fatal."""
+        try:
+            ds = session.get_dataset(dataset_id)
+            per_model = _parse_params(params)
+            with capture_stdout():
+                if not models:
+                    from endgame.automl.model_registry import recommend_portfolio
+                    task = "regression" if ds.task_type == "regression" else "classification"
+                    n_features = ds.df.shape[1] - 1
+                    models = [r["name"] for r in recommend_portfolio(task, len(ds.df), n_features,
+                                                                     time_budget)["recommended"]]
+                results, failures = [], []
+                for name in models:
+                    try:
+                        _, response = _train_one(session, dataset_id, name, per_model.get(name, {}), cv_folds,
+                                                 time_ordered, group_column)
+                        results.append(response)
+                    except Exception as e:  # one model's failure must not lose the others
+                        failures.append({"model_name": name, "error": f"{type(e).__name__}: {str(e)[:300]}"})
+
+            regression = ds.task_type == "regression"
+            key = "r2" if regression else next(
+                (k for k in ("roc_auc", "roc_auc_ovr", "accuracy") if results and k in results[0]["metrics"]),
+                "accuracy")
+            results.sort(key=lambda r: r["metrics"].get(key, float("-inf")), reverse=True)
+            leaderboard = [{"rank": i + 1, "model_id": r["model_id"], "model_name": r["model_name"],
+                            "display_name": r["display_name"], **r["metrics"], "fit_time": r["fit_time"]}
+                           for i, r in enumerate(results)]
+            return ok_response({
+                "dataset": ds.name, "ranked_by": key, "cv": results[0]["cv"] if results else None,
+                "cv_folds": cv_folds, "leaderboard": leaderboard, "failed": failures,
+                "next": "ensemble(model_ids=[top model_ids]) combines their out-of-fold predictions"
+                        if len(results) > 1 else "",
+            })
+        except KeyError as e:
+            return error_response("not_found", str(e))
         except Exception as e:
             return error_response("internal", str(e))
 
@@ -307,10 +396,9 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         preset: str = "default",
         metric: str = "auto",
     ) -> str:
-        """Quickly compare multiple models on a dataset and return a leaderboard.
-
-        Presets: fast, default, competition, interpretable.
-        """
+        """Quick leaderboard from endgame.quick presets (fast, default, competition, interpretable); models are
+        not kept. To compare chosen models (incl. foundation models) on the same folds and ensemble them, use
+        compare_models."""
         try:
             ds = session.get_dataset(dataset_id)
             if ds.target_column is None:

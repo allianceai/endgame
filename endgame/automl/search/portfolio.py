@@ -365,6 +365,15 @@ class PortfolioSearch(BaseSearchStrategy):
             if model_name in self._trained:
                 continue
 
+            # Pretrained foundation models are in-context learners for small and medium tables; a gated TabPFN
+            # without its licence would fail (or prompt) instead of training
+            if info.family == "foundation" and n_samples > 50_000:
+                continue
+            if model_name in ("tabpfn_25", "tabpfn_35"):
+                from endgame.automl.model_registry import model_availability
+                if not model_availability(model_name)[0]:
+                    continue
+
             # Check that required external packages are installed
             if info.required_packages:
                 missing = [p for p in info.required_packages if not _is_package_available(p)]

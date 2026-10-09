@@ -23,12 +23,15 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         Supported types:
         - impute: Fill missing values. params: {strategy: 'mean'|'median'|'most_frequent'|'constant'}
         - scale: Scale numeric features. params: {method: 'standard'|'minmax'|'robust'}
-        - encode: Encode categorical features. params: {method: 'onehot'|'label'|'target'}
+        - encode: Encode categorical features. params: {method: 'onehot'|'label'|'target'} (target: out-of-fold)
         - balance: Handle class imbalance. params: {method: 'smote'|'random_over'|'random_under'}
-        - select_features: Feature selection. params: {method: 'variance'|'mutual_info', top_k: 20}
+        - select_features: Quick filter. params: {method: 'variance'|'mutual_info', top_k: 20}; the select_features
+          tool has 18 methods (mrmr, boruta, stability, knockoff, ...)
         - drop_columns: Drop specific columns. params: {columns: ['col1', 'col2']}
 
         Example: [{"type": "impute", "strategy": "median"}, {"type": "scale", "method": "standard"}]
+        Building features (aggregations, interactions, lags, ...): engineer_features. Any other transformer
+        (MICE/MissForest imputers, 18 resamplers, PCA/UMAP, ...): transform_data.
         """
         try:
             ds = session.get_dataset(dataset_id)
@@ -99,10 +102,16 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                             elif method == "onehot":
                                 df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
                             elif method == "target":
+                                # Out-of-fold (SafeTargetEncoder): full-data category means leak the target.
                                 if target_col and target_col in df.columns:
+                                    from endgame.preprocessing import SafeTargetEncoder
+                                    enc = SafeTargetEncoder(cols=list(cat_cols), output_format="pandas",
+                                                            random_state=42)
+                                    encoded = enc.fit_transform(df[list(cat_cols)], df[target_col])
+                                    if hasattr(encoded, "to_pandas"):
+                                        encoded = encoded.to_pandas()
                                     for col in cat_cols:
-                                        means = df.groupby(col)[target_col].mean()
-                                        df[col] = df[col].map(means)
+                                        df[col] = np.asarray(encoded[col])
                             else:
                                 return error_response("validation", f"Unknown encode method: {method}")
                         applied.append(f"encode({method})")

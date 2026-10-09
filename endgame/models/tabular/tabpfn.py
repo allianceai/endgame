@@ -49,6 +49,7 @@ Limitations (v2.5)
 - model_version='2.5' uses the synthetic-only pre-trained variant
 """
 
+import functools
 import warnings
 
 import numpy as np
@@ -1114,10 +1115,15 @@ class TabPFNv2Regressor(RegressorMixin, BaseEstimator):
 # TabPFN v2.5 wrappers
 # ---------------------------------------------------------------------------
 
-def tabpfn_licence_available() -> bool:
+@functools.cache
+def tabpfn_licence_available(model_version: str | None = None) -> bool:
     """Whether TabPFN can load gated weights without asking: it is installed and either predates
     Prior Labs' licence gate or finds a token (``TABPFN_TOKEN`` or a cached one). Without one, fitting
-    opens a browser login or raises ``TabPFNLicenseError``. A local check; no network."""
+    opens a browser login or raises ``TabPFNLicenseError``.
+
+    With ``model_version`` ('2.5', '3.5', ...) it also asks Prior Labs' licence server whether that token
+    accepted this model's licence (a token can cover 2.5 but not 3.5): once per process, and assumed yes
+    when the server cannot be reached."""
     try:
         import tabpfn  # noqa: F401
     except ImportError:
@@ -1126,7 +1132,20 @@ def tabpfn_licence_available() -> bool:
         from tabpfn.browser_auth import get_cached_token
     except ImportError:
         return True
-    return bool(get_cached_token())
+    token = get_cached_token()
+    if not token:
+        return False
+    repo = {"2.5": "tabpfn_2_5", "2.5_real": "tabpfn_2_5", "2.6": "tabpfn_2_6", "3": "tabpfn_3",
+            "3.5": "tabpfn_3_5", "3.5-fast": "tabpfn_3_5"}.get(str(model_version))
+    if repo is None:
+        return True
+    try:
+        from tabpfn.browser_auth import _get_license_name, check_license_accepted, settings
+
+        status = check_license_accepted(token, settings.tabpfn.auth_api_url, _get_license_name(repo))
+    except Exception:
+        return True
+    return status is not False
 
 
 def _raise_if_unlicensed(exc):

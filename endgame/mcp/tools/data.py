@@ -16,10 +16,12 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         target_column: str | None = None,
         name: str | None = None,
         sample_n: int | None = None,
+        columns: list[str] | None = None,
     ) -> str:
         """Load a dataset from a CSV/Parquet file path, URL, or OpenML (e.g. 'openml:31' or 'openml:credit-g').
 
-        Returns a dataset ID for use with other tools.
+        columns: read only these columns (large files). Load related tables separately and combine them with
+        engineer_features (aggregate a long table per entity, join). Returns a dataset ID for use with other tools.
         """
         try:
             with capture_stdout():
@@ -65,13 +67,13 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                         return error_response("not_found", f"File not found: {source}")
                     suffix = p.suffix.lower()
                     if suffix in (".parquet", ".pq"):
-                        df = pd.read_parquet(source)
+                        df = pd.read_parquet(source, columns=columns)
                     elif suffix in (".xlsx", ".xls"):
                         df = pd.read_excel(source)
                     elif suffix == ".json":
                         df = pd.read_json(source)
                     else:
-                        df = pd.read_csv(source)
+                        df = pd.read_csv(source, usecols=columns, low_memory=False)
                     tc = target_column
 
                 # Sample if requested

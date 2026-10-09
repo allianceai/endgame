@@ -133,7 +133,8 @@ MODEL_POOLS = {
         "ordinal_ridge", "ordinal_lad",
         # Discriminant
         "lda", "qda", "knn",
-        # Foundation
+        # Foundation (TabArena top models that train fast; compare_models in the MCP server reaches the rest)
+        "kumo_tabular", "tabpfn_35", "tabicl", "causilo",
         "tabpfn", "tabpfn_v2", "tabpfn_25", "xrfm",
         # Symbolic
         "symbolic_regression", "symbolic_regressor",
@@ -171,7 +172,8 @@ MODEL_POOLS = {
         "ordinal_ridge", "ordinal_lad",
         # Discriminant
         "lda", "qda", "knn",
-        # Foundation
+        # Foundation (TabArena top models that train fast; compare_models in the MCP server reaches the rest)
+        "kumo_tabular", "tabpfn_35", "tabicl", "causilo",
         "tabpfn", "tabpfn_v2", "tabpfn_25", "xrfm",
         # Symbolic
         "symbolic_regression", "symbolic_regressor",
@@ -181,6 +183,7 @@ MODEL_POOLS = {
     "high_quality": [
         "lgbm", "xgb", "catboost",
         "ft_transformer", "tabm", "tabnet",
+        "kumo_tabular", "tabpfn_35", "tabicl", "causilo",
         "tabpfn_v2", "tabpfn_25",
         "realmlp", "tabr", "gandalf",
         "rotation_forest", "rf",

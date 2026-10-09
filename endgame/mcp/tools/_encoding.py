@@ -7,6 +7,7 @@ fitted during training.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import numpy as np
@@ -20,6 +21,9 @@ def _categorical_columns(X: pd.DataFrame) -> list:
             or isinstance(X[col].dtype, pd.CategoricalDtype))]
 
 
+_ID_NAME = re.compile(r"(^|[_\W])id$|^id[_\W]|[a-z]Id$|ID$")
+
+
 def identifier_columns(X: pd.DataFrame) -> list:
     """Text columns with a different value in every row: an ID, or a date per night.
 
@@ -28,7 +32,12 @@ def identifier_columns(X: pd.DataFrame) -> list:
     (Cramer's V = 1.000) while still using it.
     """
     n = len(X)
-    return [c for c in _categorical_columns(X) if n >= 20 and X[c].nunique(dropna=False) == n]
+    text = [c for c in _categorical_columns(X) if n >= 20 and X[c].nunique(dropna=False) == n]
+    # Oct 9: a numeric player id (nfl_id) went in as a feature; ids rise with draft year, so it stood in for
+    # how long a player had been in the league. An integer column named like an id, unique per row, is one.
+    numeric = [c for c in X.columns if c not in text and n >= 20 and _ID_NAME.search(str(c))
+               and pd.api.types.is_integer_dtype(X[c].dtype) and X[c].nunique(dropna=False) == n]
+    return text + numeric
 
 
 def encode_features(

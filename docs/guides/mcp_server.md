@@ -58,22 +58,26 @@ python -m endgame.mcp --sse
 
 ## How It Works
 
-The LLM never sees 300+ model definitions. Instead:
+The agent never has to read 300+ class definitions, but it can reach all of them:
 
-1. **Resources** (zero-cost) let the LLM browse the model catalog, presets, metrics, and visualizers without a tool call
-2. **Discovery tools** help the LLM find the right model for the dataset
-3. **Action tools** load data, train, evaluate, visualize, and export
-4. A **SessionManager** tracks loaded datasets, trained models, and artifacts across tool calls via short IDs (`ds_a1b2c3d4`, `model_e5f6g7h8`)
+1. **Server instructions** (sent at connection) name all 31 modules and the experiment workflow
+2. **Guidance and discovery**: `guide` (how to run a strong, honest experiment), `list_modules` / `describe_api` (every module, class and signature), `recommend_models` (which models to compare for this table)
+3. **Dedicated tools** for the common steps: load, check, engineer features, select features, compare models (GBDTs, tabular foundation models, other families), ensemble, evaluate, explain, visualize, export
+4. **General access** to every module: `transform_data` (any transformer by class path), `train_model(model_name="endgame.<module>.<Class>")` (any estimator), `run_python` (anything, with the session's datasets and models)
+5. A **SessionManager** tracks datasets, models (with their out-of-fold predictions) and artifacts across tool calls via short IDs (`ds_a1b2c3d4`, `model_e5f6g7h8`)
 
 ```
-User: "Build a classifier to predict loan defaults"
-  → LLM reads endgame://catalog/models        (browse 97 models)
-  → LLM calls load_data(source="loans.csv", target_column="default")
-  → LLM calls recommend_models(dataset_id="ds_...", time_budget="medium")
-  → LLM calls train_model(dataset_id="ds_...", model_name="lgbm")
-  → LLM calls evaluate_model(model_id="model_...")
-  → LLM calls create_visualization(chart_type="roc_curve", model_id="model_...")
-  → LLM calls export_script(model_id="model_...")
+User: "Predict which rookies earn starting roles from their combine tracking"
+  → guide()                                                     (workflow)
+  → load_data(players.csv, target_column=...) ; load_data(tracking.csv)
+  → check_data_quality(...)
+  → engineer_features(ds_players, [aggregate tracking per player with signal features,
+                                   join combine results, z-score within position])
+  → select_features(ds_features, method="mrmr", n_features=20)
+  → recommend_models(ds_sel)                                    (GBDTs + Kumo-Tabular, LimiX, TabPFN, ...)
+  → compare_models(ds_sel, group_column="team")                 (same folds, out-of-fold predictions kept)
+  → ensemble(model_ids=[...], method="hill_climbing")
+  → evaluate_model / explain_model / export_script
 ```
 
 ## Tools Reference
@@ -91,6 +95,7 @@ User: "Build a classifier to predict loan defaults"
 - `target_column` — Name of the target column
 - `name` — Optional display name
 - `sample_n` — Subsample to N rows
+- `columns` — Read only these columns (large files)
 
 **inspect_data** operations:
 - `summary` — Shape, dtypes, missing values, meta-features
@@ -101,12 +106,15 @@ User: "Build a classifier to predict loan defaults"
 - `head` — First 10 rows
 - `dtypes` — Column data types
 
-### Discovery (3 tools)
+### Discovery and guidance (6 tools)
 
 | Tool | Purpose |
 |------|---------|
+| `guide` | How to run the experiment: workflow, validation, features, selection, models, ensembling, small data, time series, beyond tabular, code. |
+| `list_modules` | Every module with its purpose and the tools that reach it; `module=` lists its classes and functions; `search=` finds them across modules. |
+| `describe_api` | Signature, parameters, docstring and methods of any Endgame (or sklearn) class or function. |
 | `list_models` | Search available models by task type, family, interpretability, speed. |
-| `recommend_models` | Smart recommendations based on dataset meta-features and time budget. |
+| `recommend_models` | What to compare on this table: GBDTs; tabular foundation models ranked by TabArena Elo on tables up to 50k rows (without a GPU only the faster ones); neural and interpretable models with more time; a linear baseline. Lists models that need a package or licence. |
 | `describe_model` | Full metadata for a model (params, capabilities, speed, notes). |
 
 **list_models** filters:
@@ -116,22 +124,26 @@ User: "Build a classifier to predict loan defaults"
 - `fast_only` — Exclude slow/very_slow models
 - `max_samples` — Only models that scale to N samples
 
-### Training (3 tools)
+### Training (4 tools)
 
 | Tool | Purpose |
 |------|---------|
-| `train_model` | Train a single model with cross-validation. Returns model ID + metrics. |
+| `train_model` | Train one model with cross-validation; keeps its out-of-fold predictions and a final fit. |
+| `compare_models` | Train several models on the same folds and rank them (default: `recommend_models`' picks). A model that fails is reported, not fatal. |
 | `automl` | Full AutoML pipeline (preprocessing → training → ensembling). |
-| `quick_compare` | Quick multi-model comparison with leaderboard. |
+| `quick_compare` | Quick leaderboard from `eg.quick` presets; models are not kept. |
 
 **train_model** parameters:
 - `dataset_id` — From `load_data`
-- `model_name` — Registry key (e.g. `"lgbm"`, `"xgb"`, `"ebm"`)
-- `params` — JSON string of hyperparameter overrides: `'{"n_estimators": 500}'`
+- `model_name` — Registry key (e.g. `"lgbm"`, `"kumo_tabular"`, `"ebm"`) or the class path of any estimator (`"endgame.models.trees.RotationForestClassifier"`, `"sklearn.svm.SVC"`)
+- `params` — Hyperparameter overrides, a dict or JSON string: `{"n_estimators": 500}`
 - `cv_folds` — Number of CV folds (default 5)
-- `metric` — Evaluation metric (default `"auto"`)
+- `time_ordered` — Rows are in time order: each fold trains on earlier rows, is scored on later ones
+- `group_column` — Rows sharing this value (a player, patient, site) stay in one fold; the column is not a feature
 
-**automl** presets: `best_quality`, `high_quality`, `good_quality`, `medium_quality`, `fast`, `interpretable`
+Integer columns named like an id (`player_id`, `nfl_id`, `ID`) with a different value in every row are left out of the features, like unique text ids.
+
+**automl** presets: `best_quality`, `high_quality`, `good_quality`, `medium_quality`, `fast`, `interpretable`. `high_quality` and above include Kumo-Tabular, TabPFN-3.5, TabICL and Causilo on tables up to 50k rows.
 
 ### Evaluation (2 tools)
 
@@ -150,11 +162,14 @@ User: "Build a classifier to predict loan defaults"
 |------|---------|
 | `predict` | Generate predictions, optionally save to CSV. Supports probabilities. |
 
-### Preprocessing (1 tool)
+### Features (4 tools)
 
 | Tool | Purpose |
 |------|---------|
-| `preprocess` | Chain preprocessing operations. Returns a new dataset ID. |
+| `engineer_features` | Build features: aggregate a long table per entity (statistics and signal features: entropy, fractal dimension, spectra, Hjorth, ...), join tables, within-group normalisation, formulas, interactions, lags/rolling, out-of-fold target encoding, frequency encoding, datetime parts, ranks. |
+| `select_features` | 18 methods from `eg.feature_selection` (mrmr, boruta, stability, knockoff, null importance, SHAP, ...); `apply_to` keeps the same columns in held-out datasets. |
+| `transform_data` | Apply any transformer by class path (imputers, encoders, resamplers, PCA/UMAP, signal transforms, sklearn). |
+| `preprocess` | Chain basic operations (impute, scale, encode, balance, quick filter, drop). Returns a new dataset ID. |
 
 **Operations** (JSON array):
 ```json
@@ -167,6 +182,31 @@ User: "Build a classifier to predict loan defaults"
   {"type": "drop_columns", "columns": ["id", "name"]}
 ]
 ```
+
+**engineer_features** example (one row per player from 10 Hz tracking frames):
+```json
+[
+  {"type": "aggregate", "source": "ds_tracking", "by": ["player_id"], "columns": ["speed", "accel"],
+   "aggs": ["mean", "max", "q90", "sample_entropy", "higuchi_fd"], "order_by": "time",
+   "filter": "drill == 'shuttle'", "prefix": "shuttle_"},
+  {"type": "group_normalize", "by": "position", "method": "zscore"},
+  {"type": "formula", "name": "speed_per_lb", "expr": "shuttle_speed_max / weight"}
+]
+```
+
+### Ensembling (1 tool)
+
+| Tool | Purpose |
+|------|---------|
+| `ensemble` | Combine models trained on the same dataset and folds from their out-of-fold predictions: `hill_climbing`, `stacking` (scored with nested CV), `optimized`, `mean`, `rank_average`. Reports the blend next to each member; the result works with `predict` and `evaluate_model`. |
+
+### Code (1 tool)
+
+| Tool | Purpose |
+|------|---------|
+| `run_python` | Run Python in the session: `eg`, `np`, `pd`, `pl`, plus `dataset(id)`, `add_dataset(df, name, target)`, `model(id)`, `add_model(...)`. Variables persist. For modules without a dedicated tool (survival, calibration, fairness, NLP, vision, tuning, custom CV). |
+
+`run_python` runs arbitrary code with the server's permissions and is annotated as destructive, so clients can ask before each call. Set `ENDGAME_MCP_ALLOW_CODE=0` to remove it.
 
 ### Visualization (2 tools)
 
@@ -213,12 +253,14 @@ Resources are read-only catalogs the LLM can browse without making a tool call �
 
 | URI | Content |
 |-----|---------|
-| `endgame://catalog/models` | All 97 models grouped by family with name, fit time, and description |
+| `endgame://catalog/modules` | All 31 modules: purpose and the tools that reach each |
+| `endgame://guide/workflow` | The experiment guide (same text as the `guide` tool) |
+| `endgame://catalog/models` | Every registry model grouped by family with name, fit time, and description |
 | `endgame://catalog/presets` | 6 AutoML presets with time limits, model pools, and settings |
 | `endgame://catalog/visualizers` | Available chart types with required inputs |
 | `endgame://catalog/metrics` | Classification + regression metrics with descriptions |
 | `endgame://session/state` | Current loaded datasets, trained models, and visualizations |
-| `endgame://guide/examples` | Example workflows for common ML tasks |
+| `endgame://guide/examples` | Example workflows: a full tabular experiment, entity-level prediction from sensor data, time-ordered rows, using any module |
 
 ## Example Workflows
 
@@ -317,6 +359,7 @@ Error types: `not_found`, `validation`, `missing_dependency`, `timeout`, `intern
 |---------------------|---------|-------------|
 | `ENDGAME_MCP_WORKDIR` | `/tmp/endgame_mcp` | Working directory for output files |
 | `ENDGAME_MCP_TIMEOUT` | `600` | Max seconds for training operations before timeout |
+| `ENDGAME_MCP_ALLOW_CODE` | `1` | `0` removes the `run_python` tool |
 
 ## Troubleshooting
 

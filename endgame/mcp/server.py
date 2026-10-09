@@ -63,18 +63,34 @@ def ok_response(data: Any) -> str:
 # Server factory
 # ---------------------------------------------------------------------------
 
+INSTRUCTIONS = """\
+Endgame: an ML toolkit of 31 modules behind one sklearn-style API. Use whichever modules fit the problem, not
+only a gradient-boosted tree:
+validation (grouped/time/purged CV, adversarial validation) | guardrails & data_quality (leakage, drift) |
+preprocessing (fold-safe encoders, imputers, aggregations, interactions, lags, resampling, harmonisation) |
+feature_selection (19 selectors: mrmr, boruta, stability, knockoffs, ...) | dimensionality_reduction | signal
+(entropy, spectra, fractal features for sensor data) | timeseries | models (GBDTs, foundation models such as
+Kumo-Tabular/LimiX/TabPFN/TabICL, neural, interpretable, Bayesian, rules, ...) | ensemble | tune | calibration
+(conformal) | explain | fairness | anomaly | clustering | semi_supervised | survival | ranking | fuzzy | nlp |
+vision | audio | automl | quick | benchmark | utils (bootstrap CIs, paired tests) | visualization |
+persistence | tracking | kaggle.
+
+Before an experiment, call guide() for the workflow. In short: choose validation that matches how the data was
+collected (time_ordered / group_column), check_data_quality, baseline (linear, lgbm), engineer_features
+(aggregate long tables, signal features, within-group normalisation, joins), select_features, recommend_models
+then compare_models (GBDTs + tabular foundation models + other families on the same folds), ensemble, then
+quantify uncertainty and report every comparison, including nulls.
+Discover anything with list_modules() / list_modules(search=...) and describe_api(name). Reach any module
+through transform_data (transformers), train_model(model_name="endgame.<module>.<Class>") (estimators) or
+run_python (anything, with session datasets and models)."""
+
+
 def create_server() -> FastMCP:
     """Build and return a fully-configured ``FastMCP`` server."""
 
     mcp = FastMCP(
         "endgame",
-        instructions=(
-            "Endgame ML toolkit — build ML pipelines through natural language. "
-            "Use discovery resources (endgame://catalog/*) for zero-cost browsing "
-            "of models, presets, metrics, and visualizers. Use tools to load data, "
-            "train models, evaluate, visualize, and export pipelines, and to work with "
-            "Kaggle competitions (data, public notebooks, publishing notebooks)."
-        ),
+        instructions=INSTRUCTIONS,
     )
 
     # Shared session (one per server process)
@@ -82,10 +98,13 @@ def create_server() -> FastMCP:
 
     # ----- register tools ------------------------------------------------
     from endgame.mcp.tools.advanced import register as reg_advanced
+    from endgame.mcp.tools.code import register as reg_code
     from endgame.mcp.tools.data import register as reg_data
     from endgame.mcp.tools.discover import register as reg_discover
+    from endgame.mcp.tools.ensemble import register as reg_ensemble
     from endgame.mcp.tools.evaluate import register as reg_evaluate
     from endgame.mcp.tools.export import register as reg_export
+    from endgame.mcp.tools.features import register as reg_features
     from endgame.mcp.tools.guardrails import register as reg_guardrails
     from endgame.mcp.tools.kaggle import register as reg_kaggle
     from endgame.mcp.tools.predict import register as reg_predict
@@ -105,6 +124,9 @@ def create_server() -> FastMCP:
         reg_advanced,
         reg_guardrails,
         reg_kaggle,
+        reg_features,
+        reg_ensemble,
+        reg_code,
     ):
         reg_fn(mcp, session)
 

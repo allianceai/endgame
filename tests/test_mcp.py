@@ -840,3 +840,161 @@ class TestIsolatedFoundationModels:
 
         assert self._call(server, "save_model", model_id=out["model_id"], path=str(tmp_path / "m"))["status"] == "ok"
         assert not worker.is_alive() and not _isolated._WORKER                # saving fits in its own child
+
+
+class TestAgentToolkit:
+    """Oct 9: agents driving the server trained a ridge and a GBDT and stopped: nothing told them about feature
+    engineering, selection, foundation models or ensembling, and most modules had no way in. These tools fix that."""
+
+    @staticmethod
+    def _call(server, tool, **args):
+        import asyncio
+
+        out = asyncio.run(server.call_tool(tool, args))
+        blocks = out[0] if isinstance(out, tuple) else out
+        return json.loads(blocks[0].text)
+
+    @pytest.fixture
+    def server(self):
+        from endgame.mcp.server import create_server
+        return create_server()
+
+    @pytest.fixture
+    def tables(self, tmp_path):
+        """One row per player (target depends on a tracking signal) and a long table of frames per player."""
+        rng = np.random.default_rng(0)
+        n = 160
+        players = pd.DataFrame({"player_id": np.arange(n), "position": rng.choice(["WR", "DB", "OL"], n),
+                                "weight": rng.normal(230, 30, n), "noise": rng.normal(size=n)})
+        frames = []
+        for pid in range(n):
+            speed = rng.normal(5 + (pid % 7) * 0.4, 1.0, 40)
+            frames.append(pd.DataFrame({"player_id": pid, "time": np.arange(40), "speed": speed,
+                                        "drill": np.where(np.arange(40) < 20, "dash", "shuttle")}))
+        frames = pd.concat(frames, ignore_index=True)
+        peak = frames.groupby("player_id")["speed"].mean()
+        players["fast"] = (peak.loc[players["player_id"]].to_numpy() > peak.median()).astype(int)
+        players.to_csv(tmp_path / "players.csv", index=False)
+        frames.to_csv(tmp_path / "frames.csv", index=False)
+        return tmp_path
+
+    def test_every_module_is_catalogued(self):
+        import pkgutil
+
+        import endgame
+        from endgame.mcp.catalog import MODULES
+
+        packages = {m.name for m in pkgutil.iter_modules(endgame.__path__) if m.ispkg} - {"core", "mcp"}
+        assert packages <= set(MODULES), f"add to endgame/mcp/catalog.py: {packages - set(MODULES)}"
+
+    def test_discovery_reaches_every_module(self, server):
+        overview = self._call(server, "list_modules")
+        assert overview["status"] == "ok" and len(overview["modules"]) >= 31
+        members = self._call(server, "list_modules", module="feature_selection")["members"]
+        assert any(m["name"].endswith("BorutaSelector") for m in members)
+        hits = self._call(server, "list_modules", search="sample entropy")["matches"]
+        assert any("sample_entropy" in h["name"].lower() or "sampleentropy" in h["name"].lower() for h in hits)
+        api = self._call(server, "describe_api", name="endgame.feature_selection.MRMRSelector")
+        assert "n_features" in api["signature"] and "fit" in api["methods"]
+        assert self._call(server, "describe_api", name="sklearn.decomposition.PCA")["role"] == "transformer"
+        assert "engineer_features" in self._call(server, "guide")["guide"]
+        assert self._call(server, "guide", topic="nope")["status"] == "error"
+
+    def test_recommendations_include_foundation_models_on_small_tables(self, server, tables, monkeypatch):
+        from endgame.automl import model_registry
+
+        monkeypatch.setattr(model_registry, "model_availability", lambda name: (True, ""))
+        ds = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]
+        recs = self._call(server, "recommend_models", dataset_id=ds)
+        families = [r["family"] for r in recs["recommendations"]]
+        assert "foundation" in families and "gbdt" in families and recs["recommendations"][-1]["name"] == "linear"
+        big = model_registry.recommend_portfolio("classification", 500_000, 20, "medium")
+        assert not any(r["family"] == "foundation" for r in big["recommended"])
+
+    def test_engineer_features_aggregates_a_long_table_with_signal_features(self, server, tables):
+        players = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")
+        frames = self._call(server, "load_data", source=str(tables / "frames.csv"))
+        out = self._call(server, "engineer_features", dataset_id=players["dataset_id"], operations=[
+            {"type": "aggregate", "source": frames["dataset_id"], "by": ["player_id"], "columns": ["speed"],
+             "aggs": ["mean", "q90", "sample_entropy", "higuchi_fd"], "order_by": "time", "filter": "drill == 'dash'",
+             "prefix": "dash_"},
+            {"type": "group_normalize", "by": "position", "columns": ["dash_speed_mean"], "method": "zscore"},
+            {"type": "formula", "name": "speed_per_lb", "expr": "dash_speed_mean / weight"},
+        ])
+        assert out["status"] == "ok", out
+        assert {"dash_speed_mean", "dash_speed_sample_entropy", "dash_speed_higuchi_fd",
+                "dash_speed_mean_zscore_by_position", "speed_per_lb"} <= set(out["new_columns"])
+        df = pd.read_csv(tables / "frames.csv")
+        expected = df[df.drill == "dash"].groupby("player_id")["speed"].mean()
+        got = self._call(server, "inspect_data", dataset_id=out["dataset_id"], operation="head")["head"][0]
+        assert got["dash_speed_mean"] == pytest.approx(expected.loc[got["player_id"]])
+
+    def test_select_compare_and_ensemble(self, server, tables):
+        players = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")
+        frames = self._call(server, "load_data", source=str(tables / "frames.csv"))
+        feats = self._call(server, "engineer_features", dataset_id=players["dataset_id"], operations=[
+            {"type": "aggregate", "source": frames["dataset_id"], "by": ["player_id"], "columns": ["speed"],
+             "aggs": ["mean", "std", "max", "min"]}])
+        sel = self._call(server, "select_features", dataset_id=feats["dataset_id"], method="mrmr", n_features=3)
+        assert sel["status"] == "ok" and "speed_mean" in sel["selected"], sel
+        comp = self._call(server, "compare_models", dataset_id=sel["dataset_id"],
+                          models=["lgbm", "linear", "knn", "no_such_model"], cv_folds=3)
+        assert comp["status"] == "ok" and len(comp["leaderboard"]) == 3, comp
+        assert comp["failed"][0]["model_name"] == "no_such_model"
+        ids = [r["model_id"] for r in comp["leaderboard"]]
+        for method in ("hill_climbing", "stacking", "mean"):
+            ens = self._call(server, "ensemble", model_ids=ids, method=method)
+            assert ens["status"] == "ok", ens
+            assert ens["ensemble_score"] >= ens["best_single"]["score"] - 0.05
+        pred = self._call(server, "predict", model_id=ens["model_id"], dataset_id=sel["dataset_id"])
+        assert pred["status"] == "ok" and pred["n_predictions"] == 160
+
+    def test_any_estimator_by_class_path_and_grouped_cv(self, server, tables):
+        ds = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]
+        out = self._call(server, "train_model", dataset_id=ds, model_name="sklearn.linear_model.LogisticRegression",
+                         params={"max_iter": 500}, cv_folds=3, group_column="position")
+        assert out["status"] == "ok", out
+        assert out["cv"] == "grouped by position" and out["n_features"] == 2   # neither position nor the id
+        assert out["dropped_columns"] == ["player_id"]
+
+    def test_transform_data_with_any_transformer(self, server, tables):
+        ds = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]
+        pca = self._call(server, "transform_data", dataset_id=ds, transformer="sklearn.decomposition.PCA",
+                         params={"n_components": 2}, columns=["weight", "noise"])
+        assert pca["status"] == "ok" and pca["n_new_columns"] == 2 and pca["shape"][1] == 7, pca
+        over = self._call(server, "transform_data", dataset_id=ds,
+                          transformer="endgame.preprocessing.RandomOverSampler", columns=["weight", "noise"])
+        assert over["status"] == "ok" and over["rows_after"] >= over["rows_before"], over
+
+    def test_run_python_shares_the_session(self, server, tables):
+        ds = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]
+        out = self._call(server, "run_python", code=f"df = dataset({ds!r})\nprint(len(df))\n"
+                                                    "new = add_dataset(df[df.position == 'WR'], 'wr', target='fast')\n"
+                                                    "eg.__version__")
+        assert out["status"] == "ok", out
+        assert out["stdout"].strip() == "160" and out["result"].strip("'") == __import__("endgame").__version__
+        assert list(out["new_datasets"].values())[0][1] == 5
+        again = self._call(server, "run_python", code="len(df)")      # variables persist
+        assert again["result"] == "160"
+        err = self._call(server, "run_python", code="1 / 0")
+        assert err["status"] == "error" and "ZeroDivisionError" in err["message"]
+
+    def test_run_python_can_be_disabled(self, monkeypatch):
+        import asyncio
+
+        from endgame.mcp.server import create_server
+
+        monkeypatch.setenv("ENDGAME_MCP_ALLOW_CODE", "0")
+        names = {t.name for t in asyncio.run(create_server().list_tools())}
+        assert "run_python" not in names and "transform_data" in names
+
+    def test_target_encoding_does_not_leak(self, server, tmp_path):
+        rng = np.random.default_rng(1)
+        df = pd.DataFrame({"code": [f"c{i}" for i in range(300)], "x": rng.normal(size=300)})
+        df["y"] = rng.integers(0, 2, 300)            # unrelated to code; each code appears once
+        df.to_csv(tmp_path / "t.csv", index=False)
+        ds = self._call(server, "load_data", source=str(tmp_path / "t.csv"), target_column="y")["dataset_id"]
+        enc = self._call(server, "preprocess", dataset_id=ds, operations=[{"type": "encode", "method": "target"}])
+        encoded = self._call(server, "run_python", code=f"d = dataset({enc['dataset_id']!r}); "
+                                                        "float(np.nan_to_num(np.corrcoef(d.code.astype(float), d.y)[0, 1]))")
+        assert abs(float(encoded["result"])) < 0.5   # full-data means reproduced y exactly (correlation 1)
