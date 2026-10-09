@@ -72,7 +72,8 @@ def create_server() -> FastMCP:
             "Endgame ML toolkit — build ML pipelines through natural language. "
             "Use discovery resources (endgame://catalog/*) for zero-cost browsing "
             "of models, presets, metrics, and visualizers. Use tools to load data, "
-            "train models, evaluate, visualize, and export pipelines."
+            "train models, evaluate, visualize, and export pipelines, and to work with "
+            "Kaggle competitions (data, public notebooks, publishing notebooks)."
         ),
     )
 
@@ -86,6 +87,7 @@ def create_server() -> FastMCP:
     from endgame.mcp.tools.evaluate import register as reg_evaluate
     from endgame.mcp.tools.export import register as reg_export
     from endgame.mcp.tools.guardrails import register as reg_guardrails
+    from endgame.mcp.tools.kaggle import register as reg_kaggle
     from endgame.mcp.tools.predict import register as reg_predict
     from endgame.mcp.tools.preprocess import register as reg_preprocess
     from endgame.mcp.tools.train import register as reg_train
@@ -102,6 +104,7 @@ def create_server() -> FastMCP:
         reg_export,
         reg_advanced,
         reg_guardrails,
+        reg_kaggle,
     ):
         reg_fn(mcp, session)
 

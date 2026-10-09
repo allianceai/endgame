@@ -8,6 +8,7 @@ Uses kagglehub (the modern Kaggle Python library) for downloads and data loading
 with fallback to the older kaggle package for submission functionality.
 """
 
+import re
 import warnings
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -53,6 +54,40 @@ def _ensure_kaggle_legacy():
             "Then create an API token at https://www.kaggle.com/settings "
             "and place kaggle.json in ~/.kaggle/"
         )
+
+
+def _get(obj: Any, name: str, default: Any = None) -> Any:
+    """Read a Kaggle API field by its camelCase name; kaggle >= 1.7 (kagglesdk) uses snake_case."""
+    snake = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
+    return getattr(obj, snake, getattr(obj, name, default))
+
+
+def _slug(ref: str) -> str:
+    """'https://www.kaggle.com/competitions/titanic' (kagglesdk) or 'titanic' -> 'titanic'."""
+    return str(ref).rstrip("/").split("/")[-1]
+
+
+def _link_or_copy(src: Path, dest_dir: Path) -> None:
+    """Put the kagglehub cache file or folder `src` into `dest_dir`, hard-linking files
+    (no second copy of a multi-GB dataset) and copying only across filesystems."""
+    import os
+    import shutil
+
+    def place(file: Path, dest: Path) -> None:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        if dest.exists():
+            dest.unlink()
+        try:
+            os.link(file, dest)
+        except OSError:
+            shutil.copy2(file, dest)
+
+    if src.is_file():
+        place(src, dest_dir / src.name)
+        return
+    for file in src.rglob("*"):
+        if file.is_file():
+            place(file, dest_dir / file.relative_to(src))
 
 
 @dataclass
@@ -333,6 +368,7 @@ class KaggleClient:
             page=page,
         )
 
+        competitions = getattr(competitions, 'competitions', competitions) or []
         return [self._parse_competition(c) for c in competitions]
 
     def get_competition(self, competition: str) -> CompetitionInfo:
@@ -348,60 +384,92 @@ class KaggleClient:
         CompetitionInfo
             Competition details including available files.
         """
-        # Get competition list filtered by exact name
-        competitions = self.legacy_api.competitions_list(search=competition)
-
-        # Find exact match
-        comp_data = None
-        for c in competitions:
-            if c.ref == competition:
-                comp_data = c
-                break
-
-        if comp_data is None:
-            raise ValueError(f"Competition '{competition}' not found")
-
-        info = self._parse_competition(comp_data)
+        info = self._parse_competition(self._find_competition(competition))
 
         # Get file list
         try:
             files = self.legacy_api.competition_list_files(competition)
-            info.data_files = [f.name for f in files]
+            info.data_files = [f.name for f in getattr(files, 'files', files) or []]
         except Exception:
             pass
 
         return info
 
+    def _find_competition(self, competition: str) -> Any:
+        """The API record of the competition with this exact slug."""
+        competitions = self.legacy_api.competitions_list(search=competition)
+        for c in getattr(competitions, 'competitions', competitions) or []:
+            if _slug(c.ref) == competition:
+                return c
+        raise ValueError(f"Competition '{competition}' not found")
+
+    def competition_pages(self, competition: str) -> dict[str, str]:
+        """Text of a competition's website pages, which the public API does not serve.
+
+        Keys are Kaggle's page names, e.g. 'Description' (the overview), 'Evaluation',
+        'Timeline', 'Submission Requirements', 'data-description' and 'rules'.
+        Uses the endpoint kaggle.com's own pages call, so it may change without notice.
+
+        Parameters
+        ----------
+        competition : str
+            Competition slug.
+
+        Returns
+        -------
+        Dict[str, str]
+            Page name -> markdown (HTML pages are reduced to text).
+        """
+        import html
+
+        import requests
+
+        comp_id = _get(self._find_competition(competition), 'id')
+        with requests.Session() as http:
+            http.get(f"https://www.kaggle.com/competitions/{competition}", timeout=30)
+            response = http.post(
+                "https://www.kaggle.com/api/i/competitions.PageService/ListPages",
+                json={"competitionId": comp_id},
+                headers={"X-XSRF-TOKEN": http.cookies.get("XSRF-TOKEN", "")},
+                timeout=30,
+            )
+            response.raise_for_status()
+
+        pages = {}
+        for page in response.json().get("pages", []):
+            content = page.get("content") or ""
+            if "html" in (page.get("mimeType") or ""):
+                content = html.unescape(re.sub(r"<[^>]+>", "", content))
+            if content.strip():
+                pages[page["name"]] = content
+        return pages
+
     def _parse_competition(self, comp: Any) -> CompetitionInfo:
         """Parse competition object into CompetitionInfo."""
-        deadline = None
-        if hasattr(comp, 'deadline') and comp.deadline:
-            if isinstance(comp.deadline, datetime):
-                deadline = comp.deadline
-            elif isinstance(comp.deadline, str):
-                try:
-                    deadline = datetime.fromisoformat(comp.deadline.replace('Z', '+00:00'))
-                except Exception:
-                    pass
-
-        merger_deadline = None
-        if hasattr(comp, 'mergerDeadline') and comp.mergerDeadline:
-            if isinstance(comp.mergerDeadline, datetime):
-                merger_deadline = comp.mergerDeadline
+        deadline = _get(comp, 'deadline')
+        if isinstance(deadline, str):
+            try:
+                deadline = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
+            except ValueError:
+                deadline = None
+        merger_deadline = _get(comp, 'mergerDeadline')
+        if not isinstance(merger_deadline, datetime):
+            merger_deadline = None
+        slug = _slug(_get(comp, 'ref', ''))
 
         return CompetitionInfo(
-            slug=getattr(comp, 'ref', ''),
-            title=getattr(comp, 'title', ''),
-            category=getattr(comp, 'category', ''),
+            slug=slug,
+            title=_get(comp, 'title', ''),
+            category=_get(comp, 'category', ''),
             deadline=deadline,
-            description=getattr(comp, 'description', ''),
-            evaluation_metric=getattr(comp, 'evaluationMetric', ''),
-            reward=getattr(comp, 'reward', ''),
-            team_count=getattr(comp, 'teamCount', 0),
-            url=getattr(comp, 'url', f"https://www.kaggle.com/c/{getattr(comp, 'ref', '')}"),
-            rules_url=f"https://www.kaggle.com/c/{getattr(comp, 'ref', '')}/rules",
-            can_submit=getattr(comp, 'canSubmit', True),
-            user_has_entered=getattr(comp, 'userHasEntered', False),
+            description=_get(comp, 'description', ''),
+            evaluation_metric=_get(comp, 'evaluationMetric', ''),
+            reward=_get(comp, 'reward', ''),
+            team_count=_get(comp, 'teamCount', 0),
+            url=_get(comp, 'url', f"https://www.kaggle.com/c/{slug}"),
+            rules_url=f"https://www.kaggle.com/c/{slug}/rules",
+            can_submit=_get(comp, 'canSubmit', True),
+            user_has_entered=_get(comp, 'userHasEntered', False),
             merger_deadline=merger_deadline,
         )
 
@@ -419,11 +487,12 @@ class KaggleClient:
             List of file info dicts with 'name', 'size', 'creationDate'.
         """
         files = self.legacy_api.competition_list_files(competition)
+        files = getattr(files, 'files', files) or []
         return [
             {
                 "name": f.name,
-                "size": getattr(f, 'size', 0),
-                "creation_date": getattr(f, 'creationDate', None),
+                "size": _get(f, 'totalBytes', _get(f, 'size', 0)),
+                "creation_date": _get(f, 'creationDate', None),
             }
             for f in files
         ]
@@ -485,21 +554,8 @@ class KaggleClient:
 
                 cache_path = Path(cache_path)
 
-                # Copy to specified path if different from cache
                 if path != Path("."):
-                    path.mkdir(parents=True, exist_ok=True)
-                    import shutil
-
-                    if cache_path.is_file():
-                        shutil.copy2(cache_path, path / cache_path.name)
-                    else:
-                        # Copy entire directory contents
-                        for item in cache_path.iterdir():
-                            dest = path / item.name
-                            if item.is_file():
-                                shutil.copy2(item, dest)
-                            else:
-                                shutil.copytree(item, dest, dirs_exist_ok=True)
+                    _link_or_copy(cache_path, path)
                     return path
 
                 return cache_path
@@ -644,30 +700,32 @@ class KaggleClient:
 
         result = []
         for s in submissions:
-            date = s.date if isinstance(s.date, datetime) else datetime.now()
+            date = _get(s, 'date')
+            if not isinstance(date, datetime):
+                date = datetime.now()
 
             public_score = None
-            if hasattr(s, 'publicScore') and s.publicScore:
+            if _get(s, 'publicScore'):
                 try:
-                    public_score = float(s.publicScore)
+                    public_score = float(_get(s, 'publicScore'))
                 except (ValueError, TypeError):
                     pass
 
             private_score = None
-            if hasattr(s, 'privateScore') and s.privateScore:
+            if _get(s, 'privateScore'):
                 try:
-                    private_score = float(s.privateScore)
+                    private_score = float(_get(s, 'privateScore'))
                 except (ValueError, TypeError):
                     pass
 
             result.append(SubmissionInfo(
-                submission_id=getattr(s, 'ref', 0),
+                submission_id=_get(s, 'ref', 0),
                 date=date,
-                description=getattr(s, 'description', ''),
-                status=getattr(s, 'status', 'complete'),
+                description=_get(s, 'description', ''),
+                status=_get(s, 'status', 'complete'),
                 public_score=public_score,
                 private_score=private_score,
-                file_name=getattr(s, 'fileName', ''),
+                file_name=_get(s, 'fileName', ''),
             ))
 
         if limit:
@@ -700,11 +758,11 @@ class KaggleClient:
             result = []
             for entry in leaderboard:
                 result.append({
-                    "rank": getattr(entry, 'rank', 0),
-                    "team_name": getattr(entry, 'teamName', ''),
-                    "score": getattr(entry, 'score', None),
-                    "entries": getattr(entry, 'submissionCount', 0),
-                    "last_submission": getattr(entry, 'lastSubmissionDate', None),
+                    "rank": _get(entry, 'rank', 0),
+                    "team_name": _get(entry, 'teamName', ''),
+                    "score": _get(entry, 'score', None),
+                    "entries": _get(entry, 'submissionCount', 0),
+                    "last_submission": _get(entry, 'lastSubmissionDate', _get(entry, 'submissionDate')),
                 })
 
             return result
@@ -712,6 +770,175 @@ class KaggleClient:
         except Exception as e:
             warnings.warn(f"Failed to get leaderboard: {e}")
             return []
+
+    # Notebook (kernel) methods
+
+    def list_notebooks(
+        self,
+        competition: str | None = None,
+        search: str | None = None,
+        sort_by: str = "hotness",
+        page_size: int = 20,
+        language: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """List public notebooks, e.g. the hottest ones for a competition.
+
+        Parameters
+        ----------
+        competition : str, optional
+            Competition slug to filter by.
+        search : str, optional
+            Search term.
+        sort_by : str, default='hotness'
+            'hotness', 'voteCount', 'dateRun', 'dateCreated', 'commentCount',
+            'viewCount', 'scoreDescending', 'scoreAscending' or 'relevance'.
+        page_size : int, default=20
+            Number of notebooks to return (max 200).
+        language : str, optional
+            'python', 'r', ... (default: all).
+
+        Returns
+        -------
+        List[Dict[str, Any]]
+            Notebooks with 'ref', 'title', 'author', 'votes', 'last_run', 'url'.
+        """
+        kernels = self.legacy_api.kernels_list(
+            competition=competition,
+            search=search,
+            sort_by=sort_by,
+            page_size=page_size,
+            language=language,
+        ) or []
+        return [
+            {
+                "ref": k.ref,
+                "title": k.title,
+                "author": k.author,
+                "votes": k.total_votes,
+                "last_run": k.last_run_time,
+                "url": f"https://www.kaggle.com/code/{k.ref}",
+            }
+            for k in kernels
+            if k is not None
+        ]
+
+    def read_notebook(self, ref: str) -> dict[str, Any]:
+        """Download a notebook and return its source as text.
+
+        Markdown cells are kept as-is and code cells are fenced; cell outputs
+        (images, tables) are dropped.
+
+        Parameters
+        ----------
+        ref : str
+            Notebook reference, 'owner/slug' (a full kaggle.com/code URL also works).
+
+        Returns
+        -------
+        Dict[str, Any]
+            'ref', 'title', 'language', 'data_sources' and 'source' (text).
+        """
+        import json
+        import tempfile
+
+        ref = ref.split("kaggle.com/code/")[-1].strip("/")
+        with tempfile.TemporaryDirectory() as tmp:
+            self.legacy_api.kernels_pull(ref, path=tmp, metadata=True)
+            meta = json.loads((Path(tmp) / "kernel-metadata.json").read_text())
+            code_file = Path(tmp) / meta["code_file"]
+            raw = code_file.read_text()
+
+        if code_file.suffix == ".ipynb":
+            nb = json.loads(raw)
+            fence = "```r" if meta.get("language") == "r" else "```python"
+            parts = []
+            for cell in nb.get("cells", []):
+                text = "".join(cell.get("source", []))
+                if not text.strip():
+                    continue
+                parts.append(text if cell.get("cell_type") == "markdown" else f"{fence}\n{text}\n```")
+            raw = "\n\n".join(parts)
+
+        return {
+            "ref": ref,
+            "title": meta.get("title", ""),
+            "language": meta.get("language", ""),
+            "data_sources": {
+                "competitions": meta.get("competition_sources", []),
+                "datasets": meta.get("dataset_sources", []),
+                "notebooks": meta.get("kernel_sources", []),
+            },
+            "source": raw,
+        }
+
+    def push_notebook(
+        self,
+        code_file: str | Path,
+        title: str,
+        competition: str | None = None,
+        datasets: list[str] | None = None,
+        public: bool = False,
+        enable_gpu: bool = False,
+        enable_internet: bool = False,
+    ) -> dict[str, Any]:
+        """Upload a notebook (.ipynb) or script (.py) to Kaggle and run it there.
+
+        Pushing the same title again creates a new version of the same notebook.
+
+        Parameters
+        ----------
+        code_file : str or Path
+            Local .ipynb or .py file.
+        title : str
+            Notebook title; its slug becomes the notebook id.
+        competition : str, optional
+            Competition whose data is attached (under /kaggle/input/).
+        datasets : list of str, optional
+            Dataset slugs ('owner/name') to attach.
+        public : bool, default=False
+            Make the notebook public. Private by default.
+        enable_gpu, enable_internet : bool, default=False
+            Kaggle runtime settings.
+
+        Returns
+        -------
+        Dict[str, Any]
+            'ref', 'url', 'version' and 'error' (empty on success).
+        """
+        import json
+        import re
+        import shutil
+        import tempfile
+
+        code_file = Path(code_file)
+        if code_file.suffix not in (".ipynb", ".py"):
+            raise ValueError(f"Expected a .ipynb or .py file, got {code_file.name}")
+        username = self.legacy_api.get_config_value("username")
+        slug = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+        meta = {
+            "id": f"{username}/{slug}",
+            "title": title,
+            "code_file": code_file.name,
+            "language": "python",
+            "kernel_type": "notebook" if code_file.suffix == ".ipynb" else "script",
+            "is_private": not public,
+            "enable_gpu": enable_gpu,
+            "enable_internet": enable_internet,
+            "competition_sources": [competition] if competition else [],
+            "dataset_sources": datasets or [],
+            "kernel_sources": [],
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            shutil.copy2(code_file, Path(tmp) / code_file.name)
+            (Path(tmp) / "kernel-metadata.json").write_text(json.dumps(meta, indent=2))
+            resp = self.legacy_api.kernels_push(tmp)
+
+        return {
+            "ref": resp.ref or meta["id"],
+            "url": resp.url or f"https://www.kaggle.com/code/{meta['id']}",
+            "version": resp.version_number,
+            "error": resp.error or "",
+        }
 
     # Dataset methods
 
@@ -749,19 +976,18 @@ class KaggleClient:
 
         result = []
         for d in datasets:
-            last_updated = None
-            if hasattr(d, 'lastUpdated') and d.lastUpdated:
-                if isinstance(d.lastUpdated, datetime):
-                    last_updated = d.lastUpdated
+            last_updated = _get(d, 'lastUpdated')
+            if not isinstance(last_updated, datetime):
+                last_updated = None
 
             result.append(DatasetInfo(
-                slug=getattr(d, 'ref', ''),
-                title=getattr(d, 'title', ''),
-                size=getattr(d, 'totalBytes', 0),
+                slug=_get(d, 'ref', ''),
+                title=_get(d, 'title', ''),
+                size=_get(d, 'totalBytes', 0),
                 last_updated=last_updated,
-                download_count=getattr(d, 'downloadCount', 0),
-                vote_count=getattr(d, 'voteCount', 0),
-                usability_rating=getattr(d, 'usabilityRating', 0.0),
+                download_count=_get(d, 'downloadCount', 0),
+                vote_count=_get(d, 'voteCount', 0),
+                usability_rating=_get(d, 'usabilityRating', 0.0),
             ))
 
         return result
@@ -810,20 +1036,8 @@ class KaggleClient:
 
             cache_path = Path(cache_path)
 
-            # Copy to specified path if different from cache
             if path != Path("."):
-                path.mkdir(parents=True, exist_ok=True)
-                import shutil
-
-                if cache_path.is_file():
-                    shutil.copy2(cache_path, path / cache_path.name)
-                else:
-                    for item in cache_path.iterdir():
-                        dest = path / item.name
-                        if item.is_file():
-                            shutil.copy2(item, dest)
-                        else:
-                            shutil.copytree(item, dest, dirs_exist_ok=True)
+                _link_or_copy(cache_path, path)
                 return path
 
             return cache_path

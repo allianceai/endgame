@@ -194,6 +194,18 @@ User: "Build a classifier to predict loan defaults"
 | `detect_anomalies` | Outlier detection: `isolation_forest`, `lof`, `elliptic_envelope`. |
 | `forecast` | Time series forecasting: `auto`/`arima`, `ets`, `theta`, `naive`. |
 
+### Kaggle (5 tools)
+
+Uses your Kaggle API credentials (`~/.kaggle/`). Joining a competition and accepting its rules happens on kaggle.com; there is no API for it.
+
+| Tool | Description |
+|------|-------------|
+| `kaggle_competition` | Competition details (deadline, prize, whether you've joined), its data files, and the text of its overview, evaluation, timeline and data pages (`include_rules=True` adds the rules). |
+| `kaggle_download` | Download and unzip a competition's data (default `~/.endgame/competitions/<slug>/raw`). |
+| `kaggle_notebooks` | List a competition's public notebooks, hottest first (or by votes, date, score). |
+| `kaggle_read_notebook` | Read a public notebook as markdown plus fenced code, without outputs. |
+| `kaggle_push_notebook` | Upload a local `.ipynb`/`.py` and run it on Kaggle with the competition data attached. Private unless `public=True`. |
+
 ## Resources Reference
 
 Resources are read-only catalogs the LLM can browse without making a tool call — zero overhead for discovery.

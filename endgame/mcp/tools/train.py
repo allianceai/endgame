@@ -29,18 +29,25 @@ def _cross_validate(model_name, task_type, override_params, X, y, cv_folds, time
     else:
         cv = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=42)
 
+    binary = task_type != "regression" and len(np.unique(y)) == 2
     start = _time.time()
+    oof_proba = None
     if time_ordered:
         # Oct 1: shuffled CV said 65 min on Ezra's nights; later nights said ~95.
-        scored = np.concatenate([test for _, test in cv.split(X)])
-        oof_preds = np.empty(len(scored), dtype=float if task_type == "regression" else object)
-        at = 0
+        scored, preds, probas = [], [], []
         for train_idx, test_idx in cv.split(X):
             fold = clone(estimator).fit(X.iloc[train_idx], y.iloc[train_idx])
-            oof_preds[at:at + len(test_idx)] = fold.predict(X.iloc[test_idx])
-            at += len(test_idx)
+            preds.append(fold.predict(X.iloc[test_idx]))
+            if binary and hasattr(fold, "predict_proba"):
+                probas.append(fold.predict_proba(X.iloc[test_idx]))
+            scored.append(test_idx)
+        scored = np.concatenate(scored)
+        # Concatenated, the predictions keep their dtype; an object array made sklearn's classification metrics fail
+        # with "a mix of binary and unknown targets" (Oct 9, Ezra's nights as yes/no questions).
+        oof_preds = np.concatenate(preds)
+        oof_proba = np.concatenate(probas) if probas else None
         y_scored = y.iloc[scored]
-        oof_rows = np.full(len(y), np.nan, dtype=oof_preds.dtype if task_type == "regression" else object)
+        oof_rows = np.full(len(y), np.nan, dtype=float if task_type == "regression" else object)
         oof_rows[scored] = oof_preds  # earliest rows were never scored
     else:
         oof_preds = cross_val_predict(estimator, X, y, cv=cv, method="predict")
@@ -48,8 +55,7 @@ def _cross_validate(model_name, task_type, override_params, X, y, cv_folds, time
         oof_rows = oof_preds
     fit_time = _time.time() - start
 
-    oof_proba = None
-    if task_type != "regression" and len(np.unique(y)) == 2 and not time_ordered:
+    if binary and not time_ordered:
         try:
             oof_proba = cross_val_predict(estimator, X, y, cv=cv, method="predict_proba")
         except Exception:
@@ -151,7 +157,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     computed_metrics["accuracy"] = float(sklearn_metrics.accuracy_score(y_scored, oof_preds))
                     computed_metrics["f1"] = float(sklearn_metrics.f1_score(y_scored, oof_preds, average="weighted"))
                     if oof_proba is not None:
-                        computed_metrics["roc_auc"] = float(sklearn_metrics.roc_auc_score(y, oof_proba[:, 1]))
+                        computed_metrics["roc_auc"] = float(sklearn_metrics.roc_auc_score(y_scored, oof_proba[:, 1]))
 
                 # Final fit on full data; an isolated model fits in its worker on first use
                 if isolate:

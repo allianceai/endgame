@@ -742,6 +742,23 @@ class TestNightBottleRegression:
         ev = self._call(server, "evaluate_model", model_id=ordered["model_id"])
         assert ev["status"] == "ok" and abs(ev["metrics"]["mae"] - ordered["metrics"]["mae"]) < 1e-3, ev
 
+    def test_time_ordered_cv_scores_a_yes_no_question(self, tmp_path, monkeypatch):
+        # Oct 9: Ezra's nights as yes/no questions failed with "a mix of binary and unknown targets"
+        # (fold predictions were stored in an object array).
+        from endgame.mcp.server import create_server
+
+        monkeypatch.setenv("OMP_NUM_THREADS", "2")
+        rng = np.random.default_rng(0)
+        df = pd.DataFrame({"x": rng.normal(size=200)})
+        df["long_night"] = (df["x"] + 0.5 * rng.normal(size=200) > 0).astype(int)
+        df.to_csv(tmp_path / "nights.csv", index=False)
+        server = create_server()
+        ds = self._call(server, "load_data", source=str(tmp_path / "nights.csv"), target_column="long_night")
+        out = self._call(server, "train_model", dataset_id=ds["dataset_id"], model_name="lgbm", time_ordered=True)
+        assert out["status"] == "ok", out
+        assert out["metrics"]["accuracy"] > 0.7 and out["metrics"]["roc_auc"] > 0.8
+        assert self._call(server, "evaluate_model", model_id=out["model_id"])["status"] == "ok"
+
     def test_an_unscored_fallback_never_outranks_a_scored_model(self):
         # Oct 1: lgbm scored -28.27 (negative RMSE); a later round's fallback,
         # never evaluated, was recorded as 0.0 and became "best_model".

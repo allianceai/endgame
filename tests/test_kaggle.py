@@ -421,3 +421,110 @@ class TestKaggleClientWithoutAuth:
             # Restore
             client.HAS_KAGGLEHUB = orig_hub
             client.HAS_KAGGLE_LEGACY = orig_legacy
+
+
+class TestKaggleClientNotebooks:
+    """Notebook methods and kagglesdk field handling, with the Kaggle API mocked."""
+
+    def _client(self, api):
+        from endgame.kaggle.client import KaggleClient
+        client = KaggleClient()
+        client._legacy_api = api
+        return client
+
+    def test_fields_read_snake_or_camel_case(self):
+        from types import SimpleNamespace
+        from endgame.kaggle.client import _get, _slug
+
+        assert _get(SimpleNamespace(team_count=5), "teamCount") == 5
+        assert _get(SimpleNamespace(teamCount=7), "teamCount") == 7
+        assert _get(SimpleNamespace(), "teamCount", 0) == 0
+        assert _slug("https://www.kaggle.com/competitions/titanic") == "titanic"
+        assert _slug("titanic") == "titanic"
+
+    def test_get_competition_matches_url_refs(self):
+        from types import SimpleNamespace
+        comp = SimpleNamespace(ref="https://www.kaggle.com/competitions/titanic", title="Titanic",
+                               team_count=3, user_has_entered=True, deadline=None)
+        api = MagicMock()
+        api.competitions_list.return_value = SimpleNamespace(competitions=[comp])
+        api.competition_list_files.return_value = SimpleNamespace(files=[SimpleNamespace(name="train.csv", total_bytes=10)])
+        client = self._client(api)
+
+        info = client.get_competition("titanic")
+        assert (info.slug, info.team_count, info.user_has_entered, info.data_files) == ("titanic", 3, True, ["train.csv"])
+        assert client.list_competition_files("titanic")[0]["size"] == 10
+
+    def test_read_notebook_flattens_cells(self):
+        def pull(ref, path, metadata):
+            Path(path, "kernel-metadata.json").write_text(json.dumps(
+                {"title": "Starter", "code_file": "nb.ipynb", "language": "python", "competition_sources": ["titanic"]}))
+            Path(path, "nb.ipynb").write_text(json.dumps({"cells": [
+                {"cell_type": "markdown", "source": ["# Intro"]},
+                {"cell_type": "code", "source": ["x = 1"], "outputs": [{"text": "noise"}]},
+                {"cell_type": "code", "source": [" "]},
+            ]}))
+
+        api = MagicMock()
+        api.kernels_pull.side_effect = pull
+        nb = self._client(api).read_notebook("https://www.kaggle.com/code/someone/starter")
+
+        api.kernels_pull.assert_called_once()
+        assert api.kernels_pull.call_args[0][0] == "someone/starter"
+        assert nb["source"] == "# Intro\n\n```python\nx = 1\n```"
+        assert nb["data_sources"]["competitions"] == ["titanic"]
+
+    def test_push_notebook_writes_private_metadata(self, tmp_path):
+        from types import SimpleNamespace
+        seen = {}
+
+        def push(folder):
+            seen.update(json.loads(Path(folder, "kernel-metadata.json").read_text()))
+            return SimpleNamespace(ref="", url="", version_number=1, error="")
+
+        api = MagicMock()
+        api.get_config_value.return_value = "me"
+        api.kernels_push.side_effect = push
+        code = tmp_path / "analysis.ipynb"
+        code.write_text("{}")
+
+        out = self._client(api).push_notebook(code, "BDB 2027: First Look!", competition="nfl-big-data-bowl-2027")
+        assert seen["id"] == "me/bdb-2027-first-look"
+        assert seen["is_private"] is True and seen["kernel_type"] == "notebook"
+        assert seen["competition_sources"] == ["nfl-big-data-bowl-2027"]
+        assert out == {"ref": "me/bdb-2027-first-look", "url": "https://www.kaggle.com/code/me/bdb-2027-first-look",
+                       "version": 1, "error": ""}
+
+    def test_competition_pages_reads_the_page_service(self):
+        from types import SimpleNamespace
+        api = MagicMock()
+        api.competitions_list.return_value = SimpleNamespace(
+            competitions=[SimpleNamespace(ref="https://www.kaggle.com/competitions/titanic", id=3136)])
+        http = MagicMock()
+        http.__enter__.return_value = http
+        http.cookies.get.return_value = "xsrf"
+        http.post.return_value.json.return_value = {"pages": [
+            {"name": "Description", "content": "# Overview", "mimeType": "text/markdown"},
+            {"name": "Evaluation", "content": "<p>Accuracy &amp; F1</p>", "mimeType": "text/html"},
+            {"name": "judges", "content": ""},
+        ]}
+        with patch("requests.Session", return_value=http):
+            pages = self._client(api).competition_pages("titanic")
+
+        assert pages == {"Description": "# Overview", "Evaluation": "Accuracy & F1"}
+        assert http.post.call_args.kwargs["json"] == {"competitionId": 3136}
+        assert http.post.call_args.kwargs["headers"] == {"X-XSRF-TOKEN": "xsrf"}
+
+    def test_downloads_link_out_of_the_cache(self, tmp_path):
+        from endgame.kaggle.client import _link_or_copy
+        cache = tmp_path / "cache"
+        (cache / "sub").mkdir(parents=True)
+        (cache / "a.csv").write_text("x")
+        (cache / "sub" / "b.csv").write_text("y")
+        out = tmp_path / "out"
+
+        _link_or_copy(cache, out)
+        _link_or_copy(cache, out)  # re-download replaces cleanly
+
+        assert (out / "a.csv").read_text() == "x" and (out / "sub" / "b.csv").read_text() == "y"
+        assert (out / "a.csv").stat().st_ino == (cache / "a.csv").stat().st_ino

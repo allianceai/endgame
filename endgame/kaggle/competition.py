@@ -203,7 +203,7 @@ class Competition:
         self.raw_dir.mkdir(parents=True, exist_ok=True)
 
         # Check if data already exists
-        existing_files = list(self.raw_dir.glob("*"))
+        existing_files = list(self.raw_dir.rglob("*"))
         csv_files = [f for f in existing_files if f.suffix in ('.csv', '.parquet', '.feather')]
 
         if csv_files and not force:
@@ -228,7 +228,7 @@ class Competition:
     def _list_data_files(self) -> dict[str, Path]:
         """List available data files."""
         files = {}
-        for f in self.raw_dir.iterdir():
+        for f in self.raw_dir.rglob("*"):
             if f.is_file() and not f.name.startswith('.'):
                 files[f.name] = f
         return files
@@ -236,7 +236,7 @@ class Competition:
     def _find_file(self, patterns: list[str]) -> Path | None:
         """Find a file matching one of the patterns."""
         for pattern in patterns:
-            matches = list(self.raw_dir.glob(pattern))
+            matches = sorted(self.raw_dir.rglob(pattern))
             if matches:
                 return matches[0]
         return None
@@ -361,7 +361,7 @@ class Competition:
 
         if not filepath.exists():
             # Try glob matching
-            matches = list(self.raw_dir.glob(f"*{filename}*"))
+            matches = sorted(self.raw_dir.rglob(f"*{filename}*"))
             if matches:
                 filepath = matches[0]
             else:
