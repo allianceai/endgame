@@ -17,6 +17,9 @@ When the ``tabdpt`` package is not installed, a distance-weighted kNN
 fallback is used so that downstream code can still run (e.g. for testing
 or benchmarking without GPU).
 
+The weights follow the installed ``tabdpt`` version: ``tabdpt>=1.3.1`` gives TabArena's TabDPT-1.3, ``tabdpt``
+1.2.x TabDPT-Turbo, 1.1.x the original TabDPT. ``n_estimators`` is tabdpt's ``n_ensembles`` (8 on TabArena).
+
 References
 ----------
 - Ma et al. "TabDPT: Scaling Tabular Foundation Models" (2024)
@@ -50,6 +53,15 @@ def _check_tabdpt_available():
         return True
     except ImportError:
         return False
+
+
+def _tabdpt_kwargs(device: str) -> dict:
+    """Constructor arguments shared by tabdpt 1.1-1.3, whose constructors take no ``n_estimators``/``random_state``
+    (ensembling and seeding are ``predict``-time arguments). Flash attention needs an Ampere GPU, and TabArena runs
+    with ``compile=False``."""
+    import torch
+    flash = device.startswith("cuda") and torch.cuda.get_device_capability(torch.device(device))[0] >= 8
+    return dict(device=device, use_flash=flash, compile=False, verbose=False)
 
 
 class TabDPTClassifier(ClassifierMixin, BaseEstimator):
@@ -208,11 +220,7 @@ class TabDPTClassifier(ClassifierMixin, BaseEstimator):
             device = self._resolve_device()
 
             try:
-                self._model = tabdpt.TabDPTClassifier(
-                    n_estimators=self.n_estimators,
-                    device=device,
-                    random_state=self.random_state,
-                )
+                self._model = tabdpt.TabDPTClassifier(**_tabdpt_kwargs(device))
                 self._model.fit(X, y_encoded)
             except Exception as exc:
                 warnings.warn(
@@ -243,7 +251,7 @@ class TabDPTClassifier(ClassifierMixin, BaseEstimator):
         X = np.asarray(X, dtype=np.float32)
 
         if self._model is not None:
-            return self._model.predict_proba(X)
+            return self._model.ensemble_predict_proba(X, n_ensembles=self.n_estimators, seed=self.random_state)
 
         return self._fallback_predict_proba(X)
 
@@ -455,11 +463,7 @@ class TabDPTRegressor(RegressorMixin, BaseEstimator):
             device = self._resolve_device()
 
             try:
-                self._model = tabdpt.TabDPTRegressor(
-                    n_estimators=self.n_estimators,
-                    device=device,
-                    random_state=self.random_state,
-                )
+                self._model = tabdpt.TabDPTRegressor(**_tabdpt_kwargs(device))
                 self._model.fit(X, y)
             except Exception as exc:
                 warnings.warn(
@@ -490,7 +494,7 @@ class TabDPTRegressor(RegressorMixin, BaseEstimator):
         X = np.asarray(X, dtype=np.float32)
 
         if self._model is not None:
-            return self._model.predict(X)
+            return self._model.predict(X, n_ensembles=self.n_estimators, seed=self.random_state)
 
         return self._fallback_predict(X)
 

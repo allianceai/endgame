@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- `TabDPTClassifier`/`TabDPTRegressor` never ran TabDPT: they passed `n_estimators`/`random_state` to a constructor no tabdpt release accepts, and the TypeError dropped them to the kNN approximation with only a warning. Ensembling and seeding now go to tabdpt's predict (`n_ensembles`, `seed`; classification through `ensemble_predict_proba`) and flash attention is enabled only on Ampere or newer GPUs. Works with tabdpt 1.1 to 1.3; `tabdpt>=1.3.1` is TabArena's TabDPT-1.3.
 - `TabPFN25Classifier`/`TabPFN25Regressor` pin the requested checkpoint under `tabpfn >= 8` (whose constructor dropped `model_version` and defaults to TabPFN-3); the checkpoint used is recorded as `model_path_`. Previously the `model_version` argument was silently ignored on tabpfn 8.x.
 - Stack passthrough imputation now reuses training statistics; single-patient and batch predictions agree. Unavailable/single-class blocks use an explicit class-prior fallback, with stable patient indices and strict feature schemas.
 - ComBat excludes globally constant features from empirical-Bayes priors, rejects confounded/degenerate designs, and bounds convergence. One-active-feature and failed-prior cases require an explicit plain-adjustment policy. Adjustment reports expose raw passthrough and skipped blocks.
@@ -22,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MLflow's default local URI is `sqlite:///mlruns.db`; existing filesystem stores are not automatically migrated.
 
 ### Added
+- TabArena top-30 models (Oct 2026), all optional imports with install hints, each checked against the real package: `KumoTabularClassifier`/`KumoTabularRegressor` (NVIDIA Kumo-Tabular, TabArena #1; `size="large" | "medium" | "small"`), `LimiX2Classifier`/`LimiX2Regressor`, `MitraClassifier` (Mitra-v2), `iLTMClassifier`/`iLTMRegressor` and `SAPRPTClassifier`/`SAPRPTRegressor` (SAP-RPT-OSS) in `endgame.models.tabular`; the packages' own sklearn estimators `CausiloClassifier`/`CausiloRegressor` and `TabLDMEnhancedClassifier`/`TabLDMEnhancedRegressor` (Xiaomi-TabLDM) re-exported there; `endgame.models.boosters` re-exports ChimeraBoost and CTBoost. `TabPFN25Classifier(model_version="3.5" | "3.5-fast")` selects TabPFN-3.5 (tabpfn >= 9).
 - Tabular foundation-model wrappers `EXAONETabularClassifier` (LG AI Research EXAONE-Tabular 1.0), `TabFMClassifier` (Google TabFM 1.0) and `TabICLClassifier` (TabICL v2), all optional imports with install hints; `TabPFN25Classifier(model_version="3")` selects TabPFN-3.
 - Mandatory scientific CI matrix (Python 3.10–3.12), pinned scientific dependencies, neuroCombat/LightGBM reference checks, and scientific regression tests with numerical runtime warnings treated as errors.
 - [Imaging validation guide](docs/guides/imaging_validation.md) covering new patients, new sites, repeated visits and group inference, including remaining cohort-specific validation gates.

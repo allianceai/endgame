@@ -21,9 +21,38 @@ specifically designed for tabular data:
 - TabDPT: Tabular Discriminative Pre-trained Transformer (in-context learning)
 - RealMLP: Meta-Tuned MLP with Robust Preprocessing (Holzmuller et al., NeurIPS 2024)
 - xRFM: Tree-Structured Recursive Feature Machines (Beaglehole & Holzmuller, 2025)
+- Foundation-model wrappers over optional packages (TabArena top 30, Oct 2026): Kumo-Tabular, LimiX-2, Causilo,
+  Mitra-v2, Xiaomi-TabLDM, iLTM, SAP-RPT-OSS, EXAONE-Tabular, TabFM, TabICL (see ``_LAZY``)
 
 Note: Most models require PyTorch. Install with: pip install endgame-ml[tabular]
 """
+
+# Thin wrappers over optional foundation-model packages (no torch needed at import): name -> module, loaded on access
+_LAZY = {
+    "EXAONETabularClassifier": "exaone",
+    "TabFMClassifier": "tabfm",
+    "TabICLClassifier": "tabicl",
+    "KumoTabularClassifier": "kumo",
+    "KumoTabularRegressor": "kumo",
+    "LimiX2Classifier": "limix",
+    "LimiX2Regressor": "limix",
+    "CausiloClassifier": "causilo",
+    "CausiloRegressor": "causilo",
+    "MitraClassifier": "mitra",
+    "TabLDMEnhancedClassifier": "tabldm",
+    "TabLDMEnhancedRegressor": "tabldm",
+    "iLTMClassifier": "iltm",
+    "iLTMRegressor": "iltm",
+    "SAPRPTClassifier": "sap_rpt",
+    "SAPRPTRegressor": "sap_rpt",
+}
+
+
+def _lazy(name):
+    import importlib
+    globals()[name] = getattr(importlib.import_module(f"endgame.models.tabular.{_LAZY[name]}"), name)
+    return globals()[name]
+
 
 # Check if PyTorch is available
 try:
@@ -83,6 +112,8 @@ if HAS_TORCH:
 
     # Lazy import for GANDALF, TabPFN, and TabTransformer (heavyweight optional dependencies)
     def __getattr__(name):
+        if name in _LAZY:
+            return _lazy(name)
         if name in ("GANDALFClassifier", "GANDALFRegressor"):
             from endgame.models.tabular.gandalf import GANDALFClassifier, GANDALFRegressor
             globals()["GANDALFClassifier"] = GANDALFClassifier
@@ -120,21 +151,10 @@ if HAS_TORCH:
             globals()["xRFMClassifier"] = xRFMClassifier
             globals()["xRFMRegressor"] = xRFMRegressor
             return globals()[name]
-        if name == "EXAONETabularClassifier":
-            from endgame.models.tabular.exaone import EXAONETabularClassifier
-            globals()[name] = EXAONETabularClassifier
-            return EXAONETabularClassifier
-        if name == "TabFMClassifier":
-            from endgame.models.tabular.tabfm import TabFMClassifier
-            globals()[name] = TabFMClassifier
-            return TabFMClassifier
-        if name == "TabICLClassifier":
-            from endgame.models.tabular.tabicl import TabICLClassifier
-            globals()[name] = TabICLClassifier
-            return TabICLClassifier
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     __all__ = [
+        *_LAZY,
         "TabPFNClassifier",
         "TabPFNv2Classifier",
         "TabPFNv2Regressor",
@@ -144,9 +164,6 @@ if HAS_TORCH:
         "TabDPTRegressor",
         "xRFMClassifier",
         "xRFMRegressor",
-        "EXAONETabularClassifier",
-        "TabFMClassifier",
-        "TabICLClassifier",
         "TabTransformerClassifier",
         "TabTransformerRegressor",
         "FTTransformerClassifier",
@@ -210,6 +227,8 @@ else:
     # TabPFN v2/v2.5 and TabDPT wrappers have their own graceful fallback and
     # don't strictly require torch at import time -- lazy-load them.
     def __getattr__(name):
+        if name in _LAZY:
+            return _lazy(name)
         if name in (
             "TabPFNClassifier", "TabPFNv2Classifier", "TabPFNv2Regressor",
             "TabPFN25Classifier", "TabPFN25Regressor",
@@ -237,21 +256,10 @@ else:
             globals()["xRFMClassifier"] = xRFMClassifier
             globals()["xRFMRegressor"] = xRFMRegressor
             return globals()[name]
-        if name == "EXAONETabularClassifier":
-            from endgame.models.tabular.exaone import EXAONETabularClassifier
-            globals()[name] = EXAONETabularClassifier
-            return EXAONETabularClassifier
-        if name == "TabFMClassifier":
-            from endgame.models.tabular.tabfm import TabFMClassifier
-            globals()[name] = TabFMClassifier
-            return TabFMClassifier
-        if name == "TabICLClassifier":
-            from endgame.models.tabular.tabicl import TabICLClassifier
-            globals()[name] = TabICLClassifier
-            return TabICLClassifier
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
     __all__ = [
+        *_LAZY,
         "TabPFNClassifier",
         "TabPFNv2Classifier",
         "TabPFNv2Regressor",
@@ -261,9 +269,6 @@ else:
         "TabDPTRegressor",
         "xRFMClassifier",
         "xRFMRegressor",
-        "EXAONETabularClassifier",
-        "TabFMClassifier",
-        "TabICLClassifier",
         "TabTransformerClassifier",
         "TabTransformerRegressor",
         "FTTransformerClassifier",

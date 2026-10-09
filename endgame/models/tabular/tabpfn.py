@@ -1105,13 +1105,15 @@ class TabPFNv2Regressor(RegressorMixin, BaseEstimator):
 # ---------------------------------------------------------------------------
 
 def _checkpoint_for_version(cls, model_version):
-    """Checkpoint path for a TabPFN model version string ('2.5', '2.5_real', '2.6', '3') under tabpfn >= 8, where the
-    constructor takes ``model_path`` and ``"auto"`` means the newest model (TabPFN-3). Recorded as ``model_path_``."""
+    """Checkpoint path for a TabPFN model version string ('2.5', '2.5_real', '2.6', '3', '3.5', '3.5-fast') under
+    tabpfn >= 8, where the constructor takes ``model_path`` and ``"auto"`` means the newest model (TabPFN-3 on 8.x,
+    TabPFN-3.5 on 9.x). 3.5 and 3.5-fast need tabpfn >= 9. Recorded as ``model_path_``."""
     from tabpfn.constants import ModelVersion
 
-    key = {"2": "V2", "2.5": "V2_5", "2.5_real": "V2_5", "2.6": "V2_6", "3": "V3"}.get(str(model_version))
+    key = {"2": "V2", "2.5": "V2_5", "2.5_real": "V2_5", "2.6": "V2_6", "3": "V3", "3.5": "V3_5",
+           "3.5-fast": "V3_5_FAST"}.get(str(model_version))
     if key is None or not hasattr(ModelVersion, key):
-        raise ValueError(f"Unknown TabPFN model_version {model_version!r}; use one of 2, 2.5, 2.5_real, 2.6, 3")
+        raise ValueError(f"Unknown TabPFN model_version {model_version!r}; use one of 2, 2.5, 2.5_real, 2.6, 3, 3.5, 3.5-fast")
     return cls.create_default_for_version(getattr(ModelVersion, key)).model_path
 
 
@@ -1171,6 +1173,8 @@ class TabPFN25Classifier(ClassifierMixin, BaseEstimator):
         Which TabPFN 2.5 variant to use:
         - ``'2.5_real'``: RealTabPFN-2.5 fine-tuned on real data (recommended)
         - ``'2.5'``: Synthetic-only pre-trained variant
+        - ``'2.6'``, ``'3'``: TabPFN-2.6 / TabPFN-3 (tabpfn >= 8)
+        - ``'3.5'``, ``'3.5-fast'``: TabPFN-3.5 / TabPFN-3.5-Fast (tabpfn >= 9; #4 / #8 on TabArena)
 
     Attributes
     ----------
@@ -1466,6 +1470,8 @@ class TabPFN25Regressor(RegressorMixin, BaseEstimator):
         Which TabPFN 2.5 variant to use:
         - ``'2.5_real'``: RealTabPFN-2.5 fine-tuned on real data (recommended)
         - ``'2.5'``: Synthetic-only pre-trained variant
+        - ``'2.6'``, ``'3'``: TabPFN-2.6 / TabPFN-3 (tabpfn >= 8)
+        - ``'3.5'``, ``'3.5-fast'``: TabPFN-3.5 / TabPFN-3.5-Fast (tabpfn >= 9; #4 / #8 on TabArena)
 
     Attributes
     ----------

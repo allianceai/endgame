@@ -60,6 +60,14 @@ class TestAvailability:
         result2 = _check_tabdpt_available()
         assert result1 == result2
 
+    def test_runs_real_model_when_installed(self, binary_data, regression_data):
+        # The kNN fallback used to swallow a constructor TypeError on every tabdpt version
+        if not _check_tabdpt_available():
+            pytest.skip("tabdpt not installed")
+        X, y = binary_data
+        assert TabDPTClassifier(device="cpu").fit(X, y)._model is not None
+        assert TabDPTRegressor(device="cpu").fit(*regression_data)._model is not None
+
 
 # ---------------------------------------------------------------------------
 # Import from __init__
