@@ -426,6 +426,11 @@ class TestKaggleClientWithoutAuth:
 class TestKaggleClientNotebooks:
     """Notebook methods and kagglesdk field handling, with the Kaggle API mocked."""
 
+    @pytest.fixture(autouse=True)
+    def _kaggle_package(self, monkeypatch):
+        # The API is mocked, so the kaggle package need not be installed (CI has none).
+        monkeypatch.setattr("endgame.kaggle.client.HAS_KAGGLE_LEGACY", True)
+
     def _client(self, api):
         from endgame.kaggle.client import KaggleClient
         client = KaggleClient()

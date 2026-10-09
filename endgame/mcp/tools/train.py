@@ -228,7 +228,6 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                 import pandas as pd
 
                 from endgame.automl.tabular import TabularPredictor
-
                 from endgame.mcp.tools._encoding import identifier_columns
                 dropped = identifier_columns(ds.df.drop(columns=[ds.target_column]))
                 predictor = TabularPredictor(

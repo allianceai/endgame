@@ -4,6 +4,8 @@ These tests exercise the fallback (kNN) code path and validation logic
 without requiring the actual ``tabpfn`` package to be installed.
 """
 
+import importlib.util
+
 import numpy as np
 import pytest
 from sklearn.datasets import make_classification, make_regression
@@ -12,6 +14,14 @@ from endgame.models.tabular.tabpfn import (
     TabPFN25Classifier,
     TabPFN25Regressor,
     _check_tabpfn_25_available,
+    tabpfn_licence_available,
+)
+
+# With tabpfn installed, fitting downloads gated weights: that needs Prior Labs' licence token
+# (TABPFN_TOKEN), which CI does not have. Without tabpfn the kNN fallback runs.
+needs_weights = pytest.mark.skipif(
+    importlib.util.find_spec("tabpfn") is not None and not tabpfn_licence_available(),
+    reason="tabpfn is installed but no licence token (TABPFN_TOKEN) is available",
 )
 
 
@@ -67,6 +77,7 @@ class TestAvailability:
 # TabPFN25Classifier
 # ---------------------------------------------------------------------------
 
+@needs_weights
 class TestTabPFN25Classifier:
     """Tests for the v2.5 classifier (fallback path)."""
 
@@ -270,6 +281,7 @@ class TestTabPFN25Classifier:
 # TabPFN25Regressor
 # ---------------------------------------------------------------------------
 
+@needs_weights
 class TestTabPFN25Regressor:
     """Tests for the v2.5 regressor (fallback path)."""
 

@@ -34,8 +34,8 @@ def _allow_pre_ampere_gpus():
     import torch
     if not torch.cuda.is_available() or torch.cuda.get_device_capability()[0] >= 8:
         return
-    from torch.nn.attention import SDPBackend
     import exaonetabular.model.attention as att
+    from torch.nn.attention import SDPBackend
     if getattr(att, "_endgame_patched", False):
         return
     original = att._select_sdpa_backend

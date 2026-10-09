@@ -121,11 +121,18 @@ def _has_non_numeric(X) -> bool:
     return False
 
 
+def _tabpfn_ready() -> bool:
+    """Only pick TabPFN on the user's behalf when it runs without a licence prompt."""
+    from endgame.models.tabular.tabpfn import tabpfn_licence_available
+
+    return tabpfn_licence_available()
+
+
 def _maybe_prepend_tabpfn25(
     models: list[str], n_samples: int, X=None
 ) -> list[str]:
-    """Prepend TabPFN v2.5 to the model list when the dataset fits."""
-    if n_samples <= _TABPFN25_MAX_SAMPLES and "tabpfn25" not in models:
+    """Prepend TabPFN v2.5 to the model list when the dataset fits and its weights can load."""
+    if n_samples <= _TABPFN25_MAX_SAMPLES and "tabpfn25" not in models and _tabpfn_ready():
         if X is not None and _has_non_numeric(X):
             return models
         return ["tabpfn25"] + models
@@ -143,7 +150,7 @@ def _select_model_for_data(
     has_cats = _has_non_numeric(X)
 
     if task == "classification":
-        if n_samples <= 3000 and n_features <= 100 and not has_cats:
+        if n_samples <= 3000 and n_features <= 100 and not has_cats and _tabpfn_ready():
             return "tabpfn25"
         if n_samples <= 5000 and n_features <= 30:
             return "ebm"

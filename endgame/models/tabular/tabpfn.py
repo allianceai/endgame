@@ -1114,6 +1114,21 @@ class TabPFNv2Regressor(RegressorMixin, BaseEstimator):
 # TabPFN v2.5 wrappers
 # ---------------------------------------------------------------------------
 
+def tabpfn_licence_available() -> bool:
+    """Whether TabPFN can load gated weights without asking: it is installed and either predates
+    Prior Labs' licence gate or finds a token (``TABPFN_TOKEN`` or a cached one). Without one, fitting
+    opens a browser login or raises ``TabPFNLicenseError``. A local check; no network."""
+    try:
+        import tabpfn  # noqa: F401
+    except ImportError:
+        return False
+    try:
+        from tabpfn.browser_auth import get_cached_token
+    except ImportError:
+        return True
+    return bool(get_cached_token())
+
+
 def _raise_if_unlicensed(exc):
     """A model licence the user has not accepted (Prior Labs' one-time acceptance) is not a reason to fall back to
     kNN quietly: re-raise it, its message says how to accept."""

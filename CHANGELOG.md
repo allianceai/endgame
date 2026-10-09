@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-09
+
+### Fixed
+- `eg.quick.classify`, `regress` and `compare` pick TabPFN on their own only when its weights can load without a licence prompt: tabpfn installed and a Prior Labs token available (`TABPFN_TOKEN` or a cached one). In 1.2.0, with tabpfn >= 7 installed and no licence accepted, `quick.classify` on small numeric data raised `TabPFNLicenseError` (or opened a browser login) instead of training another model. A TabPFN model you ask for by name still raises the licence error, whose message says how to accept. New: `endgame.models.tabular.tabpfn.tabpfn_licence_available()`.
+- Tests: the Kaggle client tests run without the kaggle package, and the TabPFN 2.5 tests that download weights skip when tabpfn is installed without a licence token.
+
 ## [1.2.0] - 2026-10-09
 
 ### Fixed
