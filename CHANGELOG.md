@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `KaggleClient.notebook_status` and the MCP tool `kaggle_notebook_status`: whether a pushed notebook's Kaggle run is queued, running, complete or failed, its failure message and log, and optionally its output files.
+
 ## [1.2.1] - 2026-10-09
 
 ### Fixed

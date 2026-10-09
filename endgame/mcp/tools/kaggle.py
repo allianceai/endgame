@@ -1,4 +1,4 @@
-"""Kaggle tools: kaggle_competition, kaggle_download, kaggle_notebooks, kaggle_read_notebook, kaggle_push_notebook."""
+"""Kaggle tools: kaggle_competition, kaggle_download, kaggle_notebooks, kaggle_read_notebook, kaggle_push_notebook, kaggle_notebook_status."""
 
 from __future__ import annotations
 
@@ -118,15 +118,38 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         title: str,
         competition: str | None = None,
         public: bool = False,
+        enable_internet: bool = False,
     ) -> str:
-        """Upload a local .ipynb/.py to Kaggle and run it there with the competition's data attached. Private unless public=True; pushing the same title adds a version."""
+        """Upload a local .ipynb/.py to Kaggle and run it there with the competition's data attached (under /kaggle/input/).
+        Private unless public=True; pushing the same title adds a version. enable_internet=True lets it pip install packages.
+        Follow the run with kaggle_notebook_status."""
         try:
             with capture_stdout():
                 from endgame.kaggle import KaggleClient
 
-                result = KaggleClient().push_notebook(code_file, title, competition=competition, public=public)
+                result = KaggleClient().push_notebook(
+                    code_file, title, competition=competition, public=public, enable_internet=enable_internet
+                )
                 if result["error"]:
                     return error_response("kaggle", result["error"])
                 return ok_response({**result, "public": public})
+        except Exception as e:
+            return error_response("internal", str(e))
+
+    @mcp.tool()
+    def kaggle_notebook_status(ref: str, output_dir: str | None = None, max_log_chars: int = 20000) -> str:
+        """Check a notebook's latest Kaggle run ('owner/slug'): queued, running, complete or error, plus the end of its log once
+        finished. Pass output_dir to also download the files the run wrote."""
+        try:
+            with capture_stdout():
+                from endgame.kaggle import KaggleClient
+
+                result = KaggleClient().notebook_status(ref, output_dir=output_dir)
+                log = result.pop("log")
+                return ok_response({
+                    **result,
+                    "log_chars": len(log),
+                    "log_tail": log[-max_log_chars:],
+                })
         except Exception as e:
             return error_response("internal", str(e))

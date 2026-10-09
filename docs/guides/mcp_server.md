@@ -194,7 +194,7 @@ User: "Build a classifier to predict loan defaults"
 | `detect_anomalies` | Outlier detection: `isolation_forest`, `lof`, `elliptic_envelope`. |
 | `forecast` | Time series forecasting: `auto`/`arima`, `ets`, `theta`, `naive`. |
 
-### Kaggle (5 tools)
+### Kaggle (6 tools)
 
 Uses your Kaggle API credentials (`~/.kaggle/`). Joining a competition and accepting its rules happens on kaggle.com; there is no API for it.
 
@@ -205,6 +205,7 @@ Uses your Kaggle API credentials (`~/.kaggle/`). Joining a competition and accep
 | `kaggle_notebooks` | List a competition's public notebooks, hottest first (or by votes, date, score). |
 | `kaggle_read_notebook` | Read a public notebook as markdown plus fenced code, without outputs. |
 | `kaggle_push_notebook` | Upload a local `.ipynb`/`.py` and run it on Kaggle with the competition data attached. Private unless `public=True`. |
+| `kaggle_notebook_status` | Whether a pushed notebook's run is queued, running, complete or failed, with the end of its log; optionally downloads its output files. |
 
 ## Resources Reference
 

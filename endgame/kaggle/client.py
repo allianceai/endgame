@@ -940,6 +940,54 @@ class KaggleClient:
             "error": resp.error or "",
         }
 
+    def notebook_status(self, ref: str, output_dir: str | Path | None = None) -> dict[str, Any]:
+        """Status of a notebook's latest run on Kaggle and, once it has finished, its log.
+
+        Parameters
+        ----------
+        ref : str
+            Notebook reference, 'owner/slug' (a full kaggle.com/code URL also works).
+        output_dir : str or Path, optional
+            Where to save the run's output files; a temporary folder when not given.
+
+        Returns
+        -------
+        Dict[str, Any]
+            'status' ('queued', 'running', 'complete', 'error', ...), 'failure_message',
+            'output_files' (saved paths, if output_dir was given) and 'log' (the run's
+            stdout/stderr text, empty until the run ends).
+        """
+        import json
+        import tempfile
+
+        ref = ref.split("kaggle.com/code/")[-1].strip("/")
+        response = self.legacy_api.kernels_status(ref)
+        status = _get(response, 'status')
+        status = getattr(status, 'name', str(status)).lower()
+        result = {
+            "ref": ref,
+            "status": status,
+            "failure_message": _get(response, 'failureMessage') or "",
+            "output_files": [],
+            "log": "",
+        }
+        if status not in ("complete", "error"):
+            return result
+
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(output_dir) if output_dir else Path(tmp)
+            files, _ = self.legacy_api.kernels_output(ref, path=str(target), force=True)
+            log_file = target / f"{ref.split('/')[-1]}.log"
+            if log_file.exists():
+                raw = log_file.read_text()
+                try:  # Kaggle stores the log as JSON stream records
+                    result["log"] = "".join(r.get("data", "") for r in json.loads(raw))
+                except (ValueError, AttributeError):
+                    result["log"] = raw
+            if output_dir:
+                result["output_files"] = [str(f) for f in files]
+        return result
+
     # Dataset methods
 
     def list_datasets(

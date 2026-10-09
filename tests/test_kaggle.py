@@ -533,3 +533,32 @@ class TestKaggleClientNotebooks:
 
         assert (out / "a.csv").read_text() == "x" and (out / "sub" / "b.csv").read_text() == "y"
         assert (out / "a.csv").stat().st_ino == (cache / "a.csv").stat().st_ino
+
+    def test_notebook_status_reads_the_finished_run_log(self, tmp_path):
+        import enum
+        from types import SimpleNamespace
+
+        class Status(enum.Enum):
+            RUNNING = 1
+            ERROR = 3
+
+        def output(ref, path, force):
+            Path(path, "starter.log").write_text(json.dumps(
+                [{"stream_name": "stdout", "data": "loading\n"}, {"stream_name": "stderr", "data": "Traceback ...\n"}]))
+            Path(path, "summary.json").write_text("{}")
+            return [str(Path(path, "summary.json"))], "ok"
+
+        api = MagicMock()
+        api.kernels_output.side_effect = output
+        client = self._client(api)
+
+        api.kernels_status.return_value = SimpleNamespace(status=Status.RUNNING, failure_message="")
+        running = client.notebook_status("me/starter")
+        assert running["status"] == "running" and running["log"] == ""
+        api.kernels_output.assert_not_called()
+
+        api.kernels_status.return_value = SimpleNamespace(status=Status.ERROR, failure_message="boom")
+        done = client.notebook_status("https://www.kaggle.com/code/me/starter", output_dir=tmp_path)
+        assert done["status"] == "error" and done["failure_message"] == "boom"
+        assert done["log"] == "loading\nTraceback ...\n"
+        assert done["output_files"] == [str(tmp_path / "summary.json")]
