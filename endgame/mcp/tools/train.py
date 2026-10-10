@@ -251,13 +251,16 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         group_column: str | None = None,
         params: str | dict | None = None,
         metric: str = "auto",
+        time_limit: int = 1500,
     ) -> str:
         """Train several models on the same folds and rank them by metric (auto: r2, or roc_auc; also rmse, mae,
         accuracy, f1, log_loss, roc_auc_ovr; lower-is-better metrics rank ascending); each is stored with its out-of-fold predictions,
         so ensemble(model_ids) can combine them. models: registry keys or class paths; default: what
         recommend_models picks for this table and time_budget (GBDTs, tabular foundation models such as
         Kumo-Tabular / LimiX / TabPFN, more families with a bigger budget, and a linear baseline).
-        params: {"model_name": {overrides}}. A model that fails is reported, not fatal."""
+        params: {"model_name": {overrides}}. A model that fails is reported, not fatal. time_limit (seconds, default
+        1500): no new model starts after it, so one call stays inside an MCP client's call timeout; models not
+        started are listed in not_run to pass to another call."""
         try:
             ds = session.get_dataset(dataset_id)
             per_model = _parse_params(params)
@@ -268,8 +271,12 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     n_features = ds.df.shape[1] - 1
                     models = [r["name"] for r in recommend_portfolio(task, len(ds.df), n_features,
                                                                      time_budget)["recommended"]]
-                results, failures = [], []
+                results, failures, not_run = [], [], []
+                started = _time.time()
                 for name in models:
+                    if (results or failures) and _time.time() - started > time_limit:  # always try one
+                        not_run.append(name)
+                        continue
                     try:
                         _, response = _train_one(session, dataset_id, name, per_model.get(name, {}), cv_folds,
                                                  time_ordered, group_column)
@@ -292,7 +299,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                            for i, r in enumerate(results)]
             return ok_response({
                 "dataset": ds.name, "ranked_by": key, "cv": results[0]["cv"] if results else None,
-                "cv_folds": cv_folds, "leaderboard": leaderboard, "failed": failures,
+                "cv_folds": cv_folds, "leaderboard": leaderboard, "failed": failures, "not_run": not_run,
                 "next": "ensemble(model_ids=[top model_ids]) combines their out-of-fold predictions"
                         if len(results) > 1 else "",
             })
