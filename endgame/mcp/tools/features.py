@@ -60,10 +60,13 @@ def _signal_aggs(fs: float) -> dict:
 
 
 AGGREGATIONS_HELP = (
-    "mean, std, var, min, max, median, sum, count, nunique, first, last, skew, kurt, range, iqr, q05..q95 "
-    "(any qNN), and signal features (order rows with order_by; sampling rate fs, default 10 Hz): rms, "
-    "line_length, zero_crossings, sample_entropy, permutation_entropy, svd_entropy, spectral_entropy, "
-    "higuchi_fd, katz_fd, hurst, dfa, lempel_ziv, hjorth_mobility, hjorth_complexity, dominant_freq, autocorr1"
+    "mean, std, var, min, max, median, sum, count, nunique, first, last, skew, kurt, range, iqr, quantiles "
+    "as qNN (e.g. q10, q90; pick a few), and signal features (order rows with order_by; sampling rate fs, "
+    "default 10 Hz): rms, line_length, zero_crossings, sample_entropy, permutation_entropy, svd_entropy, "
+    "spectral_entropy, higuchi_fd, katz_fd, hurst, dfa, lempel_ziv, hjorth_mobility, hjorth_complexity, "
+    "dominant_freq, autocorr1. Signal features describe one continuous recording: with within=['event_id'] "
+    "they are computed per recording and then averaged per entity. Every column x aggregation is one feature: "
+    "choose the few that answer the question."
 )
 
 
@@ -123,8 +126,11 @@ def _engineer(session: SessionManager, ds, df: pd.DataFrame, op: dict) -> tuple[
         numeric = [c for c in src.select_dtypes(include="number").columns if c not in by and c != target]
         columns = _as_list(op.get("columns")) or numeric
         aggs = _as_list(op.get("aggs")) or ["mean", "std", "min", "max"]
-        agg_df = _aggregate(src, by, columns, aggs, op.get("prefix", ""), op.get("order_by"),
+        within = _as_list(op.get("within"))
+        agg_df = _aggregate(src, by + within, columns, aggs, op.get("prefix", ""), op.get("order_by"),
                             float(op.get("fs", 10.0)))
+        if within:  # one row per recording -> the mean over an entity's recordings
+            agg_df = agg_df.drop(columns=within).groupby(by, sort=False, observed=True).mean().reset_index()
         if source_id and source_id != ds.id:
             missing = [k for k in by if k not in df.columns]
             if missing:
@@ -339,8 +345,9 @@ def _selection_matrix(ds) -> tuple[pd.DataFrame, pd.Series, list[str]]:
 
 ENGINEER_DOC = """Build features; returns a new dataset. operations: list of dicts applied in order, each with a "type":
         - aggregate: per-entity stats of a long table, joined on: {"type":"aggregate","source":"<long ds id>",
-          "by":["player_id"],"columns":["s","a"],"aggs":["mean","max","q90","sample_entropy"],"filter":"drill=='x'",
-          "order_by":"time","fs":10,"prefix":"x_"}. Without "source" the dataset itself collapses to one row per key.
+          "by":["player_id"],"within":["event_id"],"columns":["s","a"],"aggs":["mean","max","q90","sample_entropy"],
+          "filter":"drill=='x'","order_by":"time","fs":10,"prefix":"x_"}. Without "source" the dataset itself
+          collapses to one row per key.
           Aggs: {aggs}.
         - join: {"type":"join","other":"<ds id>","on":["player_id"],"how":"left","columns":[...]}
         - group_normalize: {"type":"group_normalize","by":"position","columns":[...],"method":"zscore|rank|diff_mean|ratio_mean"}
@@ -374,7 +381,9 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     "n_new_columns": len(new_cols), "new_columns": new_cols[:60], "warnings": warnings,
                 })
         except MCPTimeoutError as e:
-            return error_response("timeout", str(e))
+            return error_response("timeout", str(e), hint="Ask for fewer columns x aggregations (each pair is a "
+                                  "feature), compute signal features per recording with within=[...], or split the "
+                                  "operations over several calls.")
         except (KeyError, ValueError) as e:
             return error_response("validation", str(e))
         except json.JSONDecodeError:

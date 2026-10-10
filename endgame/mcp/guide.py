@@ -58,10 +58,14 @@ TOPICS = {
     "features": """\
 # Feature engineering (engineer_features; operations run in order on one dataset)
 - aggregate: per-entity statistics of a long table (e.g. 10 Hz tracking frames per player):
-  {"type": "aggregate", "source": "<long ds>", "by": ["player_id"], "columns": ["speed", "accel"],
-   "aggs": ["mean", "max", "std", "q90", "sample_entropy", "higuchi_fd"], "filter": "drill == 'shuttle'",
-   "prefix": "shuttle_"}. Signal aggregations come from endgame.signal (entropy, fractal dimension,
-   Hjorth, RMS, line length, zero crossings, dominant frequency).
+  {"type": "aggregate", "source": "<long ds>", "by": ["player_id"], "within": ["attempt_id"],
+   "columns": ["speed", "accel"], "aggs": ["mean", "max", "q90", "sample_entropy", "higuchi_fd"],
+   "filter": "drill == 'shuttle'", "order_by": "time", "prefix": "shuttle_"}.
+  Signal aggregations (endgame.signal: entropy, fractal dimension, Hjorth, RMS, line length, zero crossings,
+  dominant frequency) describe one continuous recording: "within" computes them per recording (attempt,
+  session) and averages per entity; without it, an entity's recordings are joined end to end.
+  Each column x aggregation is one feature: start with a few that answer the question, add more only if
+  they earn their place (with ~500 rows, thousands of features is noise).
 - join: {"type": "join", "other": "<ds>", "on": ["player_id"], "how": "left"}
 - group_normalize: z-score / percentile rank / difference from group mean within a group (position, site,
   season): {"type": "group_normalize", "by": "position", "columns": [...], "method": "zscore"}

@@ -929,6 +929,18 @@ class TestAgentToolkit:
         got = self._call(server, "inspect_data", dataset_id=out["dataset_id"], operation="head")["head"][0]
         assert got["dash_speed_mean"] == pytest.approx(expected.loc[got["player_id"]])
 
+    def test_signal_features_per_recording_then_per_entity(self, server, tables):
+        players = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")
+        frames = self._call(server, "load_data", source=str(tables / "frames.csv"))
+        out = self._call(server, "engineer_features", dataset_id=players["dataset_id"], operations=[
+            {"type": "aggregate", "source": frames["dataset_id"], "by": ["player_id"], "within": ["drill"],
+             "columns": ["speed"], "aggs": ["max", "sample_entropy"], "order_by": "time"}])
+        assert out["status"] == "ok" and out["new_columns"] == ["speed_max", "speed_sample_entropy"], out
+        df = pd.read_csv(tables / "frames.csv")
+        expected = df.groupby(["player_id", "drill"])["speed"].max().groupby("player_id").mean()
+        got = self._call(server, "inspect_data", dataset_id=out["dataset_id"], operation="head")["head"][0]
+        assert got["speed_max"] == pytest.approx(expected.loc[got["player_id"]])
+
     def test_select_compare_and_ensemble(self, server, tables):
         players = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")
         frames = self._call(server, "load_data", source=str(tables / "frames.csv"))

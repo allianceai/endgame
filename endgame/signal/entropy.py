@@ -78,22 +78,18 @@ def _count_neighbors(embedded: np.ndarray, r: float, metric: str = "chebyshev") 
     Returns
     -------
     int
-        Number of pairs within distance r.
+        Number of pairs (i < j) at distance strictly below r.
     """
+    from scipy.spatial import cKDTree
+
+    # A KD-tree counts the pairs in about n log n; the double loop it replaces took 7 s on 1,500 points
+    # (Oct 9: sample entropy of 10 Hz tracking per player ran for hours). count_neighbors counts ordered
+    # pairs with distance <= r, self-pairs included; nextafter makes the bound strict.
     n = len(embedded)
-    count = 0
-
-    for i in range(n - 1):
-        for j in range(i + 1, n):
-            if metric == "chebyshev":
-                dist = np.max(np.abs(embedded[i] - embedded[j]))
-            else:
-                dist = np.sqrt(np.sum((embedded[i] - embedded[j]) ** 2))
-
-            if dist < r:
-                count += 1
-
-    return count
+    tree = cKDTree(np.asarray(embedded, dtype=float))
+    p = np.inf if metric == "chebyshev" else 2.0
+    within = tree.count_neighbors(tree, np.nextafter(r, 0), p=p)
+    return int((within - n) // 2)
 
 
 def permutation_entropy(
@@ -264,12 +260,11 @@ def approximate_entropy(
         embedded = _embed(x, m, 1)
         n_vec = len(embedded)
 
-        # Count matches including self-matches
-        counts = np.zeros(n_vec)
-        for i in range(n_vec):
-            for j in range(n_vec):
-                if np.max(np.abs(embedded[i] - embedded[j])) < r:
-                    counts[i] += 1
+        # Matches of each template (itself included) at Chebyshev distance < r, via a KD-tree
+        from scipy.spatial import cKDTree
+
+        tree = cKDTree(np.asarray(embedded, dtype=float))
+        counts = tree.query_ball_point(embedded, np.nextafter(r, 0), p=np.inf, return_length=True)
 
         # Normalize and compute mean log
         return np.mean(np.log(counts / n_vec))
