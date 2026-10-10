@@ -250,8 +250,10 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
         time_ordered: bool = False,
         group_column: str | None = None,
         params: str | dict | None = None,
+        metric: str = "auto",
     ) -> str:
-        """Train several models on the same folds and rank them; each is stored with its out-of-fold predictions,
+        """Train several models on the same folds and rank them by metric (auto: r2, or roc_auc; also rmse, mae,
+        accuracy, f1, log_loss, roc_auc_ovr; lower-is-better metrics rank ascending); each is stored with its out-of-fold predictions,
         so ensemble(model_ids) can combine them. models: registry keys or class paths; default: what
         recommend_models picks for this table and time_budget (GBDTs, tabular foundation models such as
         Kumo-Tabular / LimiX / TabPFN, more families with a bigger budget, and a linear baseline).
@@ -276,10 +278,15 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                         failures.append({"model_name": name, "error": f"{type(e).__name__}: {str(e)[:300]}"})
 
             regression = ds.task_type == "regression"
-            key = "r2" if regression else next(
-                (k for k in ("roc_auc", "roc_auc_ovr", "accuracy") if results and k in results[0]["metrics"]),
-                "accuracy")
-            results.sort(key=lambda r: r["metrics"].get(key, float("-inf")), reverse=True)
+            available = results[0]["metrics"] if results else {}
+            if metric != "auto" and results and metric not in available:
+                return error_response("validation", f"metric '{metric}' is not computed for this task",
+                                      hint=f"One of: {', '.join(available)}")
+            key = metric if metric != "auto" else ("r2" if regression else next(
+                (k for k in ("roc_auc", "roc_auc_ovr", "accuracy") if k in available), "accuracy"))
+            lower_better = key in ("rmse", "mae", "log_loss")
+            results.sort(key=lambda r: r["metrics"].get(key, float("inf") if lower_better else float("-inf")),
+                         reverse=not lower_better)
             leaderboard = [{"rank": i + 1, "model_id": r["model_id"], "model_name": r["model_name"],
                             "display_name": r["display_name"], **r["metrics"], "fit_time": r["fit_time"]}
                            for i, r in enumerate(results)]

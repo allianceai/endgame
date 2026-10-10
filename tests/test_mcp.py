@@ -953,6 +953,10 @@ class TestAgentToolkit:
                           models=["lgbm", "linear", "knn", "no_such_model"], cv_folds=3)
         assert comp["status"] == "ok" and len(comp["leaderboard"]) == 3, comp
         assert comp["failed"][0]["model_name"] == "no_such_model"
+        by_loss = self._call(server, "compare_models", dataset_id=sel["dataset_id"], models=["lgbm", "linear"],
+                             cv_folds=3, metric="log_loss")
+        losses = [r["log_loss"] for r in by_loss["leaderboard"]]
+        assert by_loss["ranked_by"] == "log_loss" and losses == sorted(losses)
         ids = [r["model_id"] for r in comp["leaderboard"]]
         for method in ("hill_climbing", "stacking", "mean"):
             ens = self._call(server, "ensemble", model_ids=ids, method=method)

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `endgame.signal.sample_entropy` and `approximate_entropy` counted template matches with a Python double loop: 7 s on 1,500 points, hours for per-player tracking series. They use a KD-tree now (7 ms and 17 ms on 1,500 points) with identical results.
 
 ### Added
+- MCP `compare_models` takes `metric` (rmse, mae, log_loss rank ascending); it ranked by R² or AUC only.
 - MCP `engineer_features` aggregate takes `within` (e.g. `["event_id"]`): signal features are computed per continuous recording and averaged per entity, instead of over an entity's recordings joined end to end. Its help names a few quantiles (`q10`, `q90`) instead of a `q05..q95` range an agent read as all nineteen, and a timeout says what to cut.
 
 ## [1.3.0] - 2026-10-09
