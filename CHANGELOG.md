@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- MCP `export_script` wrote a random 80/20 split whatever validation the model was scored with, so a model scored on grouped or time-ordered folds exported a script that could not reproduce its number. The script now reruns the same folds (grouped, time-ordered or shuffled), the same feature columns (identifiers and the group column left out), the same encoding and the same model construction, and prints the metrics the server reported. Estimators given by class path or from `run_python` export as their own class instead of a placeholder `GradientBoostingClassifier`, and regression scripts no longer call `mean_squared_error(squared=False)`, which current scikit-learn removed.
+- MCP datasets built during a session (engineered, selected, split, `run_python`) lived only in the server's memory, so a restart lost them mid-experiment. They are saved as parquet under `ENDGAME_MCP_WORKDIR/datasets/` and keep their ids across restarts; datasets read with `load_data` are not saved (their file is their record), nor are tables over 2 GB in memory; saved copies older than a week are removed. `export_script` reads a derived dataset from its saved copy.
+- MCP guidance no longer tells agents to build grouped folds in `run_python`: `train_model` and `compare_models` take `group_column`.
+
 ## [1.3.1] - 2026-10-10
 
 ### Fixed

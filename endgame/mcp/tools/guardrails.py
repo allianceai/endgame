@@ -59,6 +59,8 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                         ds.df = pd.concat([X_clean, y], axis=1)
                     else:
                         ds.df = X_clean
+                    if ds.path:
+                        session.save_dataset(ds)
 
                 result = report.to_dict()
                 if fix:

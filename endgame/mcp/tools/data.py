@@ -104,6 +104,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
                     target_column=tc,
                     task_type=task_type,
                     meta_features=meta,
+                    save=False,
                 )
 
                 return ok_response({

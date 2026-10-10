@@ -6,7 +6,11 @@ calls using short IDs (e.g., ``ds_a1b2c3d4``, ``model_e5f6g7h8``).
 
 from __future__ import annotations
 
+import json
 import os
+import re
+import sys
+import time
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -30,6 +34,7 @@ class DatasetArtifact:
     task_type: str | None = None
     meta_features: dict | None = None
     feature_names: list[str] | None = None
+    path: str | None = None  # parquet copy on disk (derived datasets), so the id survives a server restart
 
 
 @dataclass
@@ -73,6 +78,15 @@ class SessionManager:
         wd = os.environ.get("ENDGAME_MCP_WORKDIR", "/tmp/endgame_mcp")
         self.working_dir = Path(wd)
         self.working_dir.mkdir(parents=True, exist_ok=True)
+        self.data_dir = self.working_dir / "datasets"
+        self.data_dir.mkdir(exist_ok=True)
+        week_ago = time.time() - 7 * 86400
+        for f in self.data_dir.iterdir():
+            try:
+                if f.stat().st_mtime < week_ago:
+                    f.unlink()
+            except FileNotFoundError:  # another server pruned it first
+                pass
 
     # -- datasets ---------------------------------------------------------
 
@@ -84,7 +98,9 @@ class SessionManager:
         target_column: str | None = None,
         task_type: str | None = None,
         meta_features: dict | None = None,
+        save: bool = True,
     ) -> DatasetArtifact:
+        """Register a dataset. ``save=False`` for one read straight from a file: its source is its record."""
         ds_id = _short_id("ds")
         feature_names = [c for c in df.columns if c != target_column]
         art = DatasetArtifact(
@@ -98,13 +114,45 @@ class SessionManager:
             feature_names=feature_names,
         )
         self.datasets[ds_id] = art
+        if save:
+            self.save_dataset(art)
         return art
+
+    # ponytail: tables over 2 GB in memory stay in memory only; the disk here is nearly full
+    MAX_SAVE_BYTES = 2_000_000_000
+
+    def save_dataset(self, art: DatasetArtifact) -> None:
+        """Write a parquet copy so the dataset id still resolves after the server restarts.
+
+        Oct 10: HALIE's player-filtered tracking table existed only in a server that was restarted mid-goal, so
+        later steps and the runbook could not find it.
+        """
+        path = self.data_dir / f"{art.id}.parquet"
+        try:
+            if art.df.memory_usage(deep=False).sum() > self.MAX_SAVE_BYTES:
+                return
+            meta = {k: getattr(art, k) for k in ("name", "source", "target_column", "task_type", "meta_features")}
+            path.with_suffix(".json").write_text(json.dumps(meta, default=str))
+            tmp = path.with_suffix(".tmp")
+            art.df.to_parquet(tmp)
+            tmp.replace(path)
+            art.path = str(path)
+        except Exception as e:  # saving is a convenience; the dataset is still usable in memory
+            print(f"endgame: dataset {art.id} not saved to disk: {e}", file=sys.stderr)
 
     def get_dataset(self, dataset_id: str) -> DatasetArtifact:
         if dataset_id not in self.datasets:
-            available = list(self.datasets.keys())
-            raise KeyError(
-                f"Dataset '{dataset_id}' not found. Available: {available}"
+            path = self.data_dir / f"{dataset_id}.parquet"
+            if not (re.fullmatch(r"ds_[0-9a-f]{8}", dataset_id) and path.exists()):
+                raise KeyError(
+                    f"Dataset '{dataset_id}' not found. Available: {list(self.datasets)}. "
+                    "Datasets read straight from a file are not kept across server restarts: load_data it again."
+                )
+            meta = json.loads(path.with_suffix(".json").read_text())
+            df = pd.read_parquet(path)
+            self.datasets[dataset_id] = DatasetArtifact(
+                id=dataset_id, df=df, path=str(path),
+                feature_names=[c for c in df.columns if c != meta["target_column"]], **meta,
             )
         return self.datasets[dataset_id]
 
@@ -188,6 +236,7 @@ class SessionManager:
                     "shape": list(ds.df.shape),
                     "target_column": ds.target_column,
                     "task_type": ds.task_type,
+                    "path": ds.path,
                 }
                 for ds_id, ds in self.datasets.items()
             },

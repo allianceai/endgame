@@ -20,6 +20,12 @@ from endgame.mcp.codegen import generate_script
 # Fixtures
 # ---------------------------------------------------------------------------
 
+@pytest.fixture(autouse=True)
+def _workdir(tmp_path, monkeypatch):
+    """Saved datasets and exported scripts go to the test's own directory."""
+    monkeypatch.setenv("ENDGAME_MCP_WORKDIR", str(tmp_path / "mcp"))
+
+
 @pytest.fixture
 def session():
     """Create a fresh session manager."""
@@ -975,6 +981,39 @@ class TestAgentToolkit:
         assert out["status"] == "ok", out
         assert out["cv"] == "grouped by position" and out["n_features"] == 2   # neither position nor the id
         assert out["dropped_columns"] == ["player_id"]
+
+    def test_derived_datasets_survive_a_server_restart(self, server, tables):
+        """Oct 10: a restart mid-goal lost HALIE's filtered tracking table; later steps could not find it."""
+        from endgame.mcp.server import create_server
+
+        raw = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]
+        wr = self._call(server, "run_python", code=f"add_dataset(dataset({raw!r}).query('position == \"WR\"'), 'wr')")
+        derived = wr["result"].strip("'")
+        restarted = create_server()
+        out = self._call(restarted, "inspect_data", dataset_id=derived)
+        assert out["status"] == "ok" and out["shape"][1] == 5, out
+        gone = self._call(restarted, "inspect_data", dataset_id=raw)
+        assert gone["status"] == "error" and "load_data" in gone["message"]
+        assert self._call(restarted, "inspect_data", dataset_id="../../etc/passwd")["status"] == "error"
+
+    @pytest.mark.parametrize("model_name", ["lgbm", "sklearn.linear_model.LogisticRegression"])
+    def test_exported_script_reproduces_the_grouped_cv_score(self, server, tables, model_name, tmp_path):
+        """Oct 10: export_script wrote an 80/20 split for a model scored on leave-one-draft-class-out folds."""
+        import re
+        import subprocess
+        import sys
+
+        raw = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]
+        ds = self._call(server, "run_python", code=f"add_dataset(dataset({raw!r}), 'players', target='fast')")
+        ds = ds["result"].strip("'")
+        trained = self._call(server, "train_model", dataset_id=ds, model_name=model_name, cv_folds=3,
+                             group_column="position", params={"max_iter": 500} if "." in model_name else None)
+        assert trained["status"] == "ok", trained
+        script = self._call(server, "export_script", model_id=trained["model_id"])["script_path"]
+        run = subprocess.run([sys.executable, script], capture_output=True, text=True, cwd=tmp_path, timeout=300)
+        assert run.returncode == 0, run.stderr[-2000:]
+        printed = float(re.search(r"Accuracy: ([\d.]+)", run.stdout).group(1))
+        assert printed == trained["metrics"]["accuracy"], (run.stdout, trained["metrics"])
 
     def test_transform_data_with_any_transformer(self, server, tables):
         ds = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]

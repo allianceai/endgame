@@ -10,8 +10,8 @@ Work in this order and report every step's evidence:
 
 1. Frame: what one row is, what the target is, what will be known at prediction time.
    Pick validation that matches the data: time-ordered rows -> train_model(time_ordered=True);
-   repeated entities (players, patients, sites) -> grouped folds (run_python with
-   endgame.validation.StratifiedGroupKFold); a fixed future test set -> split_data or a held-out file.
+   repeated entities (players, patients, sites) -> grouped folds (train_model / compare_models with
+   group_column=...); a fixed future test set -> split_data or a held-out file.
 2. Inspect and guard: inspect_data, check_data_quality (leakage, IDs, constants). For a separate
    test/production table, check train/test drift (endgame.validation.AdversarialValidator via run_python).
 3. Baseline: train_model with "linear" and "lgbm". Everything later must beat these on the same folds.
@@ -32,7 +32,8 @@ Work in this order and report every step's evidence:
 9. Explain and check: explain_model, partial dependence, fairness by group (endgame.fairness) when people
    are scored.
 10. Report honestly: the validation scheme, every comparison tried (not just the winner), uncertainty,
-    and nulls. export_script / save_model for reproducibility.
+    and nulls. export_script writes a script that reruns the same folds and prints the same metrics;
+    save_model keeps the fitted model.
 
 Anything without a dedicated tool: describe_api("endgame.module.Name") for its signature, then
 transform_data (any transformer), train_model(model_name="endgame.module.ClassName") (any estimator) or
@@ -45,8 +46,8 @@ TOPICS = {
     "workflow": WORKFLOW,
     "validation": """\
 # Validation
-- Shuffled K-fold only when rows are independent. Same entity in many rows -> grouped folds
-  (StratifiedGroupKFold, RepeatedStratifiedGroupKFold). Time order -> train_model(time_ordered=True), or
+- Shuffled K-fold only when rows are independent. Same entity in many rows -> grouped folds:
+  train_model / compare_models(group_column=...) (RepeatedStratifiedGroupKFold via run_python for repeats). Time order -> train_model(time_ordered=True), or
   PurgedTimeSeriesSplit / CombinatorialPurgedKFold with an embargo when labels overlap in time.
   Panels (entity x time) -> PurgedPanelSplit.
 - NestedCV when you tune and need an unbiased score.
@@ -142,5 +143,7 @@ Runs Python in this server's session. Available names: eg (endgame), np, pd, pl 
 - session: the raw session (datasets, models)
 Variables persist between calls. Print what you want to see; the value of a final expression is
 returned too. Long output is truncated.
+Datasets made by tools or add_dataset are saved as parquet (their "path" in endgame://session/state) and keep
+their ids if the server restarts; datasets read with load_data are not saved: load them again.
 """,
 }

@@ -223,7 +223,7 @@ Integer columns named like an id (`player_id`, `nfl_id`, `ID`) with a different 
 
 | Tool | Purpose |
 |------|---------|
-| `export_script` | Generate a standalone Python script reproducing the pipeline. |
+| `export_script` | Generate a standalone Python script that reruns the model's own cross-validation (same folds, features, encoding) and prints the metrics the server reported. |
 | `save_model` | Save trained model to disk (`.egm` format). |
 
 ### Advanced (3 tools)
