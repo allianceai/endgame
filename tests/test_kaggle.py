@@ -479,6 +479,24 @@ class TestKaggleClientNotebooks:
         assert nb["source"] == "# Intro\n\n```python\nx = 1\n```"
         assert nb["data_sources"]["competitions"] == ["titanic"]
 
+    def test_notebook_outputs_returns_what_it_printed(self, tmp_path):
+        """Oct 10: the source has no cell outputs; an agent replicating a notebook saw its prose but not its numbers."""
+        def output(ref, path, force):
+            log = Path(path, "audit.log")
+            log.write_text(json.dumps([{"stream_name": "stderr", "data": "warning\n"},
+                                       {"stream_name": "stdout", "data": "10-to-40 r = 0.95\n"}]))
+            Path(path, "headline.json").write_text("{}")
+            return [str(Path(path, "headline.json")), str(log)], ""
+
+        api = MagicMock()
+        api.kernels_output.side_effect = output
+        client = self._client(api)
+        out = client.notebook_outputs("https://www.kaggle.com/code/someone/audit")
+        assert out["printed"] == "10-to-40 r = 0.95\n"
+        assert [f["name"] for f in out["files"]] == ["headline.json"] and "path" not in out["files"][0]
+        saved = client.notebook_outputs("someone/audit", output_dir=tmp_path)
+        assert saved["files"][0]["path"] == str(tmp_path / "headline.json")
+
     def test_push_notebook_writes_private_metadata(self, tmp_path):
         from types import SimpleNamespace
         seen = {}

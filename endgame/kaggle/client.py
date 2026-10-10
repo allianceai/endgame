@@ -871,6 +871,47 @@ class KaggleClient:
             "source": raw,
         }
 
+    def notebook_outputs(self, ref: str, output_dir: str | Path | None = None) -> dict[str, Any]:
+        """What a notebook printed on its latest run, and the files it wrote.
+
+        A notebook's source carries no cell outputs, so its numbers (scores, correlations, tables) are
+        only in the run log. Kaggle serves the log and output files of public notebooks too.
+
+        Parameters
+        ----------
+        ref : str
+            Notebook reference, 'owner/slug' (a full kaggle.com/code URL also works).
+        output_dir : str or Path, optional
+            Where to save the output files; they are only listed when not given.
+
+        Returns
+        -------
+        Dict[str, Any]
+            'ref', 'printed' (stdout of every cell, in order) and 'files' (name, size_kb, and path when saved).
+        """
+        import json
+        import tempfile
+
+        # ponytail: downloads every output file to reach the log; a notebook that writes GBs is slow here
+        ref = ref.split("kaggle.com/code/")[-1].strip("/")
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(output_dir) if output_dir else Path(tmp)
+            files, _ = self.legacy_api.kernels_output(ref, path=str(target), force=True)
+            log_file = target / f"{ref.split('/')[-1]}.log"
+            printed = ""
+            if log_file.exists():
+                raw = log_file.read_text()
+                try:  # JSON stream records; stderr is warnings
+                    printed = "".join(r.get("data", "") for r in json.loads(raw) if r.get("stream_name") != "stderr")
+                except (ValueError, AttributeError):
+                    printed = raw
+            listed = [
+                {"name": Path(f).name, "size_kb": round(Path(f).stat().st_size / 1e3, 1),
+                 **({"path": str(f)} if output_dir else {})}
+                for f in files if Path(f).name != log_file.name and Path(f).exists()
+            ]
+        return {"ref": ref, "printed": printed, "files": listed}
+
     def push_notebook(
         self,
         code_file: str | Path,
