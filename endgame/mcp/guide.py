@@ -8,7 +8,13 @@ WORKFLOW = """\
 Endgame has 31 modules (list_modules). Use the ones the problem needs, not only a GBDT.
 Work in this order and report every step's evidence:
 
-1. Frame: what one row is, what the target is, what will be known at prediction time.
+0. Inventory and prior work: list every provided table (rows, size) and use each one or say why not; the largest
+   table is rarely optional. If others have analysed this data (public notebooks: kaggle_read_notebook returns
+   what they printed), reproduce their main results first. A null result is evidence only once the same pipeline
+   has found the known effects (a positive control).
+1. Frame: what one row is, what the target is, what will be known at prediction time. Check what prior results
+   say about the target: one that a known confounder (draft slot, site, body size) already explains leaves little
+   to find.
    Pick validation that matches the data: time-ordered rows -> train_model(time_ordered=True);
    repeated entities (players, patients, sites) -> grouped folds (train_model / compare_models with
    group_column=...); a fixed future test set -> split_data or a held-out file.

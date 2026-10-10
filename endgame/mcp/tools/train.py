@@ -193,7 +193,17 @@ def _train_one(session, dataset_id, model_name, override_params, cv_folds, time_
         "fit_time": round(fit_time, 2),
         "n_features": X.shape[1],
         "dropped_columns": dropped,
+        **_width_warning(len(X), X.shape[1]),
     }
+
+
+def _width_warning(n_rows, n_features):
+    """Oct 10: an agent fed 2,161 tracking features (then 69 after selection) to 510 players; every model got worse."""
+    if n_features <= max(30, n_rows // 10):
+        return {}
+    return {"warning": f"{n_features} features for {n_rows} rows: under 10 rows per feature, models mostly fit "
+                       "noise. Prefer a few features that each answer a question (and repeat across attempts), "
+                       "or select_features on training folds; compare against the narrow baseline."}
 
 
 def _parse_params(params):
@@ -300,6 +310,7 @@ def register(mcp: FastMCP, session: SessionManager) -> None:
             return ok_response({
                 "dataset": ds.name, "ranked_by": key, "cv": results[0]["cv"] if results else None,
                 "cv_folds": cv_folds, "leaderboard": leaderboard, "failed": failures, "not_run": not_run,
+                **({"warning": results[0]["warning"]} if results and "warning" in results[0] else {}),
                 "next": "ensemble(model_ids=[top model_ids]) combines their out-of-fold predictions"
                         if len(results) > 1 else "",
             })

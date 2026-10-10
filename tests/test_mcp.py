@@ -1015,6 +1015,19 @@ class TestAgentToolkit:
         printed = float(re.search(r"Accuracy: ([\d.]+)", run.stdout).group(1))
         assert printed == trained["metrics"]["accuracy"], (run.stdout, trained["metrics"])
 
+    def test_training_on_a_wide_table_warns(self, server):
+        """Oct 10: 2,161 features (69 after selection) on 510 players made every model worse, without a word."""
+        code = ("rng = np.random.default_rng(0)\n"
+                "wide = pd.DataFrame(rng.normal(size=(200, 60)), columns=[f'f{i}' for i in range(60)])\n"
+                "wide['y'] = rng.normal(size=200)\n"
+                "add_dataset(wide, 'wide', target='y')")
+        wide = self._call(server, "run_python", code=code)["result"].strip("'")
+        out = self._call(server, "compare_models", dataset_id=wide, models=["linear"], cv_folds=3)
+        assert "60 features for 200 rows" in out.get("warning", ""), out
+        narrow = self._call(server, "run_python", code="add_dataset(wide[['f0', 'f1', 'y']], 'narrow', target='y')")
+        out = self._call(server, "train_model", dataset_id=narrow["result"].strip("'"), model_name="linear", cv_folds=3)
+        assert out["status"] == "ok" and "warning" not in out
+
     def test_transform_data_with_any_transformer(self, server, tables):
         ds = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]
         pca = self._call(server, "transform_data", dataset_id=ds, transformer="sklearn.decomposition.PCA",

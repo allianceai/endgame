@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `KaggleClient.notebook_outputs` and MCP `kaggle_read_notebook(include_outputs=True)`: what a public notebook printed on its latest run and the files it wrote. A notebook's source has no cell outputs, so an agent replicating public work saw its prose but not its numbers.
+- MCP `train_model` / `compare_models` warn when a table has under 10 rows per feature (and over 30 features).
+- MCP guide: inventory every provided table, reproduce prior results before reporting a null (a positive control), and check what prior work says about the target's confounders.
+
 ## [1.3.2] - 2026-10-10
 
 ### Fixed
