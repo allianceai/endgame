@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-09
+
 ### Added
 - MCP server: agents can reach all 31 modules and are told how to run a full experiment, not just a GBDT.
   - Guidance: server instructions name every module and the workflow; `guide(topic)` (workflow, validation, features, selection, models, ensembling, small data, time series, beyond tabular, code); resources `endgame://catalog/modules` and `endgame://guide/workflow`; examples rewritten around full experiments.
