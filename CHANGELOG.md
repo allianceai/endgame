@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-10-10
+
 ### Fixed
 - `endgame.signal.sample_entropy` and `approximate_entropy` counted template matches with a Python double loop: 7 s on 1,500 points, hours for per-player tracking series. They use a KD-tree now (7 ms and 17 ms on 1,500 points) with identical results.
 
