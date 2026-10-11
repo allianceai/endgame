@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP `train_model` / `compare_models` warn when a table has under 10 rows per feature (and over 30 features).
 - MCP guide: inventory every provided table, reproduce prior results before reporting a null (a positive control), and check what prior work says about the target's confounders.
 
+### Changed
+- MCP trained models are saved under `ENDGAME_MCP_WORKDIR/models/` and keep their ids across server restarts, like derived datasets: a restart, an idle recycle or a dropped connection used to lose every model a session had trained. Models are loaded only from a directory the current user owns.
+- The MCP working directory defaults to `~/.cache/endgame/mcp` (or `$XDG_CACHE_HOME/endgame/mcp`) instead of `/tmp/endgame_mcp`, which is cleared at boot and writable by other users.
+
 ## [1.3.2] - 2026-10-10
 
 ### Fixed

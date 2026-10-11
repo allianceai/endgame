@@ -996,6 +996,18 @@ class TestAgentToolkit:
         assert gone["status"] == "error" and "load_data" in gone["message"]
         assert self._call(restarted, "inspect_data", dataset_id="../../etc/passwd")["status"] == "error"
 
+    def test_trained_models_survive_a_server_restart(self, server, tables):
+        """Oct 2026: an MCP restart (idle recycle, timeout, backend restart) lost every model a goal had trained."""
+        from endgame.mcp.server import create_server
+
+        raw = self._call(server, "load_data", source=str(tables / "players.csv"), target_column="fast")["dataset_id"]
+        ds = self._call(server, "run_python", code=f"add_dataset(dataset({raw!r}), 'players', target='fast')")
+        trained = self._call(server, "train_model", dataset_id=ds["result"].strip("'"), model_name="lgbm", cv_folds=3)
+        restarted = create_server()
+        out = self._call(restarted, "evaluate_model", model_id=trained["model_id"])
+        assert out["status"] == "ok", out
+        assert self._call(restarted, "evaluate_model", model_id="model_../../x")["status"] == "error"
+
     @pytest.mark.parametrize("model_name", ["lgbm", "sklearn.linear_model.LogisticRegression"])
     def test_exported_script_reproduces_the_grouped_cv_score(self, server, tables, model_name, tmp_path):
         """Oct 10: export_script wrote an 80/20 split for a model scored on leave-one-draft-class-out folds."""

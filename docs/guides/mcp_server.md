@@ -333,7 +333,7 @@ Every artifact gets a short ID:
 
 These IDs are passed between tools to chain operations. The `endgame://session/state` resource shows all current artifacts at any time.
 
-Artifacts live in memory for the duration of the server process. Files (visualizations, exported scripts, saved models) are written to the working directory (`/tmp/endgame_mcp` by default, configurable via `ENDGAME_MCP_WORKDIR`).
+Artifacts live in memory for the duration of the server process. Derived datasets and trained models are also saved to the working directory, so their ids still resolve after the server restarts (files older than a week are pruned). Files (visualizations, exported scripts, saved models) are written to the working directory (`~/.cache/endgame/mcp` by default, configurable via `ENDGAME_MCP_WORKDIR`).
 
 ### GPU memory and foundation models
 
@@ -357,7 +357,7 @@ Error types: `not_found`, `validation`, `missing_dependency`, `timeout`, `intern
 
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
-| `ENDGAME_MCP_WORKDIR` | `/tmp/endgame_mcp` | Working directory for output files |
+| `ENDGAME_MCP_WORKDIR` | `~/.cache/endgame/mcp` | Working directory for output files and saved datasets and models |
 | `ENDGAME_MCP_TIMEOUT` | `600` | Max seconds for training operations before timeout |
 | `ENDGAME_MCP_ALLOW_CODE` | `1` | `0` removes the `run_python` tool |
 

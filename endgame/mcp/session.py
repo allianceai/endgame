@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+import joblib
 import numpy as np
 import pandas as pd
 
@@ -75,18 +76,23 @@ class SessionManager:
         self.automl_predictors: dict[str, Any] = {}
         self.code_namespace: dict[str, Any] | None = None  # run_python's variables
 
-        wd = os.environ.get("ENDGAME_MCP_WORKDIR", "/tmp/endgame_mcp")
+        # A per-user directory: /tmp is cleared at boot, and saved models are pickles, which no
+        # one else may be able to plant.
+        cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+        wd = os.environ.get("ENDGAME_MCP_WORKDIR") or str(cache / "endgame" / "mcp")
         self.working_dir = Path(wd)
         self.working_dir.mkdir(parents=True, exist_ok=True)
         self.data_dir = self.working_dir / "datasets"
-        self.data_dir.mkdir(exist_ok=True)
+        self.model_dir = self.working_dir / "models"
         week_ago = time.time() - 7 * 86400
-        for f in self.data_dir.iterdir():
-            try:
-                if f.stat().st_mtime < week_ago:
-                    f.unlink()
-            except FileNotFoundError:  # another server pruned it first
-                pass
+        for folder in (self.data_dir, self.model_dir):
+            folder.mkdir(mode=0o700, exist_ok=True)
+            for f in folder.iterdir():
+                try:
+                    if f.stat().st_mtime < week_ago:
+                        f.unlink()
+                except FileNotFoundError:  # another server pruned it first
+                    pass
 
     # -- datasets ---------------------------------------------------------
 
@@ -194,14 +200,33 @@ class SessionManager:
             cv=cv,
         )
         self.models[model_id] = art
+        self.save_model(art)
         return art
+
+    def save_model(self, art: ModelArtifact) -> None:
+        """Pickle the model so its id still resolves after the server restarts.
+
+        A restart, an idle recycle or a dropped connection lost every model a goal had trained (Oct 2026).
+        """
+        path = self.model_dir / f"{art.id}.joblib"
+        tmp = path.with_suffix(".tmp")
+        try:
+            joblib.dump(art, tmp)
+            if tmp.stat().st_size > self.MAX_SAVE_BYTES:
+                tmp.unlink()
+                return
+            tmp.replace(path)
+        except Exception as e:  # saving is a convenience; the model is still usable in memory
+            tmp.unlink(missing_ok=True)
+            print(f"endgame: model {art.id} not saved to disk: {e}", file=sys.stderr)
 
     def get_model(self, model_id: str) -> ModelArtifact:
         if model_id not in self.models:
-            available = list(self.models.keys())
-            raise KeyError(
-                f"Model '{model_id}' not found. Available: {available}"
-            )
+            path = self.model_dir / f"{model_id}.joblib"
+            if not (re.fullmatch(r"model_[0-9a-f]{8}", model_id) and path.exists()
+                    and self.model_dir.stat().st_uid == os.getuid()):  # only pickles this user wrote
+                raise KeyError(f"Model '{model_id}' not found. Available: {list(self.models)}")
+            self.models[model_id] = joblib.load(path)
         return self.models[model_id]
 
     # -- visualizations ---------------------------------------------------
